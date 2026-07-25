@@ -1,0 +1,27 @@
+name: Dependabot auto-merge
+
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch dependency metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Only patch/minor bumps auto-merge. Majors (and grouped PRs that
+      # contain a major) stop here for manual review.
+      - name: Enable auto-merge for patch/minor
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

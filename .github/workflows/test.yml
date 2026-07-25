@@ -1,0 +1,34 @@
+name: Test
+
+# Runs on every pull request (regardless of base) so stacked phase PRs are
+# gated, plus pushes to main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # Web UI build + verify:web returns here when the webui lands (Phase 10);
+      # the Go build will embed webui/dist at that point.
+      - name: Test
+        run: |
+          go mod download
+          make test

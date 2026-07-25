@@ -1,0 +1,15 @@
+listen_addr: "127.0.0.1:7000"
+model_storage_dir: "" # default: ${INFERENCERIG_HOME}/models
+catalog_cache_dir: "" # default: ${INFERENCERIG_HOME}/cache/hf-catalog
+catalog_cache_ttl: 6h
+log_archive_retention: 168h # 0s keeps archives indefinitely
+startup_services:
+  - control
+  - web
+security:
+  auth_token_env: "INFERENCERIG_CONTROL_TOKEN"
+  disable_origin_check: false
+
+# Per-profile backend configuration is canonical YAML under
+# ${INFERENCERIG_HOME}/profiles/<name>/profile.yaml (added in Phase 4).
+# Each profile declares its backend (llamacpp | mlx) and engine_args.
