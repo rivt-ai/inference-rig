@@ -68,7 +68,7 @@ terminology may survive in shared packages.
 | PR | Branch | Base | Phase | Status |
 |----|--------|------|-------|--------|
 | 1 | `phase-01-bootstrap` | `main` | 0 + 1 | **this PR** |
-| 2 | `phase-02-shared-infra` | `phase-01-bootstrap` | 2 | todo |
+| 2 | `phase-02-shared-infra` | `phase-01-bootstrap` | 2 | done |
 | 3 | `phase-03-supervisor` | `phase-02-shared-infra` | 3 | todo |
 | 4 | `phase-04-profiles` | `phase-03-supervisor` | 4 | todo |
 | 5 | `phase-05-backend-contracts` | `phase-04-profiles` | 5 | todo |
@@ -99,9 +99,21 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 ## 7. Current state
 
 - `main`: initial empty commit (LICENSE, README, .gitignore). Pushed.
-- `phase-01-bootstrap` (this PR): Phase 0 porting matrix + Phase 1 neutral bootstrap. Builds green, `go test ./...` passes, no `llamarig`/`mlxrig` imports.
-- **Top of stack:** `phase-01-bootstrap`. **Next:** Phase 2 on `phase-02-shared-infra`.
-- What exists now: `config` (neutral), `cmd` (root + version), `internal/buildinfo`, `internal/logs`, `backends` (empty registry + contract-test seed), `constructor_guard_test.go`, Makefile, `.golangci.yml`, `config.example.yaml`, all 5 CI workflows, `.github/dependabot.yml`. Structural dirs `platform/ adapters/ core/ webui/ test/` are placeholders (`.gitkeep`).
+- `phase-01-bootstrap`: Phase 0 porting matrix + Phase 1 neutral bootstrap. Builds green, `go test ./...` passes, no `llamarig`/`mlxrig` imports.
+- `phase-02-shared-infra` (this PR): Phase 2 shared infrastructure ported + neutralized. Builds green, `go test ./...` passes, no `llamarig`/`mlxrig`/`zap` imports.
+- **Top of stack:** `phase-02-shared-infra`. **Next:** Phase 3 (generic process supervisor) on `phase-03-supervisor`, based on `phase-02-shared-infra`.
+- What exists now (added in Phase 2):
+  - `platform/filedoc` — atomic file write/replace (+ backup, symlink rejection, SHA-256).
+  - `platform/pidfile` — PID file create/read/stale-detect (gopsutil executable match).
+  - `platform/process` — detached start/status/stop + serve-loop supervisor over `log/slog`.
+  - `platform/audit` — log tailing/archive/retention primitives + an audit `Sink` over `log/slog` (no zap).
+  - `core/runtime` — neutral runtime state/error **types only** (`State`/`Status`/`ProcessStatus`/`CommandResult`/error kinds). The generic supervisor is Phase 3.
+  - `core/control` — neutral error taxonomy (`ErrorKind`/`Errorf`/`CoreError`/`MapSentinel`), `AuditEvent`/`AuditSink`, and the in-memory `EventStore`. The control daemon/Manager is Phase 9.
+  - `core/configstore` — generic config.yaml persistence (`FileStore` over `filedoc`) + `SetStartupServices`. Canonical YAML profile store is Phase 4.
+  - `core/signals` — shared host RAM/CPU/disk/process telemetry (gopsutil). GPU/VRAM & unified-memory are backend policy (Phase 6/7).
+  - `core/rpc` — unix-socket control transport helpers (`NewControlListener`, `ControlTransport`, HTTP `Server` wrapper, `ValidateRequestInterceptor`, control-kind↔connect-code bridge), decoupled from the generated proto service (Phase 9). `core/rpc/gen` stays gitignored.
+  - go.mod added `connectrpc.com/connect` + `github.com/shirou/gopsutil/v4` (protobuf indirect); no zap, no flock.
+- Carried from Phase 1: `config` (neutral), `cmd` (root + version), `internal/buildinfo`, `internal/logs`, `backends` (empty registry + contract-test seed), `constructor_guard_test.go`, Makefile, `.golangci.yml`, `config.example.yaml`, all 5 CI workflows, `.github/dependabot.yml`. Structural dirs `adapters/ webui/ test/` remain placeholders (`.gitkeep`).
 
 ## 8. Phase exit conditions (spec §8)
 
