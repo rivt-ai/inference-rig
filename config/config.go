@@ -137,10 +137,10 @@ func (c *Config) AllowsNonLoopback() bool {
 		}
 		host = c.ListenAddr
 	}
-	switch {
-	case host == "":
+	switch host {
+	case "":
 		return true
-	case host == "localhost":
+	case "localhost":
 		return false
 	}
 	ip := net.ParseIP(host)

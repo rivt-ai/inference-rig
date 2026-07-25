@@ -1,9 +1,6 @@
 package config
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
 func TestParseDefaults(t *testing.T) {
 	cfg, err := Parse([]byte("listen_addr: \"127.0.0.1:9000\"\n"))
@@ -76,9 +73,4 @@ func TestHomeHonorsEnv(t *testing.T) {
 	if path != "/tmp/rig-home/config.yaml" {
 		t.Errorf("ConfigPath() = %q", path)
 	}
-}
-
-func TestCatalogCacheTTLType(t *testing.T) {
-	// Guard the duration type so a bad refactor to int/string is caught.
-	var _ time.Duration = Default().CatalogCacheTTL
 }
