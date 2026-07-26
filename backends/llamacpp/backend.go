@@ -11,7 +11,10 @@
 package llamacpp
 
 import (
+	"context"
+	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"inferencerig/backends"
@@ -95,6 +98,12 @@ func (b *Backend) Capabilities() backends.Capabilities {
 	}
 }
 
+// CatalogPolicy returns the backend adapter for remote variants and local
+// single-file artifacts.
+func (b *Backend) CatalogPolicy() modelcatalog.CatalogPolicy {
+	return catalogPolicy{backend: b}
+}
+
 // generatedININPath resolves where the generated models.ini is written.
 func (b *Backend) generatedININPath() (string, error) {
 	if b.opts.GeneratedININPath != "" {
@@ -138,6 +147,40 @@ func (ggufPolicy) MultiFile() bool { return false }
 
 // Ensure the policy satisfies the shared interface at compile time.
 var _ modelcatalog.FormatPolicy = ggufPolicy{}
+
+type catalogPolicy struct{ backend *Backend }
+
+func (p catalogPolicy) Variants(source modelcatalog.Source, files []modelcatalog.RemoteFile) ([]modelcatalog.Variant, error) {
+	var variants []modelcatalog.Variant
+	for _, file := range files {
+		if !(ggufPolicy{}).IsModelFile(file.Name) {
+			continue
+		}
+		variants = append(variants, modelcatalog.Variant{
+			Name: path.Base(file.Name), Reference: file.Name, SizeBytes: file.SizeBytes,
+		})
+	}
+	sort.Slice(variants, func(i, j int) bool { return variants[i].Name < variants[j].Name })
+	return variants, nil
+}
+
+func (p catalogPolicy) ListLocal(ctx context.Context) ([]modelcatalog.LocalModel, error) {
+	root, err := p.backend.modelStorageDir()
+	if err != nil {
+		return nil, err
+	}
+	return modelcatalog.NewScanner(root, ggufPolicy{}).ListLocal(ctx)
+}
+
+func (p catalogPolicy) DeleteLocal(target string) error {
+	root, err := p.backend.modelStorageDir()
+	if err != nil {
+		return err
+	}
+	return modelcatalog.RemoveLocal(root, target, false)
+}
+
+var _ modelcatalog.CatalogPolicy = catalogPolicy{}
 
 // Ensure the backend satisfies the full contract at compile time.
 var _ backends.Backend = (*Backend)(nil)

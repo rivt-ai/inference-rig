@@ -85,6 +85,11 @@ func (b *Backend) Capabilities() backends.Capabilities {
 	}
 }
 
+// CatalogPolicy returns the backend adapter for remote and local snapshots.
+func (b *Backend) CatalogPolicy() modelcatalog.CatalogPolicy {
+	return catalogPolicy{backend: b}
+}
+
 func (b *Backend) storageDir() (string, error) {
 	if b.opts.ModelStorageDir != "" {
 		return b.opts.ModelStorageDir, nil

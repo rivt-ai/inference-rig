@@ -93,3 +93,29 @@ func PathContains(dir string, path string) bool {
 	rel, err := filepath.Rel(dir, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
+
+// RemoveLocal removes one validated artifact beneath root.
+func RemoveLocal(root, target string, directory bool) error {
+	root = CanonicalPath(root)
+	target = CanonicalPath(target)
+	if target == root || !PathContains(root, target) {
+		return errors.New("local model path escapes storage root")
+	}
+	info, err := os.Lstat(target)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return errors.New("local model path is a symlink")
+	}
+	if directory != info.IsDir() {
+		return errors.New("local model artifact has unexpected shape")
+	}
+	if directory {
+		return os.RemoveAll(target)
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("local model is not a regular file")
+	}
+	return os.Remove(target)
+}

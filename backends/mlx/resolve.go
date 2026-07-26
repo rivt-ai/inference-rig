@@ -228,3 +228,35 @@ func (b *Backend) ListLocal(ctx context.Context) ([]modelcatalog.LocalModel, err
 	}
 	return modelcatalog.NewSnapshotScanner(root, snapshotPolicy{}).ListLocal(ctx)
 }
+
+type catalogPolicy struct{ backend *Backend }
+
+func (p catalogPolicy) Variants(source modelcatalog.Source, files []modelcatalog.RemoteFile) ([]modelcatalog.Variant, error) {
+	var total int64
+	hasConfig, hasWeights := false, false
+	for _, file := range files {
+		total += file.SizeBytes
+		hasConfig = hasConfig || file.Name == "config.json"
+		hasWeights = hasWeights || strings.EqualFold(filepath.Ext(file.Name), ".safetensors")
+	}
+	if !hasConfig || !hasWeights {
+		return nil, nil
+	}
+	return []modelcatalog.Variant{{
+		Name: source.Repo, SizeBytes: total, MultiFile: true,
+	}}, nil
+}
+
+func (p catalogPolicy) ListLocal(ctx context.Context) ([]modelcatalog.LocalModel, error) {
+	return p.backend.ListLocal(ctx)
+}
+
+func (p catalogPolicy) DeleteLocal(target string) error {
+	root, err := p.backend.storageDir()
+	if err != nil {
+		return err
+	}
+	return modelcatalog.RemoveLocal(root, target, true)
+}
+
+var _ modelcatalog.CatalogPolicy = catalogPolicy{}

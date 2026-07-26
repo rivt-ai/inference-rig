@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"inferencerig/backends"
+	"inferencerig/core/modelcatalog"
 	"inferencerig/core/profiles"
 	"inferencerig/core/runtime"
 )
@@ -147,6 +148,21 @@ func (f *Fake) Capabilities() backends.Capabilities {
 		ManagedInstall:      true,
 	}
 }
+
+func (f *Fake) CatalogPolicy() modelcatalog.CatalogPolicy { return fakeCatalogPolicy{} }
+
+type fakeCatalogPolicy struct{}
+
+func (fakeCatalogPolicy) Variants(_ modelcatalog.Source, files []modelcatalog.RemoteFile) ([]modelcatalog.Variant, error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
+	return []modelcatalog.Variant{{Name: files[0].Name, SizeBytes: files[0].SizeBytes}}, nil
+}
+func (fakeCatalogPolicy) ListLocal(context.Context) ([]modelcatalog.LocalModel, error) {
+	return nil, nil
+}
+func (fakeCatalogPolicy) DeleteLocal(string) error { return nil }
 
 // Ensure the fake satisfies the full contract at compile time.
 var _ backends.Backend = (*Fake)(nil)
