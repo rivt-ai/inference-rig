@@ -73,8 +73,8 @@ terminology may survive in shared packages.
 | 4 | `phase-04-profiles` | `phase-03-supervisor` | 4 | done |
 | 5 | `phase-05-backend-contracts` | `phase-04-profiles` | 5 | done |
 | 6 | `phase-06-llamacpp` | `phase-05-backend-contracts` | 6 | done |
-| 7 | `phase-07-mlx` | `phase-06-llamacpp` | 7 | **this PR** |
-| 8 | `phase-08-downloads` | `phase-07-mlx` | 8 | todo |
+| 7 | `phase-07-mlx` | `phase-06-llamacpp` | 7 | done |
+| 8 | `phase-08-downloads` | `phase-07-mlx` | 8 | **this PR** |
 | 9 | `phase-09-control-rpc` | `phase-08-downloads` | 9 | todo |
 | 10 | `phase-10-interfaces` | `phase-09-control-rpc` | 10 | todo |
 | 11 | `phase-11-migration` | `phase-10-interfaces` | 11 | todo |
@@ -105,8 +105,12 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 - `phase-04-profiles`: Phase 4 canonical YAML profile schema + CRUD store ported + neutralized. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
 - `phase-05-backend-contracts`: Phase 5 neutral backend contract seam. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
 - `phase-06-llamacpp`: Phase 6 llama.cpp backend. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
-- `phase-07-mlx` (this PR): Phase 7 MLX backend. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
-- **Top of stack:** `phase-07-mlx`. **Next:** Phase 8 (shared downloads) on `phase-08-downloads`, based on `phase-07-mlx`.
+- `phase-07-mlx`: Phase 7 MLX backend. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
+- `phase-08-downloads` (this PR): Phase 8 neutral artifact-plan download executor. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
+- **Top of stack:** `phase-08-downloads`. **Next:** Phase 9 (canonical control RPC) on `phase-09-control-rpc`, based on `phase-08-downloads`.
+- What exists now (added in Phase 8):
+  - `core/modeldownload` — one asynchronous download manager consuming only `backends.ArtifactPlan`. It provides queued/running/completed/failed/cancelled/already-downloaded job state, duplicate-active-target coalescing, cancellation, byte/percent progress, expected-size checks, symlink/containment validation, and durable atomic finalization. A single-file plan stages to a sibling `.part` file; a multi-file plan stages the entire directory tree to a sibling `.part` directory and renames it only after every item succeeds. The shape branch is neutral (`ArtifactPlan.MultiFile`), with no backend names or format checks. Tests execute both real plan forms through the same manager and cover nested snapshots, existing targets, duplicate jobs, cancellation, cleanup, and path escape rejection.
+  - `backends.ArtifactPlan.TargetRoot` — an explicit neutral atomic-finalization boundary supplied by both backends: the file itself for a single-file plan, or the snapshot directory for a multi-file plan.
 - What exists now (added in Phase 7):
   - `backends/mlx` — a real MLX implementation of the same Phase-5 contract used by llama.cpp. It validates canonical YAML profiles and deterministically renders `python -m mlx_lm server` commands, keeping core model/host/port fields reserved while passing sorted scalar/list `engine_args` through safely. Its `LaunchSpec` uses the shared supervisor and `/v1/models` readiness; `Controller` adds the backend-only one-active-profile policy by stopping the current shared supervisor before switching. Hugging Face repositories resolve into containment-checked multi-file snapshot plans, local discovery requires `config.json` plus safetensors weights, fit uses a unified-memory budget, and capabilities advertise multi-file/unified-memory/managed-install/single-active-profile. The managed installer is macOS arm64-gated, creates a private venv, pins/validates `mlx-lm`, persists active state atomically, and is idempotent. The real backend passes `backendtest.RunContractTests`; focused tests cover command rendering, reserved args, launch specs, snapshot resolution/planning/scanning, unified-memory fit, installation, platform gating, switching, and monitoring.
   - `core/modelcatalog.SnapshotScanner` — a neutral directory-artifact counterpart to the Phase-6 file scanner. Shared code owns traversal, cancellation, symlink/staging rejection, and sorting; a backend `DirectoryPolicy` decides snapshot completeness and size.
