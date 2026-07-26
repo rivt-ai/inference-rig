@@ -116,7 +116,8 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 - `surface-s3-rpc`: completed canonical RPC surface, download provenance/application, safe profile cleanup, neutral autostart config, restart/info, capability-gated backend parameters, and profile-aware runtime slots.
 - `surface-s4-cli`: grouped profile/model/backend/runtime/events/config commands cover every canonical RPC, including both server streams, through the generated client only.
 - `surface-s5-setup`: capability-aware interactive setup command uses the existing wizard and generated client; profile YAML is marshaled structurally.
-- **Top of stack:** `surface-s5-setup`. **Next:** S8 HTTP + MCP breadth.
+- `surface-s8-http-mcp`: public HTTP and MCP cover the full unary control surface through the generated client; HTTP mutations retain bearer protection.
+- **Top of stack:** `surface-s8-http-mcp`. **Next:** S6 full TUI.
 - What exists now (added in Phase 12):
   - `test/control_integration_test.go` — both real backends registered together and driven through one canonical Unix-socket RPC client. It verifies capability discovery, canonical profile creation, runtime lifecycle through the shared factory, backend-specific materialization isolation, and both artifact-plan forms.
   - `test/live` and `make e2e-live` — opt-in real-engine hardware tests that start through the shared supervisor, wait for the backend readiness endpoint, assert running state, and stop cleanly.
