@@ -51,6 +51,9 @@ type Backend interface {
 	// Install installs or upgrades the managed engine and reports what happened.
 	Install(ctx context.Context, opts InstallOptions) (InstallResult, error)
 
+	// InstallStatus reports whether the engine is currently usable.
+	InstallStatus(ctx context.Context) (InstallStatus, error)
+
 	// Capabilities advertises what this backend supports for capability gating.
 	Capabilities() Capabilities
 

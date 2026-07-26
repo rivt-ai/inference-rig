@@ -130,6 +130,16 @@ type InstallResult struct {
 	Message string
 }
 
+// InstallStatus reports whether a backend has a usable engine executable.
+// Managed distinguishes an InferenceRig-managed installation from a usable
+// executable supplied by the host.
+type InstallStatus struct {
+	Installed bool
+	Managed   bool
+	Version   string
+	Path      string
+}
+
 // Capabilities advertises what a backend supports so shared code can gate
 // behavior by capability rather than by branching on a backend name. Fields are
 // intentionally minimal; later phases extend this type as new gated behavior

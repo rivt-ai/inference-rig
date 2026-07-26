@@ -31,6 +31,7 @@ type response struct {
 
 var tools = []map[string]any{
 	{"name": "backends_list", "description": "List available inference backends", "inputSchema": objectSchema()},
+	{"name": "backend_install_status", "description": "Get backend installation status", "inputSchema": fieldsSchema("backend")},
 	{"name": "backend_install", "description": "Install an inference backend", "inputSchema": fieldsSchema("backend")},
 	{"name": "backend_params", "description": "List backend parameters", "inputSchema": fieldsSchema("backend")},
 	{"name": "profiles_list", "description": "List canonical profiles", "inputSchema": objectSchema()},
@@ -132,6 +133,11 @@ func callGeneralTool(r *http.Request, client controlv1connect.ControlServiceClie
 	case "backend_install":
 		message, err := client.InstallBackend(r.Context(), &controlv1.InstallBackendRequest{
 			Backend: stringArg(params, "backend"), Version: stringArg(params, "version"),
+		})
+		return message, true, err
+	case "backend_install_status":
+		message, err := client.GetBackendInstallStatus(r.Context(), &controlv1.GetBackendInstallStatusRequest{
+			Backend: stringArg(params, "backend"),
 		})
 		return message, true, err
 	case "backend_params":

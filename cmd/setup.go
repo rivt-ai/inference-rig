@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -10,31 +11,45 @@ import (
 	"inferencerig/config"
 	"inferencerig/core/rpc"
 	"inferencerig/core/setup"
+	"inferencerig/platform/process"
 )
 
 func setupCommand() *cobra.Command {
-	var socket string
-	command := &cobra.Command{
-		Use: "setup", Short: "Create a canonical profile interactively", Args: cobra.NoArgs,
-		RunE: func(command *cobra.Command, _ []string) error {
-			path := socket
-			if path == "" {
-				path = os.Getenv(config.ProjectSocketEnv)
-			}
-			client, err := rpc.DialControl(path, 30*time.Second)
-			if err != nil {
-				return err
-			}
-			profile, err := setup.NewWizard(client).RunInteractive(
-				command.Context(), command.InOrStdin(), command.OutOrStdout(),
-			)
-			if err != nil {
-				return err
-			}
-			_, err = fmt.Fprintf(command.OutOrStdout(), "created profile %s\n", profile.GetName())
-			return err
-		},
+	return &cobra.Command{
+		Use: "setup", Short: "Configure InferenceRig interactively", Args: cobra.NoArgs,
+		RunE: runSetup,
 	}
-	command.Flags().StringVar(&socket, "socket", "", "control Unix socket")
-	return command
+}
+
+func runSetup(command *cobra.Command, _ []string) error {
+	if os.Getenv(config.ProjectConfigEnv) != "" {
+		return nil
+	}
+	client, err := rpc.DialControl("", 30*time.Second)
+	if err != nil {
+		return err
+	}
+	started, err := ensureControl(command.Context(), client)
+	if err != nil {
+		return err
+	}
+	result, err := setup.NewWizard(client).Rerun(command.Context(), command.InOrStdin(), command.OutOrStdout())
+	if err != nil {
+		return handleSetupError(command, started, err)
+	}
+	if result.Skipped {
+		return nil
+	}
+	return restartControl(command.Context(), client)
+}
+
+func handleSetupError(command *cobra.Command, started bool, err error) error {
+	if started {
+		_ = process.StopDetached(config.ProjectName)
+	}
+	if errors.Is(err, setup.ErrCancelled) {
+		_, _ = fmt.Fprintln(command.OutOrStdout(), "setup cancelled")
+		return nil
+	}
+	return err
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -118,6 +119,38 @@ func (i *installer) activeExecutable() (string, bool) {
 // unset) nothing is fetched and Changed is false.
 func (b *Backend) Install(ctx context.Context, opts backends.InstallOptions) (backends.InstallResult, error) {
 	return b.installer.install(ctx, opts)
+}
+
+// InstallStatus reports a valid managed binary first, then falls back to the
+// configured host executable.
+func (b *Backend) InstallStatus(context.Context) (backends.InstallStatus, error) {
+	root, err := b.installer.resolveRoot()
+	if err != nil {
+		return backends.InstallStatus{}, err
+	}
+	state, err := readInstallState(root)
+	if err != nil {
+		return backends.InstallStatus{}, err
+	}
+	if state.Active != nil && usableExecutable(state.Active.Executable) {
+		return backends.InstallStatus{
+			Installed: true, Managed: true,
+			Version: state.Active.Version, Path: state.Active.Executable,
+		}, nil
+	}
+	path, err := exec.LookPath(b.opts.Executable)
+	if err != nil {
+		return backends.InstallStatus{}, nil
+	}
+	return backends.InstallStatus{Installed: true, Path: path}, nil
+}
+
+func usableExecutable(path string) bool {
+	if path == "" {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func (i *installer) install(ctx context.Context, opts backends.InstallOptions) (backends.InstallResult, error) {

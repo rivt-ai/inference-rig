@@ -112,6 +112,10 @@ func TestManagerControlsProfilesRuntimeInstallAndDownloads(t *testing.T) {
 	if err != nil || !installed.Changed {
 		t.Fatalf("install = %#v, err = %v", installed, err)
 	}
+	installStatus, err := manager.BackendInstallStatus(ctx, "test")
+	if err != nil || !installStatus.Installed || installStatus.Path == "" {
+		t.Fatalf("install status = %#v, err = %v", installStatus, err)
+	}
 	job, err := manager.StartDownload(ctx, "one", false)
 	if err != nil {
 		t.Fatal(err)

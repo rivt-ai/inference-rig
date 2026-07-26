@@ -140,6 +140,18 @@ func (f *Fake) Install(_ context.Context, opts backends.InstallOptions) (backend
 	}, nil
 }
 
+func (f *Fake) InstallStatus(context.Context) (backends.InstallStatus, error) {
+	if !f.installed {
+		return backends.InstallStatus{}, nil
+	}
+	return backends.InstallStatus{
+		Installed: true,
+		Managed:   true,
+		Version:   "1.0.0",
+		Path:      "/opt/fake/1.0.0",
+	}, nil
+}
+
 // Capabilities advertises a single-file, discrete-VRAM, managed-install backend.
 func (f *Fake) Capabilities() backends.Capabilities {
 	return backends.Capabilities{

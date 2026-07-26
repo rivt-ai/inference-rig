@@ -138,6 +138,13 @@ func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
 	if err != nil || !health.GetOk() || health.GetService() != ServiceName {
 		t.Fatalf("health = %#v, err = %v", health, err)
 	}
+	if _, err := client.InstallBackend(ctx, &controlv1.InstallBackendRequest{Backend: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	installStatus, err := client.GetBackendInstallStatus(ctx, &controlv1.GetBackendInstallStatusRequest{Backend: "test"})
+	if err != nil || !installStatus.GetInstalled() || installStatus.GetPath() == "" {
+		t.Fatalf("install status = %#v, err = %v", installStatus, err)
+	}
 	yaml := "version: 1\nname: demo\nbackend: test\nmodel:\n  source: " + downloadServer.URL +
 		"\nlisten:\n  host: 127.0.0.1\n  port: 8080\n"
 	put, err := client.PutProfile(ctx, &controlv1.PutProfileRequest{
