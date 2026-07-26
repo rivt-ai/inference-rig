@@ -244,6 +244,19 @@ func (m *Manager) InstallBackend(ctx context.Context, name string, opts backends
 	return result, err
 }
 
+// BackendInstallStatus reports whether a backend has a usable engine.
+func (m *Manager) BackendInstallStatus(ctx context.Context, name string) (backends.InstallStatus, error) {
+	backend, err := m.Backend(name)
+	if err != nil {
+		return backends.InstallStatus{}, err
+	}
+	status, err := backend.InstallStatus(ctx)
+	if err != nil {
+		return backends.InstallStatus{}, CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return status, nil
+}
+
 // StartRuntime materializes all relevant profiles and starts the selected
 // backend through the shared supervisor. One runtime slot per backend also
 // implements single-active-profile switching without engine-name branches.

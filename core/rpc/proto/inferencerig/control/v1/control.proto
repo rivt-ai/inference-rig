@@ -12,6 +12,7 @@ service ControlService {
   rpc PutProfile(PutProfileRequest) returns (PutProfileResponse);
   rpc DeleteProfile(DeleteProfileRequest) returns (DeleteProfileResponse);
   rpc InstallBackend(InstallBackendRequest) returns (InstallBackendResponse);
+  rpc GetBackendInstallStatus(GetBackendInstallStatusRequest) returns (GetBackendInstallStatusResponse);
   rpc StartRuntime(StartRuntimeRequest) returns (StartRuntimeResponse);
   rpc StopRuntime(StopRuntimeRequest) returns (StopRuntimeResponse);
   rpc GetRuntimeStatus(GetRuntimeStatusRequest) returns (GetRuntimeStatusResponse);
@@ -103,6 +104,14 @@ message InstallBackendResponse {
   string path = 3;
   bool changed = 4;
   string message = 5;
+}
+message GetBackendInstallStatusRequest { string backend = 1; }
+message GetBackendInstallStatusResponse {
+  bool ok = 1;
+  bool installed = 2;
+  bool managed = 3;
+  string version = 4;
+  string path = 5;
 }
 
 message StartRuntimeRequest { string profile = 1; }

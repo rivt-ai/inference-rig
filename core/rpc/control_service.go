@@ -115,6 +115,20 @@ func (s *ControlService) InstallBackend(ctx context.Context, req *controlv1.Inst
 	}, nil
 }
 
+func (s *ControlService) GetBackendInstallStatus(ctx context.Context, req *controlv1.GetBackendInstallStatusRequest) (*controlv1.GetBackendInstallStatusResponse, error) {
+	if req.GetBackend() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	}
+	status, err := s.manager.BackendInstallStatus(ctx, req.GetBackend())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.GetBackendInstallStatusResponse{
+		Ok: true, Installed: status.Installed, Managed: status.Managed,
+		Version: status.Version, Path: status.Path,
+	}, nil
+}
+
 func (s *ControlService) StartRuntime(ctx context.Context, req *controlv1.StartRuntimeRequest) (*controlv1.StartRuntimeResponse, error) {
 	result, status, err := s.runtimeAction(ctx, req.GetProfile(), s.manager.StartRuntime)
 	return &controlv1.StartRuntimeResponse{Ok: err == nil, Result: result, Status: status}, err

@@ -53,6 +53,9 @@ const (
 	// ControlServiceInstallBackendProcedure is the fully-qualified name of the ControlService's
 	// InstallBackend RPC.
 	ControlServiceInstallBackendProcedure = "/inferencerig.control.v1.ControlService/InstallBackend"
+	// ControlServiceGetBackendInstallStatusProcedure is the fully-qualified name of the
+	// ControlService's GetBackendInstallStatus RPC.
+	ControlServiceGetBackendInstallStatusProcedure = "/inferencerig.control.v1.ControlService/GetBackendInstallStatus"
 	// ControlServiceStartRuntimeProcedure is the fully-qualified name of the ControlService's
 	// StartRuntime RPC.
 	ControlServiceStartRuntimeProcedure = "/inferencerig.control.v1.ControlService/StartRuntime"
@@ -126,6 +129,7 @@ type ControlServiceClient interface {
 	PutProfile(context.Context, *v1.PutProfileRequest) (*v1.PutProfileResponse, error)
 	DeleteProfile(context.Context, *v1.DeleteProfileRequest) (*v1.DeleteProfileResponse, error)
 	InstallBackend(context.Context, *v1.InstallBackendRequest) (*v1.InstallBackendResponse, error)
+	GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error)
 	StartRuntime(context.Context, *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error)
 	StopRuntime(context.Context, *v1.StopRuntimeRequest) (*v1.StopRuntimeResponse, error)
 	GetRuntimeStatus(context.Context, *v1.GetRuntimeStatusRequest) (*v1.GetRuntimeStatusResponse, error)
@@ -200,6 +204,12 @@ func NewControlServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+ControlServiceInstallBackendProcedure,
 			connect.WithSchema(controlServiceMethods.ByName("InstallBackend")),
+			connect.WithClientOptions(opts...),
+		),
+		getBackendInstallStatus: connect.NewClient[v1.GetBackendInstallStatusRequest, v1.GetBackendInstallStatusResponse](
+			httpClient,
+			baseURL+ControlServiceGetBackendInstallStatusProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("GetBackendInstallStatus")),
 			connect.WithClientOptions(opts...),
 		),
 		startRuntime: connect.NewClient[v1.StartRuntimeRequest, v1.StartRuntimeResponse](
@@ -333,34 +343,35 @@ func NewControlServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // controlServiceClient implements ControlServiceClient.
 type controlServiceClient struct {
-	health                 *connect.Client[v1.HealthRequest, v1.HealthResponse]
-	listBackends           *connect.Client[v1.ListBackendsRequest, v1.ListBackendsResponse]
-	listProfiles           *connect.Client[v1.ListProfilesRequest, v1.ListProfilesResponse]
-	getProfile             *connect.Client[v1.GetProfileRequest, v1.GetProfileResponse]
-	putProfile             *connect.Client[v1.PutProfileRequest, v1.PutProfileResponse]
-	deleteProfile          *connect.Client[v1.DeleteProfileRequest, v1.DeleteProfileResponse]
-	installBackend         *connect.Client[v1.InstallBackendRequest, v1.InstallBackendResponse]
-	startRuntime           *connect.Client[v1.StartRuntimeRequest, v1.StartRuntimeResponse]
-	stopRuntime            *connect.Client[v1.StopRuntimeRequest, v1.StopRuntimeResponse]
-	getRuntimeStatus       *connect.Client[v1.GetRuntimeStatusRequest, v1.GetRuntimeStatusResponse]
-	resolveProfileModel    *connect.Client[v1.ResolveProfileModelRequest, v1.ResolveProfileModelResponse]
-	startModelDownload     *connect.Client[v1.StartModelDownloadRequest, v1.StartModelDownloadResponse]
-	getModelDownload       *connect.Client[v1.GetModelDownloadRequest, v1.GetModelDownloadResponse]
-	cancelModelDownload    *connect.Client[v1.CancelModelDownloadRequest, v1.CancelModelDownloadResponse]
-	getSignals             *connect.Client[v1.GetSignalsRequest, v1.GetSignalsResponse]
-	listEvents             *connect.Client[v1.ListEventsRequest, v1.ListEventsResponse]
-	watchEvents            *connect.Client[v1.WatchEventsRequest, v1.WatchEventsResponse]
-	listModelCatalog       *connect.Client[v1.ListModelCatalogRequest, v1.ListModelCatalogResponse]
-	watchModelCatalog      *connect.Client[v1.WatchModelCatalogRequest, v1.WatchModelCatalogResponse]
-	listLocalModels        *connect.Client[v1.ListLocalModelsRequest, v1.ListLocalModelsResponse]
-	deleteLocalModel       *connect.Client[v1.DeleteLocalModelRequest, v1.DeleteLocalModelResponse]
-	applyDownloadToProfile *connect.Client[v1.ApplyDownloadToProfileRequest, v1.ApplyDownloadToProfileResponse]
-	cleanupProfile         *connect.Client[v1.CleanupProfileRequest, v1.CleanupProfileResponse]
-	setProfileAutostart    *connect.Client[v1.SetProfileAutostartRequest, v1.SetProfileAutostartResponse]
-	setStartupServices     *connect.Client[v1.SetStartupServicesRequest, v1.SetStartupServicesResponse]
-	restartRuntime         *connect.Client[v1.RestartRuntimeRequest, v1.RestartRuntimeResponse]
-	getInfo                *connect.Client[v1.GetInfoRequest, v1.GetInfoResponse]
-	getBackendParams       *connect.Client[v1.GetBackendParamsRequest, v1.GetBackendParamsResponse]
+	health                  *connect.Client[v1.HealthRequest, v1.HealthResponse]
+	listBackends            *connect.Client[v1.ListBackendsRequest, v1.ListBackendsResponse]
+	listProfiles            *connect.Client[v1.ListProfilesRequest, v1.ListProfilesResponse]
+	getProfile              *connect.Client[v1.GetProfileRequest, v1.GetProfileResponse]
+	putProfile              *connect.Client[v1.PutProfileRequest, v1.PutProfileResponse]
+	deleteProfile           *connect.Client[v1.DeleteProfileRequest, v1.DeleteProfileResponse]
+	installBackend          *connect.Client[v1.InstallBackendRequest, v1.InstallBackendResponse]
+	getBackendInstallStatus *connect.Client[v1.GetBackendInstallStatusRequest, v1.GetBackendInstallStatusResponse]
+	startRuntime            *connect.Client[v1.StartRuntimeRequest, v1.StartRuntimeResponse]
+	stopRuntime             *connect.Client[v1.StopRuntimeRequest, v1.StopRuntimeResponse]
+	getRuntimeStatus        *connect.Client[v1.GetRuntimeStatusRequest, v1.GetRuntimeStatusResponse]
+	resolveProfileModel     *connect.Client[v1.ResolveProfileModelRequest, v1.ResolveProfileModelResponse]
+	startModelDownload      *connect.Client[v1.StartModelDownloadRequest, v1.StartModelDownloadResponse]
+	getModelDownload        *connect.Client[v1.GetModelDownloadRequest, v1.GetModelDownloadResponse]
+	cancelModelDownload     *connect.Client[v1.CancelModelDownloadRequest, v1.CancelModelDownloadResponse]
+	getSignals              *connect.Client[v1.GetSignalsRequest, v1.GetSignalsResponse]
+	listEvents              *connect.Client[v1.ListEventsRequest, v1.ListEventsResponse]
+	watchEvents             *connect.Client[v1.WatchEventsRequest, v1.WatchEventsResponse]
+	listModelCatalog        *connect.Client[v1.ListModelCatalogRequest, v1.ListModelCatalogResponse]
+	watchModelCatalog       *connect.Client[v1.WatchModelCatalogRequest, v1.WatchModelCatalogResponse]
+	listLocalModels         *connect.Client[v1.ListLocalModelsRequest, v1.ListLocalModelsResponse]
+	deleteLocalModel        *connect.Client[v1.DeleteLocalModelRequest, v1.DeleteLocalModelResponse]
+	applyDownloadToProfile  *connect.Client[v1.ApplyDownloadToProfileRequest, v1.ApplyDownloadToProfileResponse]
+	cleanupProfile          *connect.Client[v1.CleanupProfileRequest, v1.CleanupProfileResponse]
+	setProfileAutostart     *connect.Client[v1.SetProfileAutostartRequest, v1.SetProfileAutostartResponse]
+	setStartupServices      *connect.Client[v1.SetStartupServicesRequest, v1.SetStartupServicesResponse]
+	restartRuntime          *connect.Client[v1.RestartRuntimeRequest, v1.RestartRuntimeResponse]
+	getInfo                 *connect.Client[v1.GetInfoRequest, v1.GetInfoResponse]
+	getBackendParams        *connect.Client[v1.GetBackendParamsRequest, v1.GetBackendParamsResponse]
 }
 
 // Health calls inferencerig.control.v1.ControlService.Health.
@@ -420,6 +431,15 @@ func (c *controlServiceClient) DeleteProfile(ctx context.Context, req *v1.Delete
 // InstallBackend calls inferencerig.control.v1.ControlService.InstallBackend.
 func (c *controlServiceClient) InstallBackend(ctx context.Context, req *v1.InstallBackendRequest) (*v1.InstallBackendResponse, error) {
 	response, err := c.installBackend.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// GetBackendInstallStatus calls inferencerig.control.v1.ControlService.GetBackendInstallStatus.
+func (c *controlServiceClient) GetBackendInstallStatus(ctx context.Context, req *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error) {
+	response, err := c.getBackendInstallStatus.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -616,6 +636,7 @@ type ControlServiceHandler interface {
 	PutProfile(context.Context, *v1.PutProfileRequest) (*v1.PutProfileResponse, error)
 	DeleteProfile(context.Context, *v1.DeleteProfileRequest) (*v1.DeleteProfileResponse, error)
 	InstallBackend(context.Context, *v1.InstallBackendRequest) (*v1.InstallBackendResponse, error)
+	GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error)
 	StartRuntime(context.Context, *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error)
 	StopRuntime(context.Context, *v1.StopRuntimeRequest) (*v1.StopRuntimeResponse, error)
 	GetRuntimeStatus(context.Context, *v1.GetRuntimeStatusRequest) (*v1.GetRuntimeStatusResponse, error)
@@ -686,6 +707,12 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 		ControlServiceInstallBackendProcedure,
 		svc.InstallBackend,
 		connect.WithSchema(controlServiceMethods.ByName("InstallBackend")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceGetBackendInstallStatusHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceGetBackendInstallStatusProcedure,
+		svc.GetBackendInstallStatus,
+		connect.WithSchema(controlServiceMethods.ByName("GetBackendInstallStatus")),
 		connect.WithHandlerOptions(opts...),
 	)
 	controlServiceStartRuntimeHandler := connect.NewUnaryHandlerSimple(
@@ -830,6 +857,8 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 			controlServiceDeleteProfileHandler.ServeHTTP(w, r)
 		case ControlServiceInstallBackendProcedure:
 			controlServiceInstallBackendHandler.ServeHTTP(w, r)
+		case ControlServiceGetBackendInstallStatusProcedure:
+			controlServiceGetBackendInstallStatusHandler.ServeHTTP(w, r)
 		case ControlServiceStartRuntimeProcedure:
 			controlServiceStartRuntimeHandler.ServeHTTP(w, r)
 		case ControlServiceStopRuntimeProcedure:
@@ -907,6 +936,10 @@ func (UnimplementedControlServiceHandler) DeleteProfile(context.Context, *v1.Del
 
 func (UnimplementedControlServiceHandler) InstallBackend(context.Context, *v1.InstallBackendRequest) (*v1.InstallBackendResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.InstallBackend is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.GetBackendInstallStatus is not implemented"))
 }
 
 func (UnimplementedControlServiceHandler) StartRuntime(context.Context, *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error) {

@@ -53,6 +53,7 @@ func TestToolBreadthRoutesOnlyToCanonicalRPC(t *testing.T) {
 		name, arguments, procedure string
 	}{
 		{"backends_list", `{}`, controlv1connect.ControlServiceListBackendsProcedure},
+		{"backend_install_status", `{"backend":"test"}`, controlv1connect.ControlServiceGetBackendInstallStatusProcedure},
 		{"backend_install", `{"backend":"test"}`, controlv1connect.ControlServiceInstallBackendProcedure},
 		{"backend_params", `{"backend":"test"}`, controlv1connect.ControlServiceGetBackendParamsProcedure},
 		{"profiles_list", `{}`, controlv1connect.ControlServiceListProfilesProcedure},

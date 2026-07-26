@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -42,8 +41,12 @@ func runTUI(command *cobra.Command, socket string) error {
 		return err
 	}
 	if local {
-		if err := runFirstSetup(command, client); err != nil {
+		cancelled, err := runFirstSetup(command, client)
+		if err != nil {
 			return err
+		}
+		if cancelled {
+			return nil
 		}
 	}
 	return adaptertui.RunInteractive(command.Context(), command.InOrStdin(), command.OutOrStdout(), adaptertui.Options{
@@ -51,54 +54,54 @@ func runTUI(command *cobra.Command, socket string) error {
 	})
 }
 
-func runFirstSetup(command *cobra.Command, client controlv1connect.ControlServiceClient) error {
-	empty, err := profilesEmpty()
-	if err != nil || !empty {
-		return err
-	}
-	if err := ensureControl(command.Context(), client); err != nil {
-		return err
-	}
-	profile, err := setup.NewWizard(client).RunInteractive(command.Context(), command.InOrStdin(), command.OutOrStdout())
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(command.OutOrStdout(), "created profile %s\n", profile.GetName())
-	return err
-}
-
-func profilesEmpty() (bool, error) {
-	root, err := config.ProfilesDir()
+func runFirstSetup(command *cobra.Command, client controlv1connect.ControlServiceClient) (bool, error) {
+	started, err := ensureControl(command.Context(), client)
 	if err != nil {
 		return false, err
 	}
-	entries, err := os.ReadDir(root)
-	if errors.Is(err, os.ErrNotExist) {
-		return true, nil
-	}
+	result, err := setup.NewWizard(client).Ensure(command.Context(), command.InOrStdin(), command.OutOrStdout())
 	if err != nil {
-		return false, err
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			if info, err := os.Stat(filepath.Join(root, entry.Name(), "profile.yaml")); err == nil && info.Mode().IsRegular() {
-				return false, nil
-			}
+		if started {
+			_ = process.StopDetached(config.ProjectName)
 		}
+		if errors.Is(err, setup.ErrCancelled) {
+			_, _ = fmt.Fprintln(command.OutOrStdout(), "setup cancelled")
+			return true, nil
+		}
+		return false, err
 	}
-	return true, nil
+	if result.Skipped {
+		return false, nil
+	}
+	return false, restartControl(command.Context(), client)
 }
 
-func ensureControl(ctx context.Context, client controlClient) error {
+func ensureControl(ctx context.Context, client controlClient) (bool, error) {
 	status, err := process.StatusDetached(config.ProjectName)
 	if err != nil {
-		return err
+		return false, err
 	}
+	started := false
 	if !status.Running {
 		if err := process.StartDetached(config.ProjectName, "serve"); err != nil {
-			return err
+			return false, err
 		}
+		started = true
 	}
+	return started, waitForControl(ctx, client)
+}
+
+func restartControl(ctx context.Context, client controlClient) error {
+	if err := process.StopDetached(config.ProjectName); err != nil {
+		return err
+	}
+	if err := process.StartDetached(config.ProjectName, "serve"); err != nil {
+		return err
+	}
+	return waitForControl(ctx, client)
+}
+
+func waitForControl(ctx context.Context, client controlClient) error {
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	ticker := time.NewTicker(50 * time.Millisecond)

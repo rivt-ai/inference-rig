@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"inferencerig/config"
@@ -20,20 +19,20 @@ func TestRootIncludesDaemonCommands(t *testing.T) {
 	}
 }
 
-func TestProfilesEmptyRecognizesCanonicalProfile(t *testing.T) {
+func TestFirstRunUsesConfigExistence(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(config.ProjectHomeEnv, root)
-	if empty, err := profilesEmpty(); err != nil || !empty {
-		t.Fatalf("empty=%v err=%v", empty, err)
-	}
-	dir := filepath.Join(root, "profiles", "demo")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	path, err := config.ConfigPath()
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "profile.yaml"), []byte("name: demo\n"), 0o600); err != nil {
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("config unexpectedly exists: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("listen_addr: 127.0.0.1:7000\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if empty, err := profilesEmpty(); err != nil || empty {
-		t.Fatalf("empty=%v err=%v", empty, err)
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
 	}
 }

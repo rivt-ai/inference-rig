@@ -65,6 +65,7 @@ func TestRESTBreadthRoutesOnlyToCanonicalRPC(t *testing.T) {
 		{"POST", "/api/downloads/dl/cancel", "", controlv1connect.ControlServiceCancelModelDownloadProcedure},
 		{"POST", "/api/downloads/dl/apply/demo", "", controlv1connect.ControlServiceApplyDownloadToProfileProcedure},
 		{"POST", "/api/backends/test/install", `{}`, controlv1connect.ControlServiceInstallBackendProcedure},
+		{"GET", "/api/backends/test/install", "", controlv1connect.ControlServiceGetBackendInstallStatusProcedure},
 		{"GET", "/api/backends/test/params", "", controlv1connect.ControlServiceGetBackendParamsProcedure},
 		{"POST", "/api/runtime/demo/restart", "", controlv1connect.ControlServiceRestartRuntimeProcedure},
 		{"GET", "/api/signals", "", controlv1connect.ControlServiceGetSignalsProcedure},

@@ -111,6 +111,9 @@ func NewHandler(deps Dependencies) http.Handler {
 		request.Backend = r.PathValue("backend")
 		return deps.Control.InstallBackend(r.Context(), request)
 	})))
+	mux.HandleFunc("GET /api/backends/{backend}/install", rpcResponse(func(r *http.Request) (proto.Message, error) {
+		return deps.Control.GetBackendInstallStatus(r.Context(), &controlv1.GetBackendInstallStatusRequest{Backend: r.PathValue("backend")})
+	}))
 	mux.HandleFunc("GET /api/backends/{backend}/params", rpcResponse(func(r *http.Request) (proto.Message, error) {
 		return deps.Control.GetBackendParams(r.Context(), &controlv1.GetBackendParamsRequest{Backend: r.PathValue("backend")})
 	}))

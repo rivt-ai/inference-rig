@@ -36,8 +36,21 @@ type Service struct {
 
 // NewService assembles all built-in backends behind the neutral control plane.
 func NewService() (*Service, error) {
+	cfg := config.Default()
+	if loaded, err := config.Load(); err == nil {
+		cfg = loaded
+	}
+	modelStorageDir := cfg.ModelStorageDir
+	if modelStorageDir == "" {
+		var err error
+		modelStorageDir, err = config.DefaultModelStorageDir()
+		if err != nil {
+			return nil, err
+		}
+	}
+	modelStorageDir = config.ExpandHome(modelStorageDir)
 	registry := backends.NewRegistry()
-	if err := all.Register(registry); err != nil {
+	if err := all.Register(registry, all.Options{ModelStorageDir: modelStorageDir}); err != nil {
 		return nil, err
 	}
 	paths, err := config.ResolvePaths()
