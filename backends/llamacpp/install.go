@@ -212,6 +212,7 @@ func (i *installer) retire(root string, current installState) {
 	}
 	if managedPath(root, old.Directory) {
 		_ = os.RemoveAll(old.Directory)
+		_ = os.Remove(filepath.Dir(old.Directory))
 	}
 }
 
