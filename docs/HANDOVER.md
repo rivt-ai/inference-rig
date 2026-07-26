@@ -74,8 +74,8 @@ terminology may survive in shared packages.
 | 5 | `phase-05-backend-contracts` | `phase-04-profiles` | 5 | done |
 | 6 | `phase-06-llamacpp` | `phase-05-backend-contracts` | 6 | done |
 | 7 | `phase-07-mlx` | `phase-06-llamacpp` | 7 | done |
-| 8 | `phase-08-downloads` | `phase-07-mlx` | 8 | **this PR** |
-| 9 | `phase-09-control-rpc` | `phase-08-downloads` | 9 | todo |
+| 8 | `phase-08-downloads` | `phase-07-mlx` | 8 | done |
+| 9 | `phase-09-control-rpc` | `phase-08-downloads` | 9 | **this PR** |
 | 10 | `phase-10-interfaces` | `phase-09-control-rpc` | 10 | todo |
 | 11 | `phase-11-migration` | `phase-10-interfaces` | 11 | todo |
 | 12 | `phase-12-validation` | `phase-11-migration` | 12 | todo |
@@ -106,8 +106,12 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 - `phase-05-backend-contracts`: Phase 5 neutral backend contract seam. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
 - `phase-06-llamacpp`: Phase 6 llama.cpp backend. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
 - `phase-07-mlx`: Phase 7 MLX backend. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
-- `phase-08-downloads` (this PR): Phase 8 neutral artifact-plan download executor. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
-- **Top of stack:** `phase-08-downloads`. **Next:** Phase 9 (canonical control RPC) on `phase-09-control-rpc`, based on `phase-08-downloads`.
+- `phase-08-downloads`: Phase 8 neutral artifact-plan download executor. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
+- `phase-09-control-rpc` (this PR): Phase 9 canonical control manager and ConnectRPC service. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
+- **Top of stack:** `phase-09-control-rpc`. **Next:** Phase 10 (user interfaces) on `phase-10-interfaces`, based on `phase-09-control-rpc`.
+- What exists now (added in Phase 9):
+  - `core/control.Manager` — the engine-neutral orchestration owner for backend discovery/install, canonical profile CRUD and materialization, runtime lifecycle/status, artifact resolution/downloads, signals, audit, and events. It depends only on the backend registry and shared interfaces; optional batch materialization lets one backend regenerate its complete derived configuration without leaking that format into the core.
+  - `inferencerig.control.v1` — one buf-linted canonical protocol with checked-in deterministic Go/Connect generation. `core/rpc.ControlService` maps every manager operation onto that protocol, including event streaming and stable error codes. A Unix-socket end-to-end test drives profile creation, backend discovery, runtime start, resolution, download completion, signals, and events through the generated client.
 - What exists now (added in Phase 8):
   - `core/modeldownload` — one asynchronous download manager consuming only `backends.ArtifactPlan`. It provides queued/running/completed/failed/cancelled/already-downloaded job state, duplicate-active-target coalescing, cancellation, byte/percent progress, expected-size checks, symlink/containment validation, and durable atomic finalization. A single-file plan stages to a sibling `.part` file; a multi-file plan stages the entire directory tree to a sibling `.part` directory and renames it only after every item succeeds. The shape branch is neutral (`ArtifactPlan.MultiFile`), with no backend names or format checks. Tests execute both real plan forms through the same manager and cover nested snapshots, existing targets, duplicate jobs, cancellation, cleanup, and path escape rejection.
   - `backends.ArtifactPlan.TargetRoot` — an explicit neutral atomic-finalization boundary supplied by both backends: the file itself for a single-file plan, or the snapshot directory for a multi-file plan.
