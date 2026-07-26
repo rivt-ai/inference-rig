@@ -95,6 +95,9 @@ func (f *Fake) Plan(r backends.ResolvedModel) (backends.ArtifactPlan, error) {
 		})
 		plan.TotalBytes += a.SizeBytes
 	}
+	if len(plan.Items) == 1 {
+		plan.TargetRoot = plan.Items[0].TargetPath
+	}
 	return plan, nil
 }
 

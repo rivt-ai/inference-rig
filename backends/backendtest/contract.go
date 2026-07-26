@@ -81,6 +81,9 @@ func checkResolvePlan(t *testing.T, b backends.Backend) {
 	if len(plan.Items) == 0 {
 		t.Fatal("Plan produced an empty artifact plan")
 	}
+	if plan.TargetRoot == "" {
+		t.Fatal("Plan produced an empty target root")
+	}
 	if plan.MultiFile != resolved.MultiFile {
 		t.Fatalf("Plan.MultiFile %v disagrees with ResolvedModel.MultiFile %v", plan.MultiFile, resolved.MultiFile)
 	}
