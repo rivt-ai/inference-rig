@@ -4,7 +4,9 @@ import (
 	"context"
 	"log/slog"
 
+	adaptercli "inferencerig/adapters/cli"
 	"inferencerig/config"
+	"inferencerig/core/rpc"
 	"inferencerig/internal/buildinfo"
 	"inferencerig/internal/logs"
 
@@ -29,5 +31,6 @@ func NewRootCommand() *cobra.Command {
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 	}
 	rootCmd.AddCommand(versionCommand())
+	rootCmd.AddCommand(adaptercli.Commands(rpc.DialControl)...)
 	return rootCmd
 }
