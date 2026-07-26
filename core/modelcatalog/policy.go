@@ -2,7 +2,7 @@
 // backend: local artifact scanning, path containment, and memory-fit math. It
 // owns no engine format knowledge — which files constitute a model, and whether
 // a model is a single file or a multi-file snapshot, is decided by a backend
-// FormatPolicy. Backends (backends/llamacpp, backends/mlx) supply the policy;
+// FormatPolicy. Concrete backends supply the policy;
 // the shared control plane depends only on this package.
 package modelcatalog
 

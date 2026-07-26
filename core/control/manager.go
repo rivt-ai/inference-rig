@@ -165,7 +165,7 @@ func (m *Manager) InstallBackend(ctx context.Context, name string, opts backends
 
 // StartRuntime materializes all relevant profiles and starts the selected
 // backend through the shared supervisor. One runtime slot per backend also
-// implements MLX switching without engine-name branches.
+// implements single-active-profile switching without engine-name branches.
 func (m *Manager) StartRuntime(ctx context.Context, name string) (result coreruntime.CommandResult, err error) {
 	start := time.Now()
 	defer func() { m.record(ctx, "runtime.start", start, err) }()
