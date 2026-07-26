@@ -1,6 +1,9 @@
 package backends
 
-import "io"
+import (
+	"context"
+	"io"
+)
 
 // FitLevel is the neutral verdict of a fit estimate. It is deliberately engine
 // agnostic: the same four levels describe a discrete-VRAM engine and a
@@ -145,4 +148,18 @@ type Capabilities struct {
 	// SingleActiveProfile reports whether the backend serves at most one profile
 	// at a time (switching stops the current process before starting the next).
 	SingleActiveProfile bool
+	// ParameterIntrospection reports whether the optional ParameterProvider
+	// interface is available.
+	ParameterIntrospection bool
+}
+
+type Parameter struct {
+	Name        string
+	Description string
+	Required    bool
+}
+
+// ParameterProvider is an optional backend facet used only when advertised.
+type ParameterProvider interface {
+	Parameters(context.Context) ([]Parameter, error)
 }

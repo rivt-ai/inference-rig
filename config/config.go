@@ -49,6 +49,7 @@ type Config struct {
 	CatalogCacheTTL     time.Duration  `yaml:"catalog_cache_ttl" json:"catalog_cache_ttl"`
 	LogArchiveRetention time.Duration  `yaml:"log_archive_retention" json:"log_archive_retention"`
 	StartupServices     []string       `yaml:"startup_services" json:"startup_services,omitempty"`
+	AutostartProfiles   []string       `yaml:"autostart_profiles" json:"autostart_profiles,omitempty"`
 	Security            SecurityConfig `yaml:"security" json:"security"`
 }
 

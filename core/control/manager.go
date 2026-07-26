@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"inferencerig/backends"
+	"inferencerig/config"
+	"inferencerig/core/configstore"
 	"inferencerig/core/modelcatalog"
 	"inferencerig/core/modeldownload"
 	"inferencerig/core/profiles"
@@ -40,6 +42,12 @@ type ModelCatalog interface {
 	Subscribe() (<-chan modelcatalog.RefreshEvent, func())
 }
 
+type ConfigStore interface {
+	Read(context.Context) (config.Config, error)
+	SetStartupServices(context.Context, []string) (configstore.WriteResult, error)
+	SetProfileAutostart(context.Context, string, bool) (configstore.WriteResult, error)
+}
+
 // Dependencies wires the neutral control manager.
 type Dependencies struct {
 	Registry       *backends.Registry
@@ -50,10 +58,12 @@ type Dependencies struct {
 	Audit          AuditSink
 	RuntimeFactory func(coreruntime.LaunchSpec) Runtime
 	Catalog        ModelCatalog
+	Config         ConfigStore
 }
 
 type runtimeSlot struct {
 	process Runtime
+	profile string
 }
 
 // Manager is the canonical in-process control plane used by RPC and later
@@ -67,6 +77,7 @@ type Manager struct {
 	audit     AuditSink
 	factory   func(coreruntime.LaunchSpec) Runtime
 	catalog   ModelCatalog
+	config    ConfigStore
 
 	mu       sync.Mutex
 	runtimes map[string]runtimeSlot
@@ -89,7 +100,7 @@ func NewManager(deps Dependencies) *Manager {
 	return &Manager{
 		registry: deps.Registry, profiles: deps.Profiles, downloads: deps.Downloads,
 		signals: deps.Signals, events: events, audit: audit, factory: factory,
-		catalog: deps.Catalog, runtimes: map[string]runtimeSlot{},
+		catalog: deps.Catalog, config: deps.Config, runtimes: map[string]runtimeSlot{},
 	}
 }
 
@@ -256,7 +267,7 @@ func (m *Manager) StartRuntime(ctx context.Context, name string) (result corerun
 		delete(m.runtimes, backend.Name())
 		return result, mapRuntimeError(err)
 	}
-	m.runtimes[backend.Name()] = runtimeSlot{process: process}
+	m.runtimes[backend.Name()] = runtimeSlot{process: process, profile: name}
 	return result, nil
 }
 
@@ -271,7 +282,7 @@ func (m *Manager) StopRuntime(ctx context.Context, name string) (result corerunt
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	slot, ok := m.runtimes[backend.Name()]
-	if !ok {
+	if !ok || slot.profile != name {
 		return coreruntime.CommandResult{Action: "stop"}, nil
 	}
 	result, err = slot.process.Stop(ctx)
@@ -290,7 +301,7 @@ func (m *Manager) RuntimeStatus(ctx context.Context, name string) (coreruntime.S
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	slot, ok := m.runtimes[backend.Name()]
-	if !ok {
+	if !ok || slot.profile != name {
 		return coreruntime.Status{State: coreruntime.Stopped, CheckedAt: time.Now().UTC()}, nil
 	}
 	status, err := slot.process.Status(ctx)
@@ -341,7 +352,13 @@ func (m *Manager) StartDownload(ctx context.Context, name string, force bool) (j
 	if err != nil {
 		return job, err
 	}
-	job, err = m.downloads.Start(ctx, modeldownload.Request{Plan: plan, Force: force})
+	doc, _, profileErr := m.profileBackend(ctx, name)
+	if profileErr != nil {
+		return job, profileErr
+	}
+	job, err = m.downloads.Start(ctx, modeldownload.Request{
+		Plan: plan, Force: force, Backend: doc.Effective.Backend, Profile: name,
+	})
 	return job, mapDownloadError(err)
 }
 

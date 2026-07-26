@@ -1,0 +1,177 @@
+package control
+
+import (
+	"context"
+	"errors"
+	"os"
+	"sort"
+	"time"
+
+	"inferencerig/backends"
+	"inferencerig/config"
+	"inferencerig/core/configstore"
+	"inferencerig/core/modeldownload"
+	"inferencerig/core/profiles"
+	coreruntime "inferencerig/core/runtime"
+
+	"gopkg.in/yaml.v3"
+)
+
+type Info struct {
+	Profiles          int
+	Backends          int
+	RunningProfiles   []string
+	AutostartProfiles []string
+	StartupServices   []string
+}
+
+func (m *Manager) RestartRuntime(ctx context.Context, name string) (result RuntimeRestart, err error) {
+	start := time.Now()
+	defer func() { m.record(ctx, "runtime.restart", start, err) }()
+	stopped, err := m.StopRuntime(ctx, name)
+	if err != nil {
+		return result, err
+	}
+	started, err := m.StartRuntime(ctx, name)
+	return RuntimeRestart{Stopped: stopped, Started: started}, err
+}
+
+type RuntimeRestart struct {
+	Stopped, Started coreruntime.CommandResult
+}
+
+func (m *Manager) ApplyDownloadToProfile(ctx context.Context, name, id string) (profiles.ProfileDocument, error) {
+	if m.downloads == nil {
+		return profiles.ProfileDocument{}, Errorf(ErrorInvalidInput, "downloads are not configured")
+	}
+	job, err := m.downloads.Get(ctx, id)
+	if err != nil {
+		return profiles.ProfileDocument{}, mapDownloadError(err)
+	}
+	if job.State != modeldownload.StateCompleted && job.State != modeldownload.StateAlreadyDownloaded {
+		return profiles.ProfileDocument{}, Errorf(ErrorConflict, "download %q is %s", id, job.State)
+	}
+	doc, backend, err := m.profileBackend(ctx, name)
+	if err != nil {
+		return profiles.ProfileDocument{}, err
+	}
+	if job.Profile != name || job.Backend != backend.Name() || job.MultiFile != backend.Capabilities().MultiFileArtifacts {
+		return profiles.ProfileDocument{}, Errorf(ErrorConflict, "download %q does not belong to profile %q", id, name)
+	}
+	updated := doc.Parsed
+	updated.Model.Source, updated.Model.Reference = job.TargetPath, ""
+	data, err := yaml.Marshal(updated)
+	if err != nil {
+		return profiles.ProfileDocument{}, CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return m.PutProfile(ctx, name, string(data), false)
+}
+
+func (m *Manager) CleanupProfile(ctx context.Context, name string) error {
+	_, backend, err := m.profileBackend(ctx, name)
+	if err != nil {
+		return err
+	}
+	_, plan, err := m.ResolveProfileModel(ctx, name)
+	if err != nil {
+		return err
+	}
+	if err := m.requireUnsharedTarget(ctx, name, plan.TargetRoot); err != nil {
+		return err
+	}
+	if _, err := m.DeleteProfile(ctx, name); err != nil {
+		return err
+	}
+	if err := backend.CatalogPolicy().DeleteLocal(plan.TargetRoot); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return CoreError(ErrorRuntime, "profile removed but local model cleanup failed", err)
+	}
+	return nil
+}
+
+func (m *Manager) requireUnsharedTarget(ctx context.Context, name, target string) error {
+	items, err := m.profiles.List(ctx)
+	if err != nil {
+		return mapProfileError(err)
+	}
+	for _, item := range items {
+		if item.Name == name {
+			continue
+		}
+		_, plan, err := m.ResolveProfileModel(ctx, item.Name)
+		if err == nil && plan.TargetRoot == target {
+			return Errorf(ErrorConflict, "local model is also referenced by profile %q", item.Name)
+		}
+	}
+	return nil
+}
+
+func (m *Manager) SetProfileAutostart(ctx context.Context, name string, enabled bool) (configstore.WriteResult, error) {
+	if m.config == nil {
+		return configstore.WriteResult{}, Errorf(ErrorInvalidInput, "config store is not configured")
+	}
+	if enabled {
+		if _, err := m.GetProfile(ctx, name); err != nil {
+			return configstore.WriteResult{}, err
+		}
+	}
+	result, err := m.config.SetProfileAutostart(ctx, name, enabled)
+	return result, mapConfigError(err)
+}
+
+func (m *Manager) SetStartupServices(ctx context.Context, services []string) (configstore.WriteResult, error) {
+	if m.config == nil {
+		return configstore.WriteResult{}, Errorf(ErrorInvalidInput, "config store is not configured")
+	}
+	if err := config.ValidateStartupServices(services); err != nil {
+		return configstore.WriteResult{}, Errorf(ErrorInvalidInput, "%v", err)
+	}
+	result, err := m.config.SetStartupServices(ctx, services)
+	return result, mapConfigError(err)
+}
+
+func (m *Manager) GetInfo(ctx context.Context) (Info, error) {
+	profileItems, err := m.profiles.List(ctx)
+	if err != nil {
+		return Info{}, mapProfileError(err)
+	}
+	info := Info{Profiles: len(profileItems), Backends: len(m.registry.Names())}
+	if m.config != nil {
+		if cfg, err := m.config.Read(ctx); err == nil {
+			info.AutostartProfiles = append([]string(nil), cfg.AutostartProfiles...)
+			info.StartupServices = append([]string(nil), cfg.StartupServices...)
+		}
+	}
+	m.mu.Lock()
+	for _, slot := range m.runtimes {
+		info.RunningProfiles = append(info.RunningProfiles, slot.profile)
+	}
+	m.mu.Unlock()
+	sort.Strings(info.RunningProfiles)
+	return info, nil
+}
+
+func (m *Manager) GetBackendParams(ctx context.Context, name string) ([]backends.Parameter, error) {
+	backend, err := m.Backend(name)
+	if err != nil {
+		return nil, err
+	}
+	if !backend.Capabilities().ParameterIntrospection {
+		return nil, Errorf(ErrorInvalidInput, "backend %q does not support parameter introspection", name)
+	}
+	provider, ok := backend.(backends.ParameterProvider)
+	if !ok {
+		return nil, Errorf(ErrorRuntime, "backend %q advertised parameter introspection without an adapter", name)
+	}
+	params, err := provider.Parameters(ctx)
+	if err != nil {
+		return nil, CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return params, nil
+}
+
+func mapConfigError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return CoreError(ErrorInvalidInput, err.Error(), err)
+}
