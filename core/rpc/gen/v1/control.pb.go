@@ -2705,6 +2705,650 @@ func (x *Event) GetDuration() string {
 	return ""
 }
 
+type ListModelCatalogRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Backend       string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
+	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListModelCatalogRequest) Reset() {
+	*x = ListModelCatalogRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListModelCatalogRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListModelCatalogRequest) ProtoMessage() {}
+
+func (x *ListModelCatalogRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListModelCatalogRequest.ProtoReflect.Descriptor instead.
+func (*ListModelCatalogRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *ListModelCatalogRequest) GetBackend() string {
+	if x != nil {
+		return x.Backend
+	}
+	return ""
+}
+
+func (x *ListModelCatalogRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListModelCatalogRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListModelCatalogResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Models        []*CatalogModel        `protobuf:"bytes,2,rep,name=models,proto3" json:"models,omitempty"`
+	CacheHit      bool                   `protobuf:"varint,3,opt,name=cache_hit,json=cacheHit,proto3" json:"cache_hit,omitempty"`
+	Stale         bool                   `protobuf:"varint,4,opt,name=stale,proto3" json:"stale,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListModelCatalogResponse) Reset() {
+	*x = ListModelCatalogResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListModelCatalogResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListModelCatalogResponse) ProtoMessage() {}
+
+func (x *ListModelCatalogResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListModelCatalogResponse.ProtoReflect.Descriptor instead.
+func (*ListModelCatalogResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *ListModelCatalogResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ListModelCatalogResponse) GetModels() []*CatalogModel {
+	if x != nil {
+		return x.Models
+	}
+	return nil
+}
+
+func (x *ListModelCatalogResponse) GetCacheHit() bool {
+	if x != nil {
+		return x.CacheHit
+	}
+	return false
+}
+
+func (x *ListModelCatalogResponse) GetStale() bool {
+	if x != nil {
+		return x.Stale
+	}
+	return false
+}
+
+type CatalogModel struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Downloads     int64                  `protobuf:"varint,3,opt,name=downloads,proto3" json:"downloads,omitempty"`
+	Likes         int64                  `protobuf:"varint,4,opt,name=likes,proto3" json:"likes,omitempty"`
+	LastModified  string                 `protobuf:"bytes,5,opt,name=last_modified,json=lastModified,proto3" json:"last_modified,omitempty"`
+	Tags          []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
+	Variants      []*ModelVariant        `protobuf:"bytes,7,rep,name=variants,proto3" json:"variants,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CatalogModel) Reset() {
+	*x = CatalogModel{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CatalogModel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CatalogModel) ProtoMessage() {}
+
+func (x *CatalogModel) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CatalogModel.ProtoReflect.Descriptor instead.
+func (*CatalogModel) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *CatalogModel) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CatalogModel) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *CatalogModel) GetDownloads() int64 {
+	if x != nil {
+		return x.Downloads
+	}
+	return 0
+}
+
+func (x *CatalogModel) GetLikes() int64 {
+	if x != nil {
+		return x.Likes
+	}
+	return 0
+}
+
+func (x *CatalogModel) GetLastModified() string {
+	if x != nil {
+		return x.LastModified
+	}
+	return ""
+}
+
+func (x *CatalogModel) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *CatalogModel) GetVariants() []*ModelVariant {
+	if x != nil {
+		return x.Variants
+	}
+	return nil
+}
+
+type ModelVariant struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Reference     string                 `protobuf:"bytes,2,opt,name=reference,proto3" json:"reference,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	MultiFile     bool                   `protobuf:"varint,4,opt,name=multi_file,json=multiFile,proto3" json:"multi_file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ModelVariant) Reset() {
+	*x = ModelVariant{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ModelVariant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ModelVariant) ProtoMessage() {}
+
+func (x *ModelVariant) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ModelVariant.ProtoReflect.Descriptor instead.
+func (*ModelVariant) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *ModelVariant) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ModelVariant) GetReference() string {
+	if x != nil {
+		return x.Reference
+	}
+	return ""
+}
+
+func (x *ModelVariant) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *ModelVariant) GetMultiFile() bool {
+	if x != nil {
+		return x.MultiFile
+	}
+	return false
+}
+
+type WatchModelCatalogRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchModelCatalogRequest) Reset() {
+	*x = WatchModelCatalogRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchModelCatalogRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchModelCatalogRequest) ProtoMessage() {}
+
+func (x *WatchModelCatalogRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchModelCatalogRequest.ProtoReflect.Descriptor instead.
+func (*WatchModelCatalogRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{51}
+}
+
+type WatchModelCatalogResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Backend       string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
+	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchModelCatalogResponse) Reset() {
+	*x = WatchModelCatalogResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchModelCatalogResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchModelCatalogResponse) ProtoMessage() {}
+
+func (x *WatchModelCatalogResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchModelCatalogResponse.ProtoReflect.Descriptor instead.
+func (*WatchModelCatalogResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *WatchModelCatalogResponse) GetBackend() string {
+	if x != nil {
+		return x.Backend
+	}
+	return ""
+}
+
+func (x *WatchModelCatalogResponse) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *WatchModelCatalogResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type ListLocalModelsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Backend       string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListLocalModelsRequest) Reset() {
+	*x = ListLocalModelsRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListLocalModelsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLocalModelsRequest) ProtoMessage() {}
+
+func (x *ListLocalModelsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLocalModelsRequest.ProtoReflect.Descriptor instead.
+func (*ListLocalModelsRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *ListLocalModelsRequest) GetBackend() string {
+	if x != nil {
+		return x.Backend
+	}
+	return ""
+}
+
+type ListLocalModelsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Models        []*LocalModel          `protobuf:"bytes,2,rep,name=models,proto3" json:"models,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListLocalModelsResponse) Reset() {
+	*x = ListLocalModelsResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListLocalModelsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLocalModelsResponse) ProtoMessage() {}
+
+func (x *ListLocalModelsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLocalModelsResponse.ProtoReflect.Descriptor instead.
+func (*ListLocalModelsResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *ListLocalModelsResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ListLocalModelsResponse) GetModels() []*LocalModel {
+	if x != nil {
+		return x.Models
+	}
+	return nil
+}
+
+type LocalModel struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Filename      string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	ModifiedAt    string                 `protobuf:"bytes,4,opt,name=modified_at,json=modifiedAt,proto3" json:"modified_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LocalModel) Reset() {
+	*x = LocalModel{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LocalModel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LocalModel) ProtoMessage() {}
+
+func (x *LocalModel) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LocalModel.ProtoReflect.Descriptor instead.
+func (*LocalModel) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *LocalModel) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *LocalModel) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
+}
+
+func (x *LocalModel) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *LocalModel) GetModifiedAt() string {
+	if x != nil {
+		return x.ModifiedAt
+	}
+	return ""
+}
+
+type DeleteLocalModelRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Backend       string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
+	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteLocalModelRequest) Reset() {
+	*x = DeleteLocalModelRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteLocalModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteLocalModelRequest) ProtoMessage() {}
+
+func (x *DeleteLocalModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteLocalModelRequest.ProtoReflect.Descriptor instead.
+func (*DeleteLocalModelRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *DeleteLocalModelRequest) GetBackend() string {
+	if x != nil {
+		return x.Backend
+	}
+	return ""
+}
+
+func (x *DeleteLocalModelRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type DeleteLocalModelResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteLocalModelResponse) Reset() {
+	*x = DeleteLocalModelResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteLocalModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteLocalModelResponse) ProtoMessage() {}
+
+func (x *DeleteLocalModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteLocalModelResponse.ProtoReflect.Descriptor instead.
+func (*DeleteLocalModelResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *DeleteLocalModelResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
 var File_inferencerig_control_v1_control_proto protoreflect.FileDescriptor
 
 const file_inferencerig_control_v1_control_proto_rawDesc = "" +
@@ -2899,7 +3543,54 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\asuccess\x18\x04 \x01(\bR\asuccess\x12\x1d\n" +
 	"\n" +
 	"error_kind\x18\x05 \x01(\tR\terrorKind\x12\x1a\n" +
-	"\bduration\x18\x06 \x01(\tR\bduration2\xfe\x0e\n" +
+	"\bduration\x18\x06 \x01(\tR\bduration\"_\n" +
+	"\x17ListModelCatalogRequest\x12\x18\n" +
+	"\abackend\x18\x01 \x01(\tR\abackend\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\x9c\x01\n" +
+	"\x18ListModelCatalogResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12=\n" +
+	"\x06models\x18\x02 \x03(\v2%.inferencerig.control.v1.CatalogModelR\x06models\x12\x1b\n" +
+	"\tcache_hit\x18\x03 \x01(\bR\bcacheHit\x12\x14\n" +
+	"\x05stale\x18\x04 \x01(\bR\x05stale\"\xe0\x01\n" +
+	"\fCatalogModel\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x1c\n" +
+	"\tdownloads\x18\x03 \x01(\x03R\tdownloads\x12\x14\n" +
+	"\x05likes\x18\x04 \x01(\x03R\x05likes\x12#\n" +
+	"\rlast_modified\x18\x05 \x01(\tR\flastModified\x12\x12\n" +
+	"\x04tags\x18\x06 \x03(\tR\x04tags\x12A\n" +
+	"\bvariants\x18\a \x03(\v2%.inferencerig.control.v1.ModelVariantR\bvariants\"~\n" +
+	"\fModelVariant\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
+	"\treference\x18\x02 \x01(\tR\treference\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x1d\n" +
+	"\n" +
+	"multi_file\x18\x04 \x01(\bR\tmultiFile\"\x1a\n" +
+	"\x18WatchModelCatalogRequest\"a\n" +
+	"\x19WatchModelCatalogResponse\x12\x18\n" +
+	"\abackend\x18\x01 \x01(\tR\abackend\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\"2\n" +
+	"\x16ListLocalModelsRequest\x12\x18\n" +
+	"\abackend\x18\x01 \x01(\tR\abackend\"f\n" +
+	"\x17ListLocalModelsResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12;\n" +
+	"\x06models\x18\x02 \x03(\v2#.inferencerig.control.v1.LocalModelR\x06models\"|\n" +
+	"\n" +
+	"LocalModel\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1a\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x1f\n" +
+	"\vmodified_at\x18\x04 \x01(\tR\n" +
+	"modifiedAt\"G\n" +
+	"\x17DeleteLocalModelRequest\x12\x18\n" +
+	"\abackend\x18\x01 \x01(\tR\abackend\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"*\n" +
+	"\x18DeleteLocalModelResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok2\xe4\x12\n" +
 	"\x0eControlService\x12Y\n" +
 	"\x06Health\x12&.inferencerig.control.v1.HealthRequest\x1a'.inferencerig.control.v1.HealthResponse\x12k\n" +
 	"\fListBackends\x12,.inferencerig.control.v1.ListBackendsRequest\x1a-.inferencerig.control.v1.ListBackendsResponse\x12k\n" +
@@ -2921,7 +3612,11 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"GetSignals\x12*.inferencerig.control.v1.GetSignalsRequest\x1a+.inferencerig.control.v1.GetSignalsResponse\x12e\n" +
 	"\n" +
 	"ListEvents\x12*.inferencerig.control.v1.ListEventsRequest\x1a+.inferencerig.control.v1.ListEventsResponse\x12j\n" +
-	"\vWatchEvents\x12+.inferencerig.control.v1.WatchEventsRequest\x1a,.inferencerig.control.v1.WatchEventsResponse0\x01B(Z&inferencerig/core/rpc/gen/v1;controlv1b\x06proto3"
+	"\vWatchEvents\x12+.inferencerig.control.v1.WatchEventsRequest\x1a,.inferencerig.control.v1.WatchEventsResponse0\x01\x12w\n" +
+	"\x10ListModelCatalog\x120.inferencerig.control.v1.ListModelCatalogRequest\x1a1.inferencerig.control.v1.ListModelCatalogResponse\x12|\n" +
+	"\x11WatchModelCatalog\x121.inferencerig.control.v1.WatchModelCatalogRequest\x1a2.inferencerig.control.v1.WatchModelCatalogResponse0\x01\x12t\n" +
+	"\x0fListLocalModels\x12/.inferencerig.control.v1.ListLocalModelsRequest\x1a0.inferencerig.control.v1.ListLocalModelsResponse\x12w\n" +
+	"\x10DeleteLocalModel\x120.inferencerig.control.v1.DeleteLocalModelRequest\x1a1.inferencerig.control.v1.DeleteLocalModelResponseB(Z&inferencerig/core/rpc/gen/v1;controlv1b\x06proto3"
 
 var (
 	file_inferencerig_control_v1_control_proto_rawDescOnce sync.Once
@@ -2935,7 +3630,7 @@ func file_inferencerig_control_v1_control_proto_rawDescGZIP() []byte {
 	return file_inferencerig_control_v1_control_proto_rawDescData
 }
 
-var file_inferencerig_control_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
+var file_inferencerig_control_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
 var file_inferencerig_control_v1_control_proto_goTypes = []any{
 	(*HealthRequest)(nil),               // 0: inferencerig.control.v1.HealthRequest
 	(*HealthResponse)(nil),              // 1: inferencerig.control.v1.HealthResponse
@@ -2984,6 +3679,17 @@ var file_inferencerig_control_v1_control_proto_goTypes = []any{
 	(*WatchEventsRequest)(nil),          // 44: inferencerig.control.v1.WatchEventsRequest
 	(*WatchEventsResponse)(nil),         // 45: inferencerig.control.v1.WatchEventsResponse
 	(*Event)(nil),                       // 46: inferencerig.control.v1.Event
+	(*ListModelCatalogRequest)(nil),     // 47: inferencerig.control.v1.ListModelCatalogRequest
+	(*ListModelCatalogResponse)(nil),    // 48: inferencerig.control.v1.ListModelCatalogResponse
+	(*CatalogModel)(nil),                // 49: inferencerig.control.v1.CatalogModel
+	(*ModelVariant)(nil),                // 50: inferencerig.control.v1.ModelVariant
+	(*WatchModelCatalogRequest)(nil),    // 51: inferencerig.control.v1.WatchModelCatalogRequest
+	(*WatchModelCatalogResponse)(nil),   // 52: inferencerig.control.v1.WatchModelCatalogResponse
+	(*ListLocalModelsRequest)(nil),      // 53: inferencerig.control.v1.ListLocalModelsRequest
+	(*ListLocalModelsResponse)(nil),     // 54: inferencerig.control.v1.ListLocalModelsResponse
+	(*LocalModel)(nil),                  // 55: inferencerig.control.v1.LocalModel
+	(*DeleteLocalModelRequest)(nil),     // 56: inferencerig.control.v1.DeleteLocalModelRequest
+	(*DeleteLocalModelResponse)(nil),    // 57: inferencerig.control.v1.DeleteLocalModelResponse
 }
 var file_inferencerig_control_v1_control_proto_depIdxs = []int32{
 	4,  // 0: inferencerig.control.v1.ListBackendsResponse.backends:type_name -> inferencerig.control.v1.BackendInfo
@@ -3007,45 +3713,56 @@ var file_inferencerig_control_v1_control_proto_depIdxs = []int32{
 	41, // 18: inferencerig.control.v1.GetSignalsResponse.signals:type_name -> inferencerig.control.v1.Signals
 	46, // 19: inferencerig.control.v1.ListEventsResponse.events:type_name -> inferencerig.control.v1.Event
 	46, // 20: inferencerig.control.v1.WatchEventsResponse.event:type_name -> inferencerig.control.v1.Event
-	0,  // 21: inferencerig.control.v1.ControlService.Health:input_type -> inferencerig.control.v1.HealthRequest
-	2,  // 22: inferencerig.control.v1.ControlService.ListBackends:input_type -> inferencerig.control.v1.ListBackendsRequest
-	6,  // 23: inferencerig.control.v1.ControlService.ListProfiles:input_type -> inferencerig.control.v1.ListProfilesRequest
-	8,  // 24: inferencerig.control.v1.ControlService.GetProfile:input_type -> inferencerig.control.v1.GetProfileRequest
-	9,  // 25: inferencerig.control.v1.ControlService.PutProfile:input_type -> inferencerig.control.v1.PutProfileRequest
-	10, // 26: inferencerig.control.v1.ControlService.DeleteProfile:input_type -> inferencerig.control.v1.DeleteProfileRequest
-	15, // 27: inferencerig.control.v1.ControlService.InstallBackend:input_type -> inferencerig.control.v1.InstallBackendRequest
-	17, // 28: inferencerig.control.v1.ControlService.StartRuntime:input_type -> inferencerig.control.v1.StartRuntimeRequest
-	19, // 29: inferencerig.control.v1.ControlService.StopRuntime:input_type -> inferencerig.control.v1.StopRuntimeRequest
-	21, // 30: inferencerig.control.v1.ControlService.GetRuntimeStatus:input_type -> inferencerig.control.v1.GetRuntimeStatusRequest
-	26, // 31: inferencerig.control.v1.ControlService.ResolveProfileModel:input_type -> inferencerig.control.v1.ResolveProfileModelRequest
-	32, // 32: inferencerig.control.v1.ControlService.StartModelDownload:input_type -> inferencerig.control.v1.StartModelDownloadRequest
-	34, // 33: inferencerig.control.v1.ControlService.GetModelDownload:input_type -> inferencerig.control.v1.GetModelDownloadRequest
-	36, // 34: inferencerig.control.v1.ControlService.CancelModelDownload:input_type -> inferencerig.control.v1.CancelModelDownloadRequest
-	39, // 35: inferencerig.control.v1.ControlService.GetSignals:input_type -> inferencerig.control.v1.GetSignalsRequest
-	42, // 36: inferencerig.control.v1.ControlService.ListEvents:input_type -> inferencerig.control.v1.ListEventsRequest
-	44, // 37: inferencerig.control.v1.ControlService.WatchEvents:input_type -> inferencerig.control.v1.WatchEventsRequest
-	1,  // 38: inferencerig.control.v1.ControlService.Health:output_type -> inferencerig.control.v1.HealthResponse
-	3,  // 39: inferencerig.control.v1.ControlService.ListBackends:output_type -> inferencerig.control.v1.ListBackendsResponse
-	7,  // 40: inferencerig.control.v1.ControlService.ListProfiles:output_type -> inferencerig.control.v1.ListProfilesResponse
-	11, // 41: inferencerig.control.v1.ControlService.GetProfile:output_type -> inferencerig.control.v1.GetProfileResponse
-	12, // 42: inferencerig.control.v1.ControlService.PutProfile:output_type -> inferencerig.control.v1.PutProfileResponse
-	14, // 43: inferencerig.control.v1.ControlService.DeleteProfile:output_type -> inferencerig.control.v1.DeleteProfileResponse
-	16, // 44: inferencerig.control.v1.ControlService.InstallBackend:output_type -> inferencerig.control.v1.InstallBackendResponse
-	18, // 45: inferencerig.control.v1.ControlService.StartRuntime:output_type -> inferencerig.control.v1.StartRuntimeResponse
-	20, // 46: inferencerig.control.v1.ControlService.StopRuntime:output_type -> inferencerig.control.v1.StopRuntimeResponse
-	22, // 47: inferencerig.control.v1.ControlService.GetRuntimeStatus:output_type -> inferencerig.control.v1.GetRuntimeStatusResponse
-	27, // 48: inferencerig.control.v1.ControlService.ResolveProfileModel:output_type -> inferencerig.control.v1.ResolveProfileModelResponse
-	33, // 49: inferencerig.control.v1.ControlService.StartModelDownload:output_type -> inferencerig.control.v1.StartModelDownloadResponse
-	35, // 50: inferencerig.control.v1.ControlService.GetModelDownload:output_type -> inferencerig.control.v1.GetModelDownloadResponse
-	37, // 51: inferencerig.control.v1.ControlService.CancelModelDownload:output_type -> inferencerig.control.v1.CancelModelDownloadResponse
-	40, // 52: inferencerig.control.v1.ControlService.GetSignals:output_type -> inferencerig.control.v1.GetSignalsResponse
-	43, // 53: inferencerig.control.v1.ControlService.ListEvents:output_type -> inferencerig.control.v1.ListEventsResponse
-	45, // 54: inferencerig.control.v1.ControlService.WatchEvents:output_type -> inferencerig.control.v1.WatchEventsResponse
-	38, // [38:55] is the sub-list for method output_type
-	21, // [21:38] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	49, // 21: inferencerig.control.v1.ListModelCatalogResponse.models:type_name -> inferencerig.control.v1.CatalogModel
+	50, // 22: inferencerig.control.v1.CatalogModel.variants:type_name -> inferencerig.control.v1.ModelVariant
+	55, // 23: inferencerig.control.v1.ListLocalModelsResponse.models:type_name -> inferencerig.control.v1.LocalModel
+	0,  // 24: inferencerig.control.v1.ControlService.Health:input_type -> inferencerig.control.v1.HealthRequest
+	2,  // 25: inferencerig.control.v1.ControlService.ListBackends:input_type -> inferencerig.control.v1.ListBackendsRequest
+	6,  // 26: inferencerig.control.v1.ControlService.ListProfiles:input_type -> inferencerig.control.v1.ListProfilesRequest
+	8,  // 27: inferencerig.control.v1.ControlService.GetProfile:input_type -> inferencerig.control.v1.GetProfileRequest
+	9,  // 28: inferencerig.control.v1.ControlService.PutProfile:input_type -> inferencerig.control.v1.PutProfileRequest
+	10, // 29: inferencerig.control.v1.ControlService.DeleteProfile:input_type -> inferencerig.control.v1.DeleteProfileRequest
+	15, // 30: inferencerig.control.v1.ControlService.InstallBackend:input_type -> inferencerig.control.v1.InstallBackendRequest
+	17, // 31: inferencerig.control.v1.ControlService.StartRuntime:input_type -> inferencerig.control.v1.StartRuntimeRequest
+	19, // 32: inferencerig.control.v1.ControlService.StopRuntime:input_type -> inferencerig.control.v1.StopRuntimeRequest
+	21, // 33: inferencerig.control.v1.ControlService.GetRuntimeStatus:input_type -> inferencerig.control.v1.GetRuntimeStatusRequest
+	26, // 34: inferencerig.control.v1.ControlService.ResolveProfileModel:input_type -> inferencerig.control.v1.ResolveProfileModelRequest
+	32, // 35: inferencerig.control.v1.ControlService.StartModelDownload:input_type -> inferencerig.control.v1.StartModelDownloadRequest
+	34, // 36: inferencerig.control.v1.ControlService.GetModelDownload:input_type -> inferencerig.control.v1.GetModelDownloadRequest
+	36, // 37: inferencerig.control.v1.ControlService.CancelModelDownload:input_type -> inferencerig.control.v1.CancelModelDownloadRequest
+	39, // 38: inferencerig.control.v1.ControlService.GetSignals:input_type -> inferencerig.control.v1.GetSignalsRequest
+	42, // 39: inferencerig.control.v1.ControlService.ListEvents:input_type -> inferencerig.control.v1.ListEventsRequest
+	44, // 40: inferencerig.control.v1.ControlService.WatchEvents:input_type -> inferencerig.control.v1.WatchEventsRequest
+	47, // 41: inferencerig.control.v1.ControlService.ListModelCatalog:input_type -> inferencerig.control.v1.ListModelCatalogRequest
+	51, // 42: inferencerig.control.v1.ControlService.WatchModelCatalog:input_type -> inferencerig.control.v1.WatchModelCatalogRequest
+	53, // 43: inferencerig.control.v1.ControlService.ListLocalModels:input_type -> inferencerig.control.v1.ListLocalModelsRequest
+	56, // 44: inferencerig.control.v1.ControlService.DeleteLocalModel:input_type -> inferencerig.control.v1.DeleteLocalModelRequest
+	1,  // 45: inferencerig.control.v1.ControlService.Health:output_type -> inferencerig.control.v1.HealthResponse
+	3,  // 46: inferencerig.control.v1.ControlService.ListBackends:output_type -> inferencerig.control.v1.ListBackendsResponse
+	7,  // 47: inferencerig.control.v1.ControlService.ListProfiles:output_type -> inferencerig.control.v1.ListProfilesResponse
+	11, // 48: inferencerig.control.v1.ControlService.GetProfile:output_type -> inferencerig.control.v1.GetProfileResponse
+	12, // 49: inferencerig.control.v1.ControlService.PutProfile:output_type -> inferencerig.control.v1.PutProfileResponse
+	14, // 50: inferencerig.control.v1.ControlService.DeleteProfile:output_type -> inferencerig.control.v1.DeleteProfileResponse
+	16, // 51: inferencerig.control.v1.ControlService.InstallBackend:output_type -> inferencerig.control.v1.InstallBackendResponse
+	18, // 52: inferencerig.control.v1.ControlService.StartRuntime:output_type -> inferencerig.control.v1.StartRuntimeResponse
+	20, // 53: inferencerig.control.v1.ControlService.StopRuntime:output_type -> inferencerig.control.v1.StopRuntimeResponse
+	22, // 54: inferencerig.control.v1.ControlService.GetRuntimeStatus:output_type -> inferencerig.control.v1.GetRuntimeStatusResponse
+	27, // 55: inferencerig.control.v1.ControlService.ResolveProfileModel:output_type -> inferencerig.control.v1.ResolveProfileModelResponse
+	33, // 56: inferencerig.control.v1.ControlService.StartModelDownload:output_type -> inferencerig.control.v1.StartModelDownloadResponse
+	35, // 57: inferencerig.control.v1.ControlService.GetModelDownload:output_type -> inferencerig.control.v1.GetModelDownloadResponse
+	37, // 58: inferencerig.control.v1.ControlService.CancelModelDownload:output_type -> inferencerig.control.v1.CancelModelDownloadResponse
+	40, // 59: inferencerig.control.v1.ControlService.GetSignals:output_type -> inferencerig.control.v1.GetSignalsResponse
+	43, // 60: inferencerig.control.v1.ControlService.ListEvents:output_type -> inferencerig.control.v1.ListEventsResponse
+	45, // 61: inferencerig.control.v1.ControlService.WatchEvents:output_type -> inferencerig.control.v1.WatchEventsResponse
+	48, // 62: inferencerig.control.v1.ControlService.ListModelCatalog:output_type -> inferencerig.control.v1.ListModelCatalogResponse
+	52, // 63: inferencerig.control.v1.ControlService.WatchModelCatalog:output_type -> inferencerig.control.v1.WatchModelCatalogResponse
+	54, // 64: inferencerig.control.v1.ControlService.ListLocalModels:output_type -> inferencerig.control.v1.ListLocalModelsResponse
+	57, // 65: inferencerig.control.v1.ControlService.DeleteLocalModel:output_type -> inferencerig.control.v1.DeleteLocalModelResponse
+	45, // [45:66] is the sub-list for method output_type
+	24, // [24:45] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_inferencerig_control_v1_control_proto_init() }
@@ -3059,7 +3776,7 @@ func file_inferencerig_control_v1_control_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inferencerig_control_v1_control_proto_rawDesc), len(file_inferencerig_control_v1_control_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   47,
+			NumMessages:   58,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

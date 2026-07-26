@@ -14,6 +14,7 @@ import (
 	"inferencerig/backends/all"
 	"inferencerig/config"
 	"inferencerig/core/control"
+	"inferencerig/core/modelcatalog"
 	"inferencerig/core/modeldownload"
 	"inferencerig/core/profiles"
 	"inferencerig/core/rpc"
@@ -43,11 +44,16 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 	store := profiles.NewFileStore(profileRoot, 0, registry.BackendLookup())
+	cacheDir, err := config.DefaultCatalogCacheDir()
+	if err != nil {
+		return nil, err
+	}
 	manager := control.NewManager(control.Dependencies{
 		Registry: registry, Profiles: store,
 		Downloads: modeldownload.New(modeldownload.Options{}),
 		Signals:   signals.NewGopsutilCollector(nil, nil),
 		Audit:     audit.NewSink(slog.Default()),
+		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: cacheDir, CacheTTL: time.Hour}),
 	})
 	path, handler := rpc.ControlHandler(rpc.NewControlService(manager))
 	server, err := rpc.NewServer(path, handler)

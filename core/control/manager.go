@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"inferencerig/backends"
+	"inferencerig/core/modelcatalog"
 	"inferencerig/core/modeldownload"
 	"inferencerig/core/profiles"
 	coreruntime "inferencerig/core/runtime"
@@ -34,6 +35,11 @@ type Runtime interface {
 	Recover(context.Context) (bool, error)
 }
 
+type ModelCatalog interface {
+	Search(context.Context, modelcatalog.SearchRequest, modelcatalog.CatalogPolicy) (modelcatalog.Result, error)
+	Subscribe() (<-chan modelcatalog.RefreshEvent, func())
+}
+
 // Dependencies wires the neutral control manager.
 type Dependencies struct {
 	Registry       *backends.Registry
@@ -43,6 +49,7 @@ type Dependencies struct {
 	Events         *EventStore
 	Audit          AuditSink
 	RuntimeFactory func(coreruntime.LaunchSpec) Runtime
+	Catalog        ModelCatalog
 }
 
 type runtimeSlot struct {
@@ -59,6 +66,7 @@ type Manager struct {
 	events    *EventStore
 	audit     AuditSink
 	factory   func(coreruntime.LaunchSpec) Runtime
+	catalog   ModelCatalog
 
 	mu       sync.Mutex
 	runtimes map[string]runtimeSlot
@@ -81,8 +89,59 @@ func NewManager(deps Dependencies) *Manager {
 	return &Manager{
 		registry: deps.Registry, profiles: deps.Profiles, downloads: deps.Downloads,
 		signals: deps.Signals, events: events, audit: audit, factory: factory,
-		runtimes: map[string]runtimeSlot{},
+		catalog: deps.Catalog, runtimes: map[string]runtimeSlot{},
 	}
+}
+
+func (m *Manager) ListModelCatalog(ctx context.Context, req modelcatalog.SearchRequest) (modelcatalog.Result, error) {
+	if m.catalog == nil {
+		return modelcatalog.Result{}, Errorf(ErrorInvalidInput, "model catalog is not configured")
+	}
+	backend, err := m.Backend(req.Backend)
+	if err != nil {
+		return modelcatalog.Result{}, err
+	}
+	result, err := m.catalog.Search(ctx, req, backend.CatalogPolicy())
+	if err != nil {
+		return result, CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return result, nil
+}
+
+func (m *Manager) WatchModelCatalog() (<-chan modelcatalog.RefreshEvent, func(), error) {
+	if m.catalog == nil {
+		return nil, nil, Errorf(ErrorInvalidInput, "model catalog is not configured")
+	}
+	events, unsubscribe := m.catalog.Subscribe()
+	return events, unsubscribe, nil
+}
+
+func (m *Manager) ListLocalModels(ctx context.Context, backendName string) ([]modelcatalog.LocalModel, error) {
+	backend, err := m.Backend(backendName)
+	if err != nil {
+		return nil, err
+	}
+	models, err := backend.CatalogPolicy().ListLocal(ctx)
+	if err != nil {
+		return nil, CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return models, nil
+}
+
+func (m *Manager) DeleteLocalModel(ctx context.Context, backendName, path string) (err error) {
+	start := time.Now()
+	defer func() { m.record(ctx, "model.delete", start, err) }()
+	if path == "" {
+		return Errorf(ErrorInvalidInput, "local model path is required")
+	}
+	backend, err := m.Backend(backendName)
+	if err != nil {
+		return err
+	}
+	if err := backend.CatalogPolicy().DeleteLocal(path); err != nil {
+		return CoreError(ErrorInvalidInput, err.Error(), err)
+	}
+	return nil
 }
 
 // Backend returns a registered backend or a typed not-found error.
