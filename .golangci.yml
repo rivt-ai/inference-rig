@@ -1,8 +1,7 @@
 version: "2"
 
-# Standard complexity/duplication/size linters. The custom module-wide Go LOC
-# budget linter (goclocbudget) from the reference repos returns in a later
-# phase once there is substantial ported code to budget.
+# Standard complexity/duplication/size linters plus the module implementation
+# LOC budget enforced by the custom CI binary.
 linters:
   enable:
     - gocyclo
@@ -10,6 +9,7 @@ linters:
     - funlen
     - nestif
     - dupl
+    - goclocbudget
 
   settings:
     gocyclo:
@@ -24,3 +24,16 @@ linters:
       min-complexity: 5
     dupl:
       threshold: 100
+    custom:
+      goclocbudget:
+        type: "module"
+        description: "Enforces the implementation Go LOC budget using gocloc."
+        settings:
+          max-go-code-lines: 10000
+          include-tests: false
+          exclude-generated: true
+          exclude-dirs:
+            - vendor
+            - .git
+            - node_modules
+            - webui/dist
