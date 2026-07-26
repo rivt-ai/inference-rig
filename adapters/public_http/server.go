@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
+	adaptermcp "inferencerig/adapters/mcp"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
@@ -35,6 +36,7 @@ func NewHandler(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /health", rpcResponse(func(r *http.Request) (proto.Message, error) {
 		return deps.Control.Health(r.Context(), &controlv1.HealthRequest{})
 	}))
+	mux.Handle("/mcp", authorize(deps.AuthToken, adaptermcp.NewHandler(deps.Control)))
 	mux.HandleFunc("GET /api/backends", rpcResponse(func(r *http.Request) (proto.Message, error) {
 		return deps.Control.ListBackends(r.Context(), &controlv1.ListBackendsRequest{})
 	}))
