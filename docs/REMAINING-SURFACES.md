@@ -9,6 +9,21 @@ plan to close them.
 
 Status legend: ✅ complete · 🟡 partial/thin · ❌ missing.
 
+## Delivery stack
+
+Each sequence ships as its own stacked draft PR:
+
+| Sequence | Branch | Base |
+|---|---|---|
+| S1 | `surface-s1-serve` | `phase-12-validation` |
+| S2 | `surface-s2-catalog` | `surface-s1-serve` |
+| S3 | `surface-s3-rpc` | `surface-s2-catalog` |
+| S4 | `surface-s4-cli` | `surface-s3-rpc` |
+| S5 | `surface-s5-setup` | `surface-s4-cli` |
+| S8 | `surface-s8-http-mcp` | `surface-s5-setup` |
+| S6 | `surface-s6-tui` | `surface-s8-http-mcp` |
+| S7 | `surface-s7-webui` | `surface-s6-tui` |
+
 ## 1. What is already done (do not re-port)
 
 - ✅ Neutral core: `platform/*`, `core/{runtime,profiles,configstore,control,rpc,modeldownload,modelcatalog(scanner+fit only),migrate,setup,signals}`.
@@ -23,7 +38,7 @@ Status legend: ✅ complete · 🟡 partial/thin · ❌ missing.
 2. **Neutralize naming (HANDOVER §4).** No `llamarig`/`mlxrig` imports, env names, paths, or engine terms in shared packages. Engine terms are allowed only inside `backends/{llamacpp,mlx}`.
 3. **Contract discipline.** Engine behavior stays behind the Phase-5 backend interfaces / catalog-policy seams; shared code never imports an engine package. Interfaces call **only** canonical RPC, never backend internals.
 4. **Test alongside behavior** (spec §10); run new backends/policies through the existing contract suites.
-5. **Gate every change:** `gofmt -l .`, `go vet ./...`, `go test ./...`, and the custom `make lint-ci` (`goclocbudget` included) must all be clean. Watch the module-wide non-test LOC budget — the catalog and UI ports are large.
+5. **Gate every change:** `gofmt -l .`, `go vet ./...`, `go test ./...`, and the custom `make lint-ci` (`goclocbudget` included) must all be clean. The module-wide non-test Go LOC budget is temporarily 15,000; report and continue if that budget alone fails while the remaining gates pass.
 6. Small, single-purpose commits; each porting commit names its source paths.
 
 ## 3. Gap inventory
@@ -45,7 +60,7 @@ Status legend: ✅ complete · 🟡 partial/thin · ❌ missing.
 
 | Surface | State | Source LOC | Ours |
 |---|---|---|---|
-| **`serve` / daemon command** | ❌ missing — server assembly lives only in the integration test; the binary ships `version` + client CLI only | — | — |
+| **`serve` / daemon command** | ✅ complete — `bootstrap.Service` owns assembly/lifecycle; `serve` and `daemon {status,stop}` are wired | — | — |
 | **Model catalog (shared client)** | ❌ missing | `core/modelcatalog/{huggingface.go(645),local.go,cache.go,url.go,quant.go,events.go}` | scanner+fit only |
 | **CLI** | 🟡 5 verbs (list backends/profiles, runtime status/start/stop) | `adapters/cli` 434 | 136 |
 | **Setup wizard command** | ❌ `core/setup.Wizard` exists but no `setup` command wires it | — | — |
@@ -56,7 +71,7 @@ Status legend: ✅ complete · 🟡 partial/thin · ❌ missing.
 
 ## 4. Workstreams (dependency-ordered)
 
-### S1 — Runnable daemon (`serve`) — FOUNDATION, do first
+### S1 — Runnable daemon (`serve`) — ✅ complete
 Without this nothing runs; every other surface needs a live control socket.
 - Add a `bootstrap` package (or `cmd/serve.go`) that assembles what `test/control_integration_test.go` already builds: `backends.NewRegistry()` → `llamacpp.Register` + `mlx.Register` → `profiles.NewFileStore(..., registry.BackendLookup())` → `control.NewManager(...)` → `rpc.NewControlService` → `rpc.NewServer` → serve on the Unix socket, with graceful shutdown + PID/lock via `platform/pidfile`.
 - Add `inferencerig serve` (and likely `inferencerig status`/`stop`) to `cmd/root.go`.

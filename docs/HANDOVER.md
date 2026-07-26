@@ -111,7 +111,8 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 - `phase-10-interfaces`: Phase 10 canonical-RPC-backed interfaces. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, and no interface imports backend internals.
 - `phase-11-migration`: Phase 11 previewable, create-only migration tooling. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, and source immutability is tested.
 - `phase-12-validation` (this PR): Phase 12 cross-backend integration and hardware validation. Builds green; `make test`, custom `make lint-ci`, `make e2e-live`, and `buf lint` pass. Hardware tests skip explicitly when their documented engine/model inputs or required host are absent.
-- **Top of stack:** `phase-12-validation`. **Next:** review and merge the completed stack bottom-up.
+- `surface-s1-serve`: runnable control daemon assembly, graceful shutdown, shared PID lifecycle, and CLI daemon commands. See `docs/REMAINING-SURFACES.md` for the outer-surface stack.
+- **Top of stack:** `surface-s1-serve`. **Next:** S2 model catalog.
 - What exists now (added in Phase 12):
   - `test/control_integration_test.go` — both real backends registered together and driven through one canonical Unix-socket RPC client. It verifies capability discovery, canonical profile creation, runtime lifecycle through the shared factory, backend-specific materialization isolation, and both artifact-plan forms.
   - `test/live` and `make e2e-live` — opt-in real-engine hardware tests that start through the shared supervisor, wait for the backend readiness endpoint, assert running state, and stop cleanly.
