@@ -102,6 +102,12 @@ func TestManagerControlsProfilesRuntimeInstallAndDownloads(t *testing.T) {
 	if err != nil || status.State != coreruntime.Running {
 		t.Fatalf("status = %#v, err = %v", status, err)
 	}
+	if status, err := manager.RuntimeStatus(ctx, "one"); err != nil || status.State != coreruntime.Stopped {
+		t.Fatalf("inactive profile status = %#v, err = %v", status, err)
+	}
+	if _, err := manager.StopRuntime(ctx, "one"); err != nil || runtimes[1].stops != 0 {
+		t.Fatalf("stopping inactive profile affected active runtime: stops=%d err=%v", runtimes[1].stops, err)
+	}
 	installed, err := manager.InstallBackend(ctx, "test", backends.InstallOptions{})
 	if err != nil || !installed.Changed {
 		t.Fatalf("install = %#v, err = %v", installed, err)
