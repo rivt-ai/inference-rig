@@ -78,3 +78,19 @@ func TestHomeHonorsEnv(t *testing.T) {
 		t.Errorf("ConfigPath() = %q", path)
 	}
 }
+
+func TestGeneratedDir(t *testing.T) {
+	t.Setenv(ProjectHomeEnv, "/tmp/rig-home")
+	dir, err := GeneratedDir("llamacpp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir != "/tmp/rig-home/generated/llamacpp" {
+		t.Errorf("GeneratedDir() = %q", dir)
+	}
+	for _, bad := range []string{"", ".", "..", "a/b", `a\b`} {
+		if _, err := GeneratedDir(bad); err == nil {
+			t.Errorf("GeneratedDir(%q) accepted an unsafe backend name", bad)
+		}
+	}
+}

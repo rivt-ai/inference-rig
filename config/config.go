@@ -187,6 +187,20 @@ func DefaultCatalogCacheDir() (string, error) { return homePath("cache", "hf-cat
 
 func ProfilesDir() (string, error) { return homePath("profiles") }
 
+// GeneratedDir returns the directory holding a backend's generated (non
+// user-owned) runtime files: ${home}/generated/<backend>. The backend name is
+// a caller-supplied registry key; config carries no engine knowledge and only
+// rejects a name that is not a single safe path element.
+func GeneratedDir(backend string) (string, error) {
+	if backend == "" {
+		return "", fmt.Errorf("backend name is required")
+	}
+	if backend == "." || backend == ".." || strings.ContainsAny(backend, `/\`) {
+		return "", fmt.Errorf("invalid backend name %q", backend)
+	}
+	return homePath("generated", backend)
+}
+
 // ControlSocketPath returns the Unix socket the control daemon listens on and
 // that CLI/TUI clients dial.
 func ControlSocketPath() (string, error) { return homePath("run", "control.sock") }
