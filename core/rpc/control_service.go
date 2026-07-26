@@ -16,6 +16,7 @@ import (
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 	coreruntime "inferencerig/core/runtime"
 	"inferencerig/core/signals"
+	"inferencerig/internal/buildinfo"
 )
 
 const ServiceName = "inferencerig-control"
@@ -291,6 +292,94 @@ func (s *ControlService) DeleteLocalModel(ctx context.Context, req *controlv1.De
 	return &controlv1.DeleteLocalModelResponse{Ok: true}, nil
 }
 
+func (s *ControlService) ApplyDownloadToProfile(ctx context.Context, req *controlv1.ApplyDownloadToProfileRequest) (*controlv1.ApplyDownloadToProfileResponse, error) {
+	if req.GetProfile() == "" || req.GetId() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile and download ID are required"))
+	}
+	doc, err := s.manager.ApplyDownloadToProfile(ctx, req.GetProfile(), req.GetId())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.ApplyDownloadToProfileResponse{Ok: true, Profile: profileProto(doc)}, nil
+}
+
+func (s *ControlService) CleanupProfile(ctx context.Context, req *controlv1.CleanupProfileRequest) (*controlv1.CleanupProfileResponse, error) {
+	if req.GetName() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name is required"))
+	}
+	if err := s.manager.CleanupProfile(ctx, req.GetName()); err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.CleanupProfileResponse{Ok: true}, nil
+}
+
+func (s *ControlService) SetProfileAutostart(ctx context.Context, req *controlv1.SetProfileAutostartRequest) (*controlv1.SetProfileAutostartResponse, error) {
+	if req.GetName() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name is required"))
+	}
+	if _, err := s.manager.SetProfileAutostart(ctx, req.GetName(), req.GetEnabled()); err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.SetProfileAutostartResponse{Ok: true}, nil
+}
+
+func (s *ControlService) SetStartupServices(ctx context.Context, req *controlv1.SetStartupServicesRequest) (*controlv1.SetStartupServicesResponse, error) {
+	if _, err := s.manager.SetStartupServices(ctx, req.GetServices()); err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.SetStartupServicesResponse{Ok: true}, nil
+}
+
+func (s *ControlService) RestartRuntime(ctx context.Context, req *controlv1.RestartRuntimeRequest) (*controlv1.RestartRuntimeResponse, error) {
+	if req.GetProfile() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile is required"))
+	}
+	result, err := s.manager.RestartRuntime(ctx, req.GetProfile())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	status, err := s.manager.RuntimeStatus(ctx, req.GetProfile())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.RestartRuntimeResponse{
+		Ok: true, Stopped: commandResultProto(result.Stopped),
+		Started: commandResultProto(result.Started), Status: statusProto(status),
+	}, nil
+}
+
+func (s *ControlService) GetInfo(ctx context.Context, _ *controlv1.GetInfoRequest) (*controlv1.GetInfoResponse, error) {
+	info, err := s.manager.GetInfo(ctx)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.GetInfoResponse{
+		Ok: true, Profiles: int32(info.Profiles), Backends: int32(info.Backends),
+		RunningProfiles: info.RunningProfiles, AutostartProfiles: info.AutostartProfiles,
+		StartupServices: info.StartupServices,
+		Build: &controlv1.BuildInfo{
+			Version: buildinfo.Version, Commit: buildinfo.Commit, CommitTime: buildinfo.CommitTime,
+		},
+	}, nil
+}
+
+func (s *ControlService) GetBackendParams(ctx context.Context, req *controlv1.GetBackendParamsRequest) (*controlv1.GetBackendParamsResponse, error) {
+	if req.GetBackend() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	}
+	items, err := s.manager.GetBackendParams(ctx, req.GetBackend())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	params := make([]*controlv1.BackendParameter, 0, len(items))
+	for _, item := range items {
+		params = append(params, &controlv1.BackendParameter{
+			Name: item.Name, Description: item.Description, Required: item.Required,
+		})
+	}
+	return &controlv1.GetBackendParamsResponse{Ok: true, Params: params}, nil
+}
+
 func backendProto(backend backends.Backend) *controlv1.BackendInfo {
 	capabilities := backend.Capabilities()
 	return &controlv1.BackendInfo{
@@ -300,6 +389,7 @@ func backendProto(backend backends.Backend) *controlv1.BackendInfo {
 			MultiFileArtifacts:  capabilities.MultiFileArtifacts,
 			DiscreteVram:        capabilities.DiscreteVRAM, UnifiedMemory: capabilities.UnifiedMemory,
 			ManagedInstall: capabilities.ManagedInstall, SingleActiveProfile: capabilities.SingleActiveProfile,
+			ParameterIntrospection: capabilities.ParameterIntrospection,
 		},
 	}
 }
@@ -400,6 +490,7 @@ func downloadProto(job modeldownload.Job) *controlv1.ModelDownload {
 		TargetPath: job.TargetPath, ItemCount: int32(job.ItemCount),
 		ReceivedBytes: job.ReceivedBytes, TotalBytes: job.TotalBytes, Percent: job.Percent,
 		Error: job.Error, StartedAt: job.StartedAt, CompletedAt: job.CompletedAt,
+		Backend: job.Backend, Profile: job.Profile,
 	}
 }
 

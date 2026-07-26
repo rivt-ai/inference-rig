@@ -26,6 +26,13 @@ service ControlService {
   rpc WatchModelCatalog(WatchModelCatalogRequest) returns (stream WatchModelCatalogResponse);
   rpc ListLocalModels(ListLocalModelsRequest) returns (ListLocalModelsResponse);
   rpc DeleteLocalModel(DeleteLocalModelRequest) returns (DeleteLocalModelResponse);
+  rpc ApplyDownloadToProfile(ApplyDownloadToProfileRequest) returns (ApplyDownloadToProfileResponse);
+  rpc CleanupProfile(CleanupProfileRequest) returns (CleanupProfileResponse);
+  rpc SetProfileAutostart(SetProfileAutostartRequest) returns (SetProfileAutostartResponse);
+  rpc SetStartupServices(SetStartupServicesRequest) returns (SetStartupServicesResponse);
+  rpc RestartRuntime(RestartRuntimeRequest) returns (RestartRuntimeResponse);
+  rpc GetInfo(GetInfoRequest) returns (GetInfoResponse);
+  rpc GetBackendParams(GetBackendParamsRequest) returns (GetBackendParamsResponse);
 }
 
 message HealthRequest {}
@@ -50,6 +57,7 @@ message BackendCapabilities {
   bool unified_memory = 4;
   bool managed_install = 5;
   bool single_active_profile = 6;
+  bool parameter_introspection = 7;
 }
 
 message ListProfilesRequest {}
@@ -197,6 +205,8 @@ message ModelDownload {
   string error = 9;
   string started_at = 10;
   string completed_at = 11;
+  string backend = 12;
+  string profile = 13;
 }
 
 message GetSignalsRequest {}
@@ -277,3 +287,53 @@ message DeleteLocalModelRequest {
   string path = 2;
 }
 message DeleteLocalModelResponse { bool ok = 1; }
+
+message ApplyDownloadToProfileRequest {
+  string profile = 1;
+  string id = 2;
+}
+message ApplyDownloadToProfileResponse {
+  bool ok = 1;
+  Profile profile = 2;
+}
+message CleanupProfileRequest { string name = 1; }
+message CleanupProfileResponse { bool ok = 1; }
+message SetProfileAutostartRequest {
+  string name = 1;
+  bool enabled = 2;
+}
+message SetProfileAutostartResponse { bool ok = 1; }
+message SetStartupServicesRequest { repeated string services = 1; }
+message SetStartupServicesResponse { bool ok = 1; }
+message RestartRuntimeRequest { string profile = 1; }
+message RestartRuntimeResponse {
+  bool ok = 1;
+  CommandResult stopped = 2;
+  CommandResult started = 3;
+  RuntimeStatus status = 4;
+}
+message GetInfoRequest {}
+message GetInfoResponse {
+  bool ok = 1;
+  int32 profiles = 2;
+  int32 backends = 3;
+  repeated string running_profiles = 4;
+  repeated string autostart_profiles = 5;
+  repeated string startup_services = 6;
+  BuildInfo build = 7;
+}
+message BuildInfo {
+  string version = 1;
+  string commit = 2;
+  string commit_time = 3;
+}
+message GetBackendParamsRequest { string backend = 1; }
+message GetBackendParamsResponse {
+  bool ok = 1;
+  repeated BackendParameter params = 2;
+}
+message BackendParameter {
+  string name = 1;
+  string description = 2;
+  bool required = 3;
+}

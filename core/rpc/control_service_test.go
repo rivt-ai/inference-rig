@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"inferencerig/backends"
 	"inferencerig/backends/backendtest"
 	"inferencerig/config"
+	"inferencerig/core/configstore"
 	"inferencerig/core/control"
 	"inferencerig/core/modelcatalog"
 	"inferencerig/core/modeldownload"
@@ -40,6 +42,16 @@ func (b *rpcBackend) Plan(r backends.ResolvedModel) (backends.ArtifactPlan, erro
 	plan.TargetRoot, plan.TotalBytes = b.target, 0
 	plan.Items[0].TargetPath, plan.Items[0].SizeBytes = b.target, 0
 	return plan, nil
+}
+
+func (b *rpcBackend) Capabilities() backends.Capabilities {
+	capabilities := b.Fake.Capabilities()
+	capabilities.ParameterIntrospection = true
+	return capabilities
+}
+
+func (b *rpcBackend) Parameters(context.Context) ([]backends.Parameter, error) {
+	return []backends.Parameter{{Name: "engine_args.test"}}, nil
 }
 
 type rpcRuntime struct{ state coreruntime.State }
@@ -82,7 +94,12 @@ func (rpcCatalog) Subscribe() (<-chan modelcatalog.RefreshEvent, func()) {
 
 //nolint:gocognit,gocyclo,funlen // One end-to-end scenario verifies the canonical control surface.
 func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
-	t.Setenv(config.ProjectHomeEnv, t.TempDir())
+	home := t.TempDir()
+	t.Setenv(config.ProjectHomeEnv, home)
+	configPath := filepath.Join(home, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("startup_services: [control]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	artifact := []byte("model")
 	downloadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(artifact)
@@ -100,6 +117,7 @@ func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
 		Downloads:      modeldownload.New(modeldownload.Options{HTTPClient: downloadServer.Client()}),
 		RuntimeFactory: func(coreruntime.LaunchSpec) control.Runtime { return &rpcRuntime{} },
 		Catalog:        rpcCatalog{},
+		Config:         configstore.NewFileStore(configPath, 0),
 	})
 	path, handler := ControlHandler(NewControlService(manager))
 	server, err := NewServer(path, handler)
@@ -158,6 +176,36 @@ func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
 	if downloadState != string(modeldownload.StateCompleted) {
 		t.Fatalf("download state = %q", downloadState)
 	}
+	applied, err := client.ApplyDownloadToProfile(ctx, &controlv1.ApplyDownloadToProfileRequest{
+		Profile: "demo", Id: downloadID,
+	})
+	if err != nil || applied.GetProfile().GetModelSource() != backend.target {
+		t.Fatalf("applied = %#v, err = %v", applied, err)
+	}
+	autostart, err := client.SetProfileAutostart(ctx, &controlv1.SetProfileAutostartRequest{
+		Name: "demo", Enabled: true,
+	})
+	if err != nil || !autostart.GetOk() {
+		t.Fatalf("autostart = %#v, err = %v", autostart, err)
+	}
+	startup, err := client.SetStartupServices(ctx, &controlv1.SetStartupServicesRequest{
+		Services: []string{config.StartupServiceControl},
+	})
+	if err != nil || !startup.GetOk() {
+		t.Fatalf("startup = %#v, err = %v", startup, err)
+	}
+	restarted, err := client.RestartRuntime(ctx, &controlv1.RestartRuntimeRequest{Profile: "demo"})
+	if err != nil || restarted.GetStatus().GetState() != string(coreruntime.Running) {
+		t.Fatalf("restarted = %#v, err = %v", restarted, err)
+	}
+	info, err := client.GetInfo(ctx, &controlv1.GetInfoRequest{})
+	if err != nil || info.GetProfiles() != 1 || len(info.GetAutostartProfiles()) != 1 {
+		t.Fatalf("info = %#v, err = %v", info, err)
+	}
+	params, err := client.GetBackendParams(ctx, &controlv1.GetBackendParamsRequest{Backend: "test"})
+	if err != nil || len(params.GetParams()) != 1 {
+		t.Fatalf("params = %#v, err = %v", params, err)
+	}
 	signalsResponse, err := client.GetSignals(ctx, &controlv1.GetSignalsRequest{})
 	if err != nil || signalsResponse.GetSignals().GetLogicalCpuCores() != 4 {
 		t.Fatalf("signals = %#v, err = %v", signalsResponse, err)
@@ -179,6 +227,10 @@ func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
 	})
 	if err != nil || !deleted.GetOk() {
 		t.Fatalf("deleted = %#v, err = %v", deleted, err)
+	}
+	cleaned, err := client.CleanupProfile(ctx, &controlv1.CleanupProfileRequest{Name: "demo"})
+	if err != nil || !cleaned.GetOk() {
+		t.Fatalf("cleaned = %#v, err = %v", cleaned, err)
 	}
 }
 
