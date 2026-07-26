@@ -1,4 +1,9 @@
-.PHONY: build test lint verify generate webui e2e-live
+.PHONY: build test lint lint-ci verify generate webui e2e-live
+
+CUSTOM_LINT ?= ./custom-golangci-lint
+
+custom-golangci-lint: .custom-gcl.yml
+	golangci-lint custom
 
 build:
 	go build ./...
@@ -6,8 +11,10 @@ build:
 test:
 	go test ./...
 
-lint:
-	golangci-lint run ./...
+lint: custom-golangci-lint
+	$(CUSTOM_LINT) run ./...
+
+lint-ci: lint
 
 verify: test lint
 
@@ -17,8 +24,5 @@ generate:
 webui:
 	go test ./webui
 
-# Live end-to-end tests against real engines are added with the backends
-# (Phase 6/7) and hardware validation (Phase 12). Placeholder keeps the
-# ported Live E2E workflow valid until then.
 e2e-live:
-	@echo "no live e2e yet (added with the backends)"
+	go test -tags=live ./test/live -count=1 -timeout=10m
