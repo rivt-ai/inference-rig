@@ -77,8 +77,8 @@ terminology may survive in shared packages.
 | 8 | `phase-08-downloads` | `phase-07-mlx` | 8 | done |
 | 9 | `phase-09-control-rpc` | `phase-08-downloads` | 9 | done |
 | 10 | `phase-10-interfaces` | `phase-09-control-rpc` | 10 | done |
-| 11 | `phase-11-migration` | `phase-10-interfaces` | 11 | **this PR** |
-| 12 | `phase-12-validation` | `phase-11-migration` | 12 | todo |
+| 11 | `phase-11-migration` | `phase-10-interfaces` | 11 | done |
+| 12 | `phase-12-validation` | `phase-11-migration` | 12 | **this PR** |
 
 Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 `main`, rebase/retarget the next open PR's base to `main`.
@@ -109,8 +109,13 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 - `phase-08-downloads`: Phase 8 neutral artifact-plan download executor. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
 - `phase-09-control-rpc`: Phase 9 canonical control manager and ConnectRPC service. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
 - `phase-10-interfaces`: Phase 10 canonical-RPC-backed interfaces. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, and no interface imports backend internals.
-- `phase-11-migration` (this PR): Phase 11 previewable, create-only migration tooling. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, and source immutability is tested.
-- **Top of stack:** `phase-11-migration`. **Next:** Phase 12 (integration and hardware validation) on `phase-12-validation`, based on `phase-11-migration`.
+- `phase-11-migration`: Phase 11 previewable, create-only migration tooling. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, and source immutability is tested.
+- `phase-12-validation` (this PR): Phase 12 cross-backend integration and hardware validation. Builds green; `make test`, custom `make lint-ci`, `make e2e-live`, and `buf lint` pass. Hardware tests skip explicitly when their documented engine/model inputs or required host are absent.
+- **Top of stack:** `phase-12-validation`. **Next:** review and merge the completed stack bottom-up.
+- What exists now (added in Phase 12):
+  - `test/control_integration_test.go` — both real backends registered together and driven through one canonical Unix-socket RPC client. It verifies capability discovery, canonical profile creation, runtime lifecycle through the shared factory, backend-specific materialization isolation, and both artifact-plan forms.
+  - `test/live` and `make e2e-live` — opt-in real-engine hardware tests that start through the shared supervisor, wait for the backend readiness endpoint, assert running state, and stop cleanly.
+  - `docs/hardware-validation.md` — explicit evidence levels, current support matrix, environment inputs, and a record section that prevents unverified hardware claims. The module-wide non-test Go LOC budget is reinstated through the pinned custom linter and CI `make lint-ci`.
 - What exists now (added in Phase 11):
   - `core/migrate.Service` — neutral preview/validate/apply orchestration. Plans contain canonical YAML, preview performs no writes, apply creates only missing destination profiles, and repeated application reports existing profiles as skipped rather than replacing them.
   - Backend-owned read-only importers — the single-file backend translates legacy INI sections and cascaded defaults; the directory-artifact backend translates legacy directory YAML while retaining engine arguments and warning about installation/runtime fields that require manual review. Both scan deterministically, reject symlink sources, validate through their real backend and canonical store, and tests assert source bytes remain unchanged.
