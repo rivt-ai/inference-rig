@@ -82,6 +82,7 @@ type ArtifactItem struct {
 // no engine branch; the Phase-8 download executor consumes this type.
 type ArtifactPlan struct {
 	MultiFile  bool
+	TargetRoot string
 	Items      []ArtifactItem
 	TotalBytes int64
 }
