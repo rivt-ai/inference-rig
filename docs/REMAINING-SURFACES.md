@@ -66,8 +66,8 @@ Each sequence ships as its own stacked draft PR:
 | **Setup wizard command** | ✅ capability-aware stdlib prompts create canonical YAML through RPC | — | — |
 | **TUI** | 🟡 stub (read-only snapshot view) | `adapters/tui` ~2,300 (+tabs,+ui) | 76 |
 | **Web UI** | 🟡 static embedded `index.html`; real Svelte/Vite app absent | `webui/web` 158 `.svelte` + vite/pnpm pipeline | 28 (Go embed) |
-| **public_http (REST facade)** | 🟡 read + runtime actions only | `adapters/public_http` 734 | 127 |
-| **MCP** | 🟡 backend/profile/runtime tools only | `adapters/mcp` ~440 | 159 |
+| **public_http (REST facade)** | ✅ full unary surface with bearer protection on mutations | `adapters/public_http` 734 | neutral generated-client facade |
+| **MCP** | ✅ full unary tool surface through generated client | `adapters/mcp` ~440 | neutral tool registry |
 
 ## 4. Workstreams (dependency-ordered)
 
@@ -102,7 +102,7 @@ Without this nothing runs; every other surface needs a live control socket.
 - Port the `webui/web` Svelte/Vite/pnpm app (158 `.svelte`) + build pipeline; Go embeds `webui/dist`; wire `vite build` into `make webui` and CI. Frontend talks only to the `public_http` facade → canonical RPC.
 - **Exit:** `make webui` builds the real SPA; embedded assets served; `make build` stays green without a node toolchain (committed `dist` or CI-built). Large. Depends on S1+S8.
 
-### S8 — public_http + MCP breadth
+### S8 — public_http + MCP breadth — ✅ complete
 - Expand the REST facade (`adapters/public_http`, source 734) and MCP tools (`adapters/mcp`, source ~440) to cover the full canonical surface (catalog, downloads, local models, profile CRUD, setup), keeping auth + capability-gating. The web UI (S7) consumes this.
 - **Exit:** REST + MCP expose the full surface; every handler reaches RPC only. Depends on S1+S3.
 
