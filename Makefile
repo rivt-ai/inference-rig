@@ -1,4 +1,4 @@
-.PHONY: build test lint verify e2e-live
+.PHONY: build test lint verify generate e2e-live
 
 build:
 	go build ./...
@@ -10,6 +10,9 @@ lint:
 	golangci-lint run ./...
 
 verify: test lint
+
+generate:
+	buf generate
 
 # Live end-to-end tests against real engines are added with the backends
 # (Phase 6/7) and hardware validation (Phase 12). Placeholder keeps the

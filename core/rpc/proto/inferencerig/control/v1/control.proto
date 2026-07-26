@@ -1,0 +1,226 @@
+syntax = "proto3";
+
+package inferencerig.control.v1;
+
+option go_package = "inferencerig/core/rpc/gen/v1;controlv1";
+
+service ControlService {
+  rpc Health(HealthRequest) returns (HealthResponse);
+  rpc ListBackends(ListBackendsRequest) returns (ListBackendsResponse);
+  rpc ListProfiles(ListProfilesRequest) returns (ListProfilesResponse);
+  rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
+  rpc PutProfile(PutProfileRequest) returns (PutProfileResponse);
+  rpc DeleteProfile(DeleteProfileRequest) returns (DeleteProfileResponse);
+  rpc InstallBackend(InstallBackendRequest) returns (InstallBackendResponse);
+  rpc StartRuntime(StartRuntimeRequest) returns (StartRuntimeResponse);
+  rpc StopRuntime(StopRuntimeRequest) returns (StopRuntimeResponse);
+  rpc GetRuntimeStatus(GetRuntimeStatusRequest) returns (GetRuntimeStatusResponse);
+  rpc ResolveProfileModel(ResolveProfileModelRequest) returns (ResolveProfileModelResponse);
+  rpc StartModelDownload(StartModelDownloadRequest) returns (StartModelDownloadResponse);
+  rpc GetModelDownload(GetModelDownloadRequest) returns (GetModelDownloadResponse);
+  rpc CancelModelDownload(CancelModelDownloadRequest) returns (CancelModelDownloadResponse);
+  rpc GetSignals(GetSignalsRequest) returns (GetSignalsResponse);
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+  rpc WatchEvents(WatchEventsRequest) returns (stream WatchEventsResponse);
+}
+
+message HealthRequest {}
+message HealthResponse {
+  bool ok = 1;
+  string service = 2;
+}
+
+message ListBackendsRequest {}
+message ListBackendsResponse {
+  bool ok = 1;
+  repeated BackendInfo backends = 2;
+}
+message BackendInfo {
+  string name = 1;
+  BackendCapabilities capabilities = 2;
+}
+message BackendCapabilities {
+  bool single_file_artifacts = 1;
+  bool multi_file_artifacts = 2;
+  bool discrete_vram = 3;
+  bool unified_memory = 4;
+  bool managed_install = 5;
+  bool single_active_profile = 6;
+}
+
+message ListProfilesRequest {}
+message ListProfilesResponse {
+  bool ok = 1;
+  repeated Profile profiles = 2;
+}
+message GetProfileRequest { string name = 1; }
+message PutProfileRequest {
+  string name = 1;
+  string profile_yaml = 2;
+  bool create_only = 3;
+}
+message DeleteProfileRequest { string name = 1; }
+message GetProfileResponse {
+  bool ok = 1;
+  Profile profile = 2;
+}
+message PutProfileResponse {
+  bool ok = 1;
+  Profile profile = 2;
+}
+message Profile {
+  string name = 1;
+  string backend = 2;
+  string profile_yaml = 3;
+  string model_source = 4;
+  string model_reference = 5;
+  string host = 6;
+  int32 port = 7;
+}
+message DeleteProfileResponse { bool ok = 1; }
+
+message InstallBackendRequest {
+  string backend = 1;
+  string version = 2;
+  bool upgrade = 3;
+  bool force = 4;
+}
+message InstallBackendResponse {
+  bool ok = 1;
+  string version = 2;
+  string path = 3;
+  bool changed = 4;
+  string message = 5;
+}
+
+message StartRuntimeRequest { string profile = 1; }
+message StartRuntimeResponse {
+  bool ok = 1;
+  CommandResult result = 2;
+  RuntimeStatus status = 3;
+}
+message StopRuntimeRequest { string profile = 1; }
+message StopRuntimeResponse {
+  bool ok = 1;
+  CommandResult result = 2;
+  RuntimeStatus status = 3;
+}
+message GetRuntimeStatusRequest { string profile = 1; }
+message GetRuntimeStatusResponse {
+  bool ok = 1;
+  RuntimeStatus status = 2;
+}
+message CommandResult {
+  string action = 1;
+  int32 exit_code = 2;
+  string stdout = 3;
+  string stderr = 4;
+  int64 duration_ms = 5;
+}
+message RuntimeStatus {
+  string state = 1;
+  string detail = 2;
+  string checked_at = 3;
+  repeated ProcessStatus processes = 4;
+}
+message ProcessStatus {
+  string name = 1;
+  string state = 2;
+  int32 pid = 3;
+  string host = 4;
+  int32 port = 5;
+  bool ready = 6;
+  string last_error = 7;
+}
+
+message ResolveProfileModelRequest { string profile = 1; }
+message ResolveProfileModelResponse {
+  bool ok = 1;
+  ResolvedModel model = 2;
+  ArtifactPlan plan = 3;
+}
+message ResolvedModel {
+  string source = 1;
+  string reference = 2;
+  bool multi_file = 3;
+  repeated Artifact artifacts = 4;
+}
+message Artifact {
+  string name = 1;
+  string uri = 2;
+  int64 size_bytes = 3;
+}
+message ArtifactPlan {
+  bool multi_file = 1;
+  string target_root = 2;
+  repeated ArtifactItem items = 3;
+  int64 total_bytes = 4;
+}
+message ArtifactItem {
+  string uri = 1;
+  string filename = 2;
+  string target_path = 3;
+  int64 size_bytes = 4;
+}
+
+message StartModelDownloadRequest {
+  string profile = 1;
+  bool force = 2;
+}
+message StartModelDownloadResponse {
+  bool ok = 1;
+  ModelDownload download = 2;
+}
+message GetModelDownloadRequest { string id = 1; }
+message GetModelDownloadResponse {
+  bool ok = 1;
+  ModelDownload download = 2;
+}
+message CancelModelDownloadRequest { string id = 1; }
+message CancelModelDownloadResponse {
+  bool ok = 1;
+  ModelDownload download = 2;
+}
+message ModelDownload {
+  string id = 1;
+  string state = 2;
+  bool multi_file = 3;
+  string target_path = 4;
+  int32 item_count = 5;
+  int64 received_bytes = 6;
+  int64 total_bytes = 7;
+  double percent = 8;
+  string error = 9;
+  string started_at = 10;
+  string completed_at = 11;
+}
+
+message GetSignalsRequest {}
+message GetSignalsResponse {
+  bool ok = 1;
+  Signals signals = 2;
+}
+message Signals {
+  string captured_at = 1;
+  uint64 total_memory_bytes = 2;
+  uint64 available_memory_bytes = 3;
+  int32 logical_cpu_cores = 4;
+  double cpu_used_percent = 5;
+  repeated string warnings = 6;
+}
+
+message ListEventsRequest {}
+message ListEventsResponse {
+  bool ok = 1;
+  repeated Event events = 2;
+}
+message WatchEventsRequest {}
+message WatchEventsResponse { Event event = 1; }
+message Event {
+  string id = 1;
+  string time = 2;
+  string action = 3;
+  bool success = 4;
+  string error_kind = 5;
+  string duration = 6;
+}
