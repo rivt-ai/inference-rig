@@ -62,7 +62,7 @@ Each sequence ships as its own stacked draft PR:
 |---|---|---|---|
 | **`serve` / daemon command** | ✅ complete — `bootstrap.Service` owns assembly/lifecycle; `serve` and `daemon {status,stop}` are wired | — | — |
 | **Model catalog (shared client)** | ✅ complete | `core/modelcatalog/{huggingface.go(645),local.go,cache.go,url.go,quant.go,events.go}` | neutral HTTP/cache/events + scanners/policies |
-| **CLI** | 🟡 5 verbs (list backends/profiles, runtime status/start/stop) | `adapters/cli` 434 | 136 |
+| **CLI** | ✅ complete — grouped commands reach every canonical RPC, including streams | `adapters/cli` 434 | full neutral surface |
 | **Setup wizard command** | ❌ `core/setup.Wizard` exists but no `setup` command wires it | — | — |
 | **TUI** | 🟡 stub (read-only snapshot view) | `adapters/tui` ~2,300 (+tabs,+ui) | 76 |
 | **Web UI** | 🟡 static embedded `index.html`; real Svelte/Vite app absent | `webui/web` 158 `.svelte` + vite/pnpm pipeline | 28 (Go embed) |
@@ -86,7 +86,7 @@ Without this nothing runs; every other surface needs a live control socket.
 - Add the remaining manager methods + proto RPCs (regen deterministically, `buf lint`): `ApplyDownloadToProfile`, `CleanupProfile`, `SetProfileAutostart`, `SetStartupServices`, `RestartRuntime`, `GetInfo`, and capability-gated `GetBackendParams`.
 - **Exit:** RPC surface reaches functional parity with source (neutralized); each method covered by a generated-client test. Depends on S2 for the catalog/local pieces.
 
-### S4 — CLI breadth
+### S4 — CLI breadth — ✅ complete
 - Surface the full RPC set as verbs: `profile {create,edit,delete,get,list}`, `model {search,list,download,cancel,resolve,rm}`, `backend {list,install,params}`, `runtime {start,stop,restart,status}`, `signals`, `events [--watch]`. Port structure from `llamarig/adapters/cli` (neutralized).
 - **Exit:** every canonical RPC reachable from the CLI; fake-client tests prove each verb hits RPC only. Depends on S1+S3.
 
