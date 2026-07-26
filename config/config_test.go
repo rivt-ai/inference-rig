@@ -81,11 +81,11 @@ func TestHomeHonorsEnv(t *testing.T) {
 
 func TestGeneratedDir(t *testing.T) {
 	t.Setenv(ProjectHomeEnv, "/tmp/rig-home")
-	dir, err := GeneratedDir("llamacpp")
+	dir, err := GeneratedDir("sample")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dir != "/tmp/rig-home/generated/llamacpp" {
+	if dir != "/tmp/rig-home/generated/sample" {
 		t.Errorf("GeneratedDir() = %q", dir)
 	}
 	for _, bad := range []string{"", ".", "..", "a/b", `a\b`} {
