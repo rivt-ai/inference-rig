@@ -64,7 +64,7 @@ Each sequence ships as its own stacked draft PR:
 | **Model catalog (shared client)** | ✅ complete | `core/modelcatalog/{huggingface.go(645),local.go,cache.go,url.go,quant.go,events.go}` | neutral HTTP/cache/events + scanners/policies |
 | **CLI** | ✅ complete — grouped commands reach every canonical RPC, including streams | `adapters/cli` 434 | full neutral surface |
 | **Setup wizard command** | ✅ capability-aware stdlib prompts create canonical YAML through RPC | — | — |
-| **TUI** | 🟡 stub (read-only snapshot view) | `adapters/tui` ~2,300 (+tabs,+ui) | 76 |
+| **TUI** | ✅ interactive multi-view dashboard over canonical RPC | `adapters/tui` ~2,300 (+tabs,+ui) | lean Bubble Tea model |
 | **Web UI** | 🟡 static embedded `index.html`; real Svelte/Vite app absent | `webui/web` 158 `.svelte` + vite/pnpm pipeline | 28 (Go embed) |
 | **public_http (REST facade)** | ✅ full unary surface with bearer protection on mutations | `adapters/public_http` 734 | neutral generated-client facade |
 | **MCP** | ✅ full unary tool surface through generated client | `adapters/mcp` ~440 | neutral tool registry |
@@ -94,7 +94,7 @@ Without this nothing runs; every other surface needs a live control socket.
 - Wire `core/setup.Wizard` into `inferencerig setup` (capability-gated prompts, creates a canonical profile via RPC only).
 - **Exit:** interactive setup produces a valid profile through RPC. Depends on S1.
 
-### S6 — Full TUI
+### S6 — Full TUI — ✅ complete
 - Port `llamarig/adapters/tui` (+tabs, +ui, ~2,300 LOC) over the generated canonical client — backend/profile/runtime/catalog/download/events views. Neutralize; no backend imports.
 - **Exit:** interactive TUI drives the full control surface through RPC. Large. Depends on S1+S3+S2.
 
