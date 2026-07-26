@@ -131,6 +131,16 @@ func checkCapabilities(t *testing.T, b backends.Backend) {
 		t.Fatal("Capabilities advertise neither discrete-VRAM nor unified-memory fit")
 	}
 	assertPlanMatchesCapabilities(t, b, c)
+	if c.ParameterIntrospection {
+		provider, ok := b.(backends.ParameterProvider)
+		if !ok {
+			t.Fatal("parameter introspection advertised without ParameterProvider")
+		}
+		params, err := provider.Parameters(context.Background())
+		if err != nil || len(params) == 0 {
+			t.Fatalf("Parameters = %#v, err = %v", params, err)
+		}
+	}
 }
 
 // assertPlanMatchesCapabilities checks the artifact form a backend actually

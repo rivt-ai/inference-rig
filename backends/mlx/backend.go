@@ -4,6 +4,7 @@
 package mlx
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
 	"runtime"
@@ -78,11 +79,23 @@ func (b *Backend) Name() string { return Name }
 // installation, and one active profile.
 func (b *Backend) Capabilities() backends.Capabilities {
 	return backends.Capabilities{
-		MultiFileArtifacts:  true,
-		UnifiedMemory:       true,
-		ManagedInstall:      true,
-		SingleActiveProfile: true,
+		MultiFileArtifacts:     true,
+		UnifiedMemory:          true,
+		ManagedInstall:         true,
+		SingleActiveProfile:    true,
+		ParameterIntrospection: true,
 	}
+}
+
+// Parameters describes the canonical profile inputs and the backend-owned
+// engine argument namespace.
+func (b *Backend) Parameters(context.Context) ([]backends.Parameter, error) {
+	return []backends.Parameter{
+		{Name: "model.source", Description: "model repository or local snapshot", Required: true},
+		{Name: "listen.host", Description: "server listen host"},
+		{Name: "listen.port", Description: "server listen port", Required: true},
+		{Name: "engine_args.*", Description: "server command argument"},
+	}, nil
 }
 
 // CatalogPolicy returns the backend adapter for remote and local snapshots.
@@ -120,4 +133,5 @@ func (b *Backend) engineRoot() (string, error) {
 }
 
 var _ backends.Backend = (*Backend)(nil)
+var _ backends.ParameterProvider = (*Backend)(nil)
 var _ modelcatalog.DirectoryPolicy = snapshotPolicy{}

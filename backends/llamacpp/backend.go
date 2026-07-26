@@ -92,10 +92,23 @@ func (b *Backend) Name() string { return Name }
 // backend that ships a router HTTP client and serves many models at once.
 func (b *Backend) Capabilities() backends.Capabilities {
 	return backends.Capabilities{
-		SingleFileArtifacts: true,
-		DiscreteVRAM:        true,
-		ManagedInstall:      true,
+		SingleFileArtifacts:    true,
+		DiscreteVRAM:           true,
+		ManagedInstall:         true,
+		ParameterIntrospection: true,
 	}
+}
+
+// Parameters describes the canonical profile inputs and the backend-owned
+// engine argument namespace.
+func (b *Backend) Parameters(context.Context) ([]backends.Parameter, error) {
+	return []backends.Parameter{
+		{Name: "model.source", Description: "model repository, URL, or local path", Required: true},
+		{Name: "model.reference", Description: "artifact filename within a repository"},
+		{Name: "listen.host", Description: "server listen host"},
+		{Name: "listen.port", Description: "server listen port", Required: true},
+		{Name: "engine_args.*", Description: "backend command/config argument"},
+	}, nil
 }
 
 // CatalogPolicy returns the backend adapter for remote variants and local
@@ -184,3 +197,4 @@ var _ modelcatalog.CatalogPolicy = catalogPolicy{}
 
 // Ensure the backend satisfies the full contract at compile time.
 var _ backends.Backend = (*Backend)(nil)
+var _ backends.ParameterProvider = (*Backend)(nil)
