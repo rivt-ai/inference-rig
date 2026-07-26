@@ -47,8 +47,8 @@ Each sequence ships as its own stacked draft PR:
 
 | Missing RPC (source name → neutral name) | Capability | Notes |
 |---|---|---|
-| `ListModelCatalog`, `WatchModelCatalog` | **Model catalog browse/search** | ❌ completely missing — the 645-line HuggingFace client was never ported; `core/modelcatalog` has only scanner+fit+policy |
-| `ListLocalModels`, `DeleteLocalModel` | **Local model management** | ❌ missing |
+| `ListModelCatalog`, `WatchModelCatalog` | **Model catalog browse/search** | ✅ shared HTTP/cache/refresh module with backend-owned artifact policy |
+| `ListLocalModels`, `DeleteLocalModel` | **Local model management** | ✅ backend-owned scanning and containment-checked deletion through canonical RPC |
 | `ApplyModelDownloadToPreset` → `ApplyDownloadToProfile` | Wire a finished download into a profile | ❌ missing |
 | `CleanupPreset` → `CleanupProfile` | Reclaim a profile's model artifacts | ❌ missing |
 | `SetPresetAutostart` → `SetProfileAutostart`, `SetStartupServices` | Autostart / startup-services config | ❌ missing (`configstore.SetStartupServices` exists but no RPC) |
@@ -61,7 +61,7 @@ Each sequence ships as its own stacked draft PR:
 | Surface | State | Source LOC | Ours |
 |---|---|---|---|
 | **`serve` / daemon command** | ✅ complete — `bootstrap.Service` owns assembly/lifecycle; `serve` and `daemon {status,stop}` are wired | — | — |
-| **Model catalog (shared client)** | ❌ missing | `core/modelcatalog/{huggingface.go(645),local.go,cache.go,url.go,quant.go,events.go}` | scanner+fit only |
+| **Model catalog (shared client)** | ✅ complete | `core/modelcatalog/{huggingface.go(645),local.go,cache.go,url.go,quant.go,events.go}` | neutral HTTP/cache/events + scanners/policies |
 | **CLI** | 🟡 5 verbs (list backends/profiles, runtime status/start/stop) | `adapters/cli` 434 | 136 |
 | **Setup wizard command** | ❌ `core/setup.Wizard` exists but no `setup` command wires it | — | — |
 | **TUI** | 🟡 stub (read-only snapshot view) | `adapters/tui` ~2,300 (+tabs,+ui) | 76 |
@@ -77,7 +77,7 @@ Without this nothing runs; every other surface needs a live control socket.
 - Add `inferencerig serve` (and likely `inferencerig status`/`stop`) to `cmd/root.go`.
 - **Exit:** `inferencerig serve` starts a socket the existing CLI verbs talk to; a smoke test starts the daemon in-process and drives one RPC. Source ref: the integration test + `llamarig` app bootstrap/startup wiring.
 
-### S2 — Model catalog capability — LARGEST functional gap
+### S2 — Model catalog capability — ✅ complete
 - Port `llamarig/core/modelcatalog/{huggingface.go,local.go,cache.go,url.go,events.go}` into the **shared** `core/modelcatalog` as a neutral search/list/cache mechanism, with the GGUF-vs-snapshot **format policy behind the existing backend catalog-policy seam** (extend `FormatPolicy`; MLX snapshot policy already exists). Keep all HF/GGUF specifics in `backends/{llamacpp,mlx}`.
 - Add manager methods + RPCs: `ListModelCatalog`/`WatchModelCatalog`, `ListLocalModels`, `DeleteLocalModel`.
 - **Exit:** browse/search catalog + list/delete local models for *both* backends through one neutral mechanism; policy stays in backends. Tests over a recorded HTTP fixture (no live network).
