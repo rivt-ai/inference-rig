@@ -36,36 +36,44 @@ func TestMain(m *testing.M) {
 
 func runFakeChild() {
 	mode := os.Getenv("IR_FAKE_MODE")
-	addr := os.Getenv("IR_FAKE_ADDR")
-	path := os.Getenv("IR_FAKE_PATH")
-
 	if mode == "server" || mode == "ignore" {
-		ln, err := net.Listen("tcp", addr)
-		if err != nil {
-			os.Exit(1)
-		}
-		if path == "" {
-			go func() {
-				for {
-					conn, err := ln.Accept()
-					if err != nil {
-						return
-					}
-					_ = conn.Close()
-				}
-			}()
-		} else {
-			mux := http.NewServeMux()
-			mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-			go func() { _ = http.Serve(ln, mux) }()
-		}
+		startFakeListener(os.Getenv("IR_FAKE_ADDR"), os.Getenv("IR_FAKE_PATH"))
 	}
-
 	if mode == "ignore" {
 		signal.Ignore(syscall.SIGINT)
 		select {}
 	}
+	waitForSIGINT()
+}
 
+// startFakeListener binds addr so the supervisor's readiness probe succeeds. An
+// empty path serves raw TCP (drained accepts); otherwise path is served over
+// HTTP with a 200 response.
+func startFakeListener(addr, path string) {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		os.Exit(1)
+	}
+	if path == "" {
+		go drainConns(ln)
+		return
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	go func() { _ = http.Serve(ln, mux) }()
+}
+
+func drainConns(ln net.Listener) {
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		_ = conn.Close()
+	}
+}
+
+func waitForSIGINT() {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT)
 	<-ch
@@ -129,21 +137,6 @@ func newFakeCmd(spec LaunchSpec) *exec.Cmd {
 	cmd.Env = append(os.Environ(), envList(spec.Env)...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return cmd
-}
-
-func waitForState(t *testing.T, sup *Supervisor, want State, timeout time.Duration) Status {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	var status Status
-	for time.Now().Before(deadline) {
-		status, _ = sup.Status(context.Background())
-		if status.State == want {
-			return status
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("state %q not reached (last=%q %#v)", want, status.State, status)
-	return status
 }
 
 func waitReadyAddr(t *testing.T, host string, port int, timeout time.Duration) {
