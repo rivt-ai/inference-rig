@@ -63,7 +63,7 @@ Each sequence ships as its own stacked draft PR:
 | **`serve` / daemon command** | ✅ complete — `bootstrap.Service` owns assembly/lifecycle; `serve` and `daemon {status,stop}` are wired | — | — |
 | **Model catalog (shared client)** | ✅ complete | `core/modelcatalog/{huggingface.go(645),local.go,cache.go,url.go,quant.go,events.go}` | neutral HTTP/cache/events + scanners/policies |
 | **CLI** | ✅ complete — grouped commands reach every canonical RPC, including streams | `adapters/cli` 434 | full neutral surface |
-| **Setup wizard command** | ❌ `core/setup.Wizard` exists but no `setup` command wires it | — | — |
+| **Setup wizard command** | ✅ capability-aware stdlib prompts create canonical YAML through RPC | — | — |
 | **TUI** | 🟡 stub (read-only snapshot view) | `adapters/tui` ~2,300 (+tabs,+ui) | 76 |
 | **Web UI** | 🟡 static embedded `index.html`; real Svelte/Vite app absent | `webui/web` 158 `.svelte` + vite/pnpm pipeline | 28 (Go embed) |
 | **public_http (REST facade)** | 🟡 read + runtime actions only | `adapters/public_http` 734 | 127 |
@@ -90,7 +90,7 @@ Without this nothing runs; every other surface needs a live control socket.
 - Surface the full RPC set as verbs: `profile {create,edit,delete,get,list}`, `model {search,list,download,cancel,resolve,rm}`, `backend {list,install,params}`, `runtime {start,stop,restart,status}`, `signals`, `events [--watch]`. Port structure from `llamarig/adapters/cli` (neutralized).
 - **Exit:** every canonical RPC reachable from the CLI; fake-client tests prove each verb hits RPC only. Depends on S1+S3.
 
-### S5 — Setup wizard command
+### S5 — Setup wizard command — ✅ complete
 - Wire `core/setup.Wizard` into `inferencerig setup` (capability-gated prompts, creates a canonical profile via RPC only).
 - **Exit:** interactive setup produces a valid profile through RPC. Depends on S1.
 
