@@ -65,7 +65,7 @@ Each sequence ships as its own stacked draft PR:
 | **CLI** | ✅ complete — grouped commands reach every canonical RPC, including streams | `adapters/cli` 434 | full neutral surface |
 | **Setup wizard command** | ✅ capability-aware stdlib prompts create canonical YAML through RPC | — | — |
 | **TUI** | ✅ interactive multi-view dashboard over canonical RPC | `adapters/tui` ~2,300 (+tabs,+ui) | lean Bubble Tea model |
-| **Web UI** | 🟡 static embedded `index.html`; real Svelte/Vite app absent | `webui/web` 158 `.svelte` + vite/pnpm pipeline | 28 (Go embed) |
+| **Web UI** | ✅ Svelte/Vite SPA, pnpm verification, committed embedded dist, CI + release builds | `webui/web` 158 `.svelte` + vite/pnpm pipeline | neutral REST client |
 | **public_http (REST facade)** | ✅ full unary surface with bearer protection on mutations | `adapters/public_http` 734 | neutral generated-client facade |
 | **MCP** | ✅ full unary tool surface through generated client | `adapters/mcp` ~440 | neutral tool registry |
 
@@ -98,7 +98,7 @@ Without this nothing runs; every other surface needs a live control socket.
 - Port `llamarig/adapters/tui` (+tabs, +ui, ~2,300 LOC) over the generated canonical client — backend/profile/runtime/catalog/download/events views. Neutralize; no backend imports.
 - **Exit:** interactive TUI drives the full control surface through RPC. Large. Depends on S1+S3+S2.
 
-### S7 — Full Web UI
+### S7 — Full Web UI — ✅ complete
 - Port the `webui/web` Svelte/Vite/pnpm app (158 `.svelte`) + build pipeline; Go embeds `webui/dist`; wire `vite build` into `make webui` and CI. Frontend talks only to the `public_http` facade → canonical RPC.
 - **Exit:** `make webui` builds the real SPA; embedded assets served; `make build` stays green without a node toolchain (committed `dist` or CI-built). Large. Depends on S1+S8.
 
