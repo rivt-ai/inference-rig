@@ -42,7 +42,7 @@ $RECYCLE.BIN/
 
 # ─── Go ─────────────────────────────────────────────────────
 # Binaries and build output
-inferencerig
+/inferencerig
 .inferencerig
 custom-golangci-lint
 /dist/
@@ -74,7 +74,6 @@ vendor/
 !.env.example
 
 # ─── Generated protobuf / buf code ──────────────────────────
-core/rpc/gen/v1
 webui/web/src/lib/gen/
 
 # ─── Web UI (Svelte / Vite / pnpm) ──────────────────────────
