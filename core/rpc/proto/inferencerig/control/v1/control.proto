@@ -22,6 +22,10 @@ service ControlService {
   rpc GetSignals(GetSignalsRequest) returns (GetSignalsResponse);
   rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
   rpc WatchEvents(WatchEventsRequest) returns (stream WatchEventsResponse);
+  rpc ListModelCatalog(ListModelCatalogRequest) returns (ListModelCatalogResponse);
+  rpc WatchModelCatalog(WatchModelCatalogRequest) returns (stream WatchModelCatalogResponse);
+  rpc ListLocalModels(ListLocalModelsRequest) returns (ListLocalModelsResponse);
+  rpc DeleteLocalModel(DeleteLocalModelRequest) returns (DeleteLocalModelResponse);
 }
 
 message HealthRequest {}
@@ -224,3 +228,52 @@ message Event {
   string error_kind = 5;
   string duration = 6;
 }
+
+message ListModelCatalogRequest {
+  string backend = 1;
+  string query = 2;
+  int32 limit = 3;
+}
+message ListModelCatalogResponse {
+  bool ok = 1;
+  repeated CatalogModel models = 2;
+  bool cache_hit = 3;
+  bool stale = 4;
+}
+message CatalogModel {
+  string id = 1;
+  string url = 2;
+  int64 downloads = 3;
+  int64 likes = 4;
+  string last_modified = 5;
+  repeated string tags = 6;
+  repeated ModelVariant variants = 7;
+}
+message ModelVariant {
+  string name = 1;
+  string reference = 2;
+  int64 size_bytes = 3;
+  bool multi_file = 4;
+}
+message WatchModelCatalogRequest {}
+message WatchModelCatalogResponse {
+  string backend = 1;
+  string query = 2;
+  string error = 3;
+}
+message ListLocalModelsRequest { string backend = 1; }
+message ListLocalModelsResponse {
+  bool ok = 1;
+  repeated LocalModel models = 2;
+}
+message LocalModel {
+  string path = 1;
+  string filename = 2;
+  int64 size_bytes = 3;
+  string modified_at = 4;
+}
+message DeleteLocalModelRequest {
+  string backend = 1;
+  string path = 2;
+}
+message DeleteLocalModelResponse { bool ok = 1; }

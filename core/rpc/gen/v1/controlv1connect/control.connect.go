@@ -83,6 +83,18 @@ const (
 	// ControlServiceWatchEventsProcedure is the fully-qualified name of the ControlService's
 	// WatchEvents RPC.
 	ControlServiceWatchEventsProcedure = "/inferencerig.control.v1.ControlService/WatchEvents"
+	// ControlServiceListModelCatalogProcedure is the fully-qualified name of the ControlService's
+	// ListModelCatalog RPC.
+	ControlServiceListModelCatalogProcedure = "/inferencerig.control.v1.ControlService/ListModelCatalog"
+	// ControlServiceWatchModelCatalogProcedure is the fully-qualified name of the ControlService's
+	// WatchModelCatalog RPC.
+	ControlServiceWatchModelCatalogProcedure = "/inferencerig.control.v1.ControlService/WatchModelCatalog"
+	// ControlServiceListLocalModelsProcedure is the fully-qualified name of the ControlService's
+	// ListLocalModels RPC.
+	ControlServiceListLocalModelsProcedure = "/inferencerig.control.v1.ControlService/ListLocalModels"
+	// ControlServiceDeleteLocalModelProcedure is the fully-qualified name of the ControlService's
+	// DeleteLocalModel RPC.
+	ControlServiceDeleteLocalModelProcedure = "/inferencerig.control.v1.ControlService/DeleteLocalModel"
 )
 
 // ControlServiceClient is a client for the inferencerig.control.v1.ControlService service.
@@ -104,6 +116,10 @@ type ControlServiceClient interface {
 	GetSignals(context.Context, *v1.GetSignalsRequest) (*v1.GetSignalsResponse, error)
 	ListEvents(context.Context, *v1.ListEventsRequest) (*v1.ListEventsResponse, error)
 	WatchEvents(context.Context, *v1.WatchEventsRequest) (*connect.ServerStreamForClient[v1.WatchEventsResponse], error)
+	ListModelCatalog(context.Context, *v1.ListModelCatalogRequest) (*v1.ListModelCatalogResponse, error)
+	WatchModelCatalog(context.Context, *v1.WatchModelCatalogRequest) (*connect.ServerStreamForClient[v1.WatchModelCatalogResponse], error)
+	ListLocalModels(context.Context, *v1.ListLocalModelsRequest) (*v1.ListLocalModelsResponse, error)
+	DeleteLocalModel(context.Context, *v1.DeleteLocalModelRequest) (*v1.DeleteLocalModelResponse, error)
 }
 
 // NewControlServiceClient constructs a client for the inferencerig.control.v1.ControlService
@@ -219,6 +235,30 @@ func NewControlServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(controlServiceMethods.ByName("WatchEvents")),
 			connect.WithClientOptions(opts...),
 		),
+		listModelCatalog: connect.NewClient[v1.ListModelCatalogRequest, v1.ListModelCatalogResponse](
+			httpClient,
+			baseURL+ControlServiceListModelCatalogProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("ListModelCatalog")),
+			connect.WithClientOptions(opts...),
+		),
+		watchModelCatalog: connect.NewClient[v1.WatchModelCatalogRequest, v1.WatchModelCatalogResponse](
+			httpClient,
+			baseURL+ControlServiceWatchModelCatalogProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("WatchModelCatalog")),
+			connect.WithClientOptions(opts...),
+		),
+		listLocalModels: connect.NewClient[v1.ListLocalModelsRequest, v1.ListLocalModelsResponse](
+			httpClient,
+			baseURL+ControlServiceListLocalModelsProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("ListLocalModels")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteLocalModel: connect.NewClient[v1.DeleteLocalModelRequest, v1.DeleteLocalModelResponse](
+			httpClient,
+			baseURL+ControlServiceDeleteLocalModelProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("DeleteLocalModel")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -241,6 +281,10 @@ type controlServiceClient struct {
 	getSignals          *connect.Client[v1.GetSignalsRequest, v1.GetSignalsResponse]
 	listEvents          *connect.Client[v1.ListEventsRequest, v1.ListEventsResponse]
 	watchEvents         *connect.Client[v1.WatchEventsRequest, v1.WatchEventsResponse]
+	listModelCatalog    *connect.Client[v1.ListModelCatalogRequest, v1.ListModelCatalogResponse]
+	watchModelCatalog   *connect.Client[v1.WatchModelCatalogRequest, v1.WatchModelCatalogResponse]
+	listLocalModels     *connect.Client[v1.ListLocalModelsRequest, v1.ListLocalModelsResponse]
+	deleteLocalModel    *connect.Client[v1.DeleteLocalModelRequest, v1.DeleteLocalModelResponse]
 }
 
 // Health calls inferencerig.control.v1.ControlService.Health.
@@ -392,6 +436,38 @@ func (c *controlServiceClient) WatchEvents(ctx context.Context, req *v1.WatchEve
 	return c.watchEvents.CallServerStream(ctx, connect.NewRequest(req))
 }
 
+// ListModelCatalog calls inferencerig.control.v1.ControlService.ListModelCatalog.
+func (c *controlServiceClient) ListModelCatalog(ctx context.Context, req *v1.ListModelCatalogRequest) (*v1.ListModelCatalogResponse, error) {
+	response, err := c.listModelCatalog.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// WatchModelCatalog calls inferencerig.control.v1.ControlService.WatchModelCatalog.
+func (c *controlServiceClient) WatchModelCatalog(ctx context.Context, req *v1.WatchModelCatalogRequest) (*connect.ServerStreamForClient[v1.WatchModelCatalogResponse], error) {
+	return c.watchModelCatalog.CallServerStream(ctx, connect.NewRequest(req))
+}
+
+// ListLocalModels calls inferencerig.control.v1.ControlService.ListLocalModels.
+func (c *controlServiceClient) ListLocalModels(ctx context.Context, req *v1.ListLocalModelsRequest) (*v1.ListLocalModelsResponse, error) {
+	response, err := c.listLocalModels.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// DeleteLocalModel calls inferencerig.control.v1.ControlService.DeleteLocalModel.
+func (c *controlServiceClient) DeleteLocalModel(ctx context.Context, req *v1.DeleteLocalModelRequest) (*v1.DeleteLocalModelResponse, error) {
+	response, err := c.deleteLocalModel.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // ControlServiceHandler is an implementation of the inferencerig.control.v1.ControlService service.
 type ControlServiceHandler interface {
 	Health(context.Context, *v1.HealthRequest) (*v1.HealthResponse, error)
@@ -411,6 +487,10 @@ type ControlServiceHandler interface {
 	GetSignals(context.Context, *v1.GetSignalsRequest) (*v1.GetSignalsResponse, error)
 	ListEvents(context.Context, *v1.ListEventsRequest) (*v1.ListEventsResponse, error)
 	WatchEvents(context.Context, *v1.WatchEventsRequest, *connect.ServerStream[v1.WatchEventsResponse]) error
+	ListModelCatalog(context.Context, *v1.ListModelCatalogRequest) (*v1.ListModelCatalogResponse, error)
+	WatchModelCatalog(context.Context, *v1.WatchModelCatalogRequest, *connect.ServerStream[v1.WatchModelCatalogResponse]) error
+	ListLocalModels(context.Context, *v1.ListLocalModelsRequest) (*v1.ListLocalModelsResponse, error)
+	DeleteLocalModel(context.Context, *v1.DeleteLocalModelRequest) (*v1.DeleteLocalModelResponse, error)
 }
 
 // NewControlServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -522,6 +602,30 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 		connect.WithSchema(controlServiceMethods.ByName("WatchEvents")),
 		connect.WithHandlerOptions(opts...),
 	)
+	controlServiceListModelCatalogHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceListModelCatalogProcedure,
+		svc.ListModelCatalog,
+		connect.WithSchema(controlServiceMethods.ByName("ListModelCatalog")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceWatchModelCatalogHandler := connect.NewServerStreamHandlerSimple(
+		ControlServiceWatchModelCatalogProcedure,
+		svc.WatchModelCatalog,
+		connect.WithSchema(controlServiceMethods.ByName("WatchModelCatalog")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceListLocalModelsHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceListLocalModelsProcedure,
+		svc.ListLocalModels,
+		connect.WithSchema(controlServiceMethods.ByName("ListLocalModels")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceDeleteLocalModelHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceDeleteLocalModelProcedure,
+		svc.DeleteLocalModel,
+		connect.WithSchema(controlServiceMethods.ByName("DeleteLocalModel")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/inferencerig.control.v1.ControlService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ControlServiceHealthProcedure:
@@ -558,6 +662,14 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 			controlServiceListEventsHandler.ServeHTTP(w, r)
 		case ControlServiceWatchEventsProcedure:
 			controlServiceWatchEventsHandler.ServeHTTP(w, r)
+		case ControlServiceListModelCatalogProcedure:
+			controlServiceListModelCatalogHandler.ServeHTTP(w, r)
+		case ControlServiceWatchModelCatalogProcedure:
+			controlServiceWatchModelCatalogHandler.ServeHTTP(w, r)
+		case ControlServiceListLocalModelsProcedure:
+			controlServiceListLocalModelsHandler.ServeHTTP(w, r)
+		case ControlServiceDeleteLocalModelProcedure:
+			controlServiceDeleteLocalModelHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -633,4 +745,20 @@ func (UnimplementedControlServiceHandler) ListEvents(context.Context, *v1.ListEv
 
 func (UnimplementedControlServiceHandler) WatchEvents(context.Context, *v1.WatchEventsRequest, *connect.ServerStream[v1.WatchEventsResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.WatchEvents is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) ListModelCatalog(context.Context, *v1.ListModelCatalogRequest) (*v1.ListModelCatalogResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.ListModelCatalog is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) WatchModelCatalog(context.Context, *v1.WatchModelCatalogRequest, *connect.ServerStream[v1.WatchModelCatalogResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.WatchModelCatalog is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) ListLocalModels(context.Context, *v1.ListLocalModelsRequest) (*v1.ListLocalModelsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.ListLocalModels is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) DeleteLocalModel(context.Context, *v1.DeleteLocalModelRequest) (*v1.DeleteLocalModelResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.DeleteLocalModel is not implemented"))
 }

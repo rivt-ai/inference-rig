@@ -14,6 +14,7 @@ import (
 	"inferencerig/backends/backendtest"
 	"inferencerig/config"
 	"inferencerig/core/control"
+	"inferencerig/core/modelcatalog"
 	"inferencerig/core/modeldownload"
 	"inferencerig/core/profiles"
 	controlv1 "inferencerig/core/rpc/gen/v1"
@@ -65,6 +66,20 @@ func (rpcSignals) Snapshot(context.Context) (signals.Snapshot, error) {
 	}, nil
 }
 
+type rpcCatalog struct{}
+
+func (rpcCatalog) Search(_ context.Context, req modelcatalog.SearchRequest, _ modelcatalog.CatalogPolicy) (modelcatalog.Result, error) {
+	return modelcatalog.Result{Models: []modelcatalog.Model{{
+		ID: "owner/repo", URL: "https://example.test/owner/repo",
+		Variants: []modelcatalog.Variant{{Name: req.Backend + "-model"}},
+	}}}, nil
+}
+
+func (rpcCatalog) Subscribe() (<-chan modelcatalog.RefreshEvent, func()) {
+	events := make(chan modelcatalog.RefreshEvent)
+	return events, func() { close(events) }
+}
+
 //nolint:gocognit,gocyclo,funlen // One end-to-end scenario verifies the canonical control surface.
 func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
 	t.Setenv(config.ProjectHomeEnv, t.TempDir())
@@ -84,6 +99,7 @@ func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
 		Registry: registry, Profiles: store, Signals: rpcSignals{},
 		Downloads:      modeldownload.New(modeldownload.Options{HTTPClient: downloadServer.Client()}),
 		RuntimeFactory: func(coreruntime.LaunchSpec) control.Runtime { return &rpcRuntime{} },
+		Catalog:        rpcCatalog{},
 	})
 	path, handler := ControlHandler(NewControlService(manager))
 	server, err := NewServer(path, handler)
@@ -149,6 +165,20 @@ func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
 	events, err := client.ListEvents(ctx, &controlv1.ListEventsRequest{})
 	if err != nil || len(events.GetEvents()) == 0 {
 		t.Fatalf("events = %#v, err = %v", events, err)
+	}
+	catalog, err := client.ListModelCatalog(ctx, &controlv1.ListModelCatalogRequest{Backend: "test"})
+	if err != nil || len(catalog.GetModels()) != 1 {
+		t.Fatalf("catalog = %#v, err = %v", catalog, err)
+	}
+	local, err := client.ListLocalModels(ctx, &controlv1.ListLocalModelsRequest{Backend: "test"})
+	if err != nil || !local.GetOk() {
+		t.Fatalf("local = %#v, err = %v", local, err)
+	}
+	deleted, err := client.DeleteLocalModel(ctx, &controlv1.DeleteLocalModelRequest{
+		Backend: "test", Path: "/models/model.bin",
+	})
+	if err != nil || !deleted.GetOk() {
+		t.Fatalf("deleted = %#v, err = %v", deleted, err)
 	}
 }
 

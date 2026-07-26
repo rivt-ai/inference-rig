@@ -9,6 +9,7 @@ import (
 
 	"inferencerig/backends"
 	"inferencerig/core/control"
+	"inferencerig/core/modelcatalog"
 	"inferencerig/core/modeldownload"
 	"inferencerig/core/profiles"
 	controlv1 "inferencerig/core/rpc/gen/v1"
@@ -220,6 +221,76 @@ func (s *ControlService) WatchEvents(ctx context.Context, _ *controlv1.WatchEven
 	}
 }
 
+func (s *ControlService) ListModelCatalog(ctx context.Context, req *controlv1.ListModelCatalogRequest) (*controlv1.ListModelCatalogResponse, error) {
+	if req.GetBackend() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	}
+	result, err := s.manager.ListModelCatalog(ctx, modelcatalog.SearchRequest{
+		Backend: req.GetBackend(), Query: req.GetQuery(), Limit: int(req.GetLimit()),
+	})
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	models := make([]*controlv1.CatalogModel, 0, len(result.Models))
+	for _, model := range result.Models {
+		models = append(models, catalogModelProto(model))
+	}
+	return &controlv1.ListModelCatalogResponse{
+		Ok: true, Models: models, CacheHit: result.CacheHit, Stale: result.Stale,
+	}, nil
+}
+
+func (s *ControlService) WatchModelCatalog(ctx context.Context, _ *controlv1.WatchModelCatalogRequest, stream *connect.ServerStream[controlv1.WatchModelCatalogResponse]) error {
+	events, unsubscribe, err := s.manager.WatchModelCatalog()
+	if err != nil {
+		return rpcError(err)
+	}
+	defer unsubscribe()
+	for {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return nil
+			}
+			if err := stream.Send(&controlv1.WatchModelCatalogResponse{
+				Backend: event.Backend, Query: event.Query, Error: event.Error,
+			}); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (s *ControlService) ListLocalModels(ctx context.Context, req *controlv1.ListLocalModelsRequest) (*controlv1.ListLocalModelsResponse, error) {
+	if req.GetBackend() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	}
+	items, err := s.manager.ListLocalModels(ctx, req.GetBackend())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	models := make([]*controlv1.LocalModel, 0, len(items))
+	for _, item := range items {
+		models = append(models, &controlv1.LocalModel{
+			Path: item.Path, Filename: item.Filename, SizeBytes: item.SizeBytes,
+			ModifiedAt: item.ModifiedAt.Format(time.RFC3339),
+		})
+	}
+	return &controlv1.ListLocalModelsResponse{Ok: true, Models: models}, nil
+}
+
+func (s *ControlService) DeleteLocalModel(ctx context.Context, req *controlv1.DeleteLocalModelRequest) (*controlv1.DeleteLocalModelResponse, error) {
+	if req.GetBackend() == "" || req.GetPath() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend and path are required"))
+	}
+	if err := s.manager.DeleteLocalModel(ctx, req.GetBackend(), req.GetPath()); err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.DeleteLocalModelResponse{Ok: true}, nil
+}
+
 func backendProto(backend backends.Backend) *controlv1.BackendInfo {
 	capabilities := backend.Capabilities()
 	return &controlv1.BackendInfo{
@@ -230,6 +301,20 @@ func backendProto(backend backends.Backend) *controlv1.BackendInfo {
 			DiscreteVram:        capabilities.DiscreteVRAM, UnifiedMemory: capabilities.UnifiedMemory,
 			ManagedInstall: capabilities.ManagedInstall, SingleActiveProfile: capabilities.SingleActiveProfile,
 		},
+	}
+}
+
+func catalogModelProto(model modelcatalog.Model) *controlv1.CatalogModel {
+	variants := make([]*controlv1.ModelVariant, 0, len(model.Variants))
+	for _, variant := range model.Variants {
+		variants = append(variants, &controlv1.ModelVariant{
+			Name: variant.Name, Reference: variant.Reference,
+			SizeBytes: variant.SizeBytes, MultiFile: variant.MultiFile,
+		})
+	}
+	return &controlv1.CatalogModel{
+		Id: model.ID, Url: model.URL, Downloads: model.Downloads, Likes: model.Likes,
+		LastModified: model.LastModified, Tags: model.Tags, Variants: variants,
 	}
 }
 
