@@ -78,7 +78,6 @@ webui/web/src/lib/gen/
 
 # ─── Web UI (Svelte / Vite / pnpm) ──────────────────────────
 node_modules/
-webui/dist/
 webui/node_modules/
 webui/screenshots/
 webui/.svelte-kit/
