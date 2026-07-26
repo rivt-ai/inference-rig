@@ -76,8 +76,8 @@ terminology may survive in shared packages.
 | 7 | `phase-07-mlx` | `phase-06-llamacpp` | 7 | done |
 | 8 | `phase-08-downloads` | `phase-07-mlx` | 8 | done |
 | 9 | `phase-09-control-rpc` | `phase-08-downloads` | 9 | done |
-| 10 | `phase-10-interfaces` | `phase-09-control-rpc` | 10 | **this PR** |
-| 11 | `phase-11-migration` | `phase-10-interfaces` | 11 | todo |
+| 10 | `phase-10-interfaces` | `phase-09-control-rpc` | 10 | done |
+| 11 | `phase-11-migration` | `phase-10-interfaces` | 11 | **this PR** |
 | 12 | `phase-12-validation` | `phase-11-migration` | 12 | todo |
 
 Merge cascades bottom-up as each PR is approved. When a lower PR merges to
@@ -108,8 +108,12 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 - `phase-07-mlx`: Phase 7 MLX backend. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
 - `phase-08-downloads`: Phase 8 neutral artifact-plan download executor. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
 - `phase-09-control-rpc`: Phase 9 canonical control manager and ConnectRPC service. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
-- `phase-10-interfaces` (this PR): Phase 10 canonical-RPC-backed interfaces. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, and no interface imports backend internals.
-- **Top of stack:** `phase-10-interfaces`. **Next:** Phase 11 (read-only migration tooling) on `phase-11-migration`, based on `phase-10-interfaces`.
+- `phase-10-interfaces`: Phase 10 canonical-RPC-backed interfaces. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, and no interface imports backend internals.
+- `phase-11-migration` (this PR): Phase 11 previewable, create-only migration tooling. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, and source immutability is tested.
+- **Top of stack:** `phase-11-migration`. **Next:** Phase 12 (integration and hardware validation) on `phase-12-validation`, based on `phase-11-migration`.
+- What exists now (added in Phase 11):
+  - `core/migrate.Service` — neutral preview/validate/apply orchestration. Plans contain canonical YAML, preview performs no writes, apply creates only missing destination profiles, and repeated application reports existing profiles as skipped rather than replacing them.
+  - Backend-owned read-only importers — the single-file backend translates legacy INI sections and cascaded defaults; the directory-artifact backend translates legacy directory YAML while retaining engine arguments and warning about installation/runtime fields that require manual review. Both scan deterministically, reject symlink sources, validate through their real backend and canonical store, and tests assert source bytes remain unchanged.
 - What exists now (added in Phase 10):
   - `adapters/cli`, `adapters/mcp`, `adapters/public_http`, and `adapters/tui` — thin interface adapters over the generated canonical control client. CLI commands are wired into the root command; MCP exposes backend/profile/runtime tools; the authenticated REST facade serves read and runtime actions; and the terminal view renders backend/profile/runtime snapshots. Focused fake-client tests prove every interface reaches RPC rather than backend packages.
   - `core/setup.Wizard` — capability discovery and canonical profile creation through RPC only.
