@@ -117,7 +117,7 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 - `surface-s4-cli`: grouped profile/model/backend/runtime/events/config commands cover every canonical RPC, including both server streams, through the generated client only.
 - `surface-s5-setup`: capability-aware interactive setup command uses the existing wizard and generated client; profile YAML is marshaled structurally.
 - `surface-s8-http-mcp`: public HTTP and MCP cover the full unary control surface through the generated client; HTTP mutations retain bearer protection.
-- `surface-s6-tui`: interactive Bubble Tea dashboard provides overview/profile/model/runtime/download/event views and canonical runtime/download/autostart/install actions.
+- `surface-s6-tui`: llamarig-informed, neutralized tuikit dashboard provides source-style Services/Models/System/Activity views, local control/web service management, multi-backend profile/catalog/local/download workflows, searchable events/logs, and canonical runtime/download/autostart/install actions.
 - `surface-s7-webui`: real Svelte/Vite SPA over public HTTP, committed embedded production assets, runnable web/MCP gateway, pnpm verification, and CI/release frontend builds.
 - **Top of stack:** `surface-s7-webui`. **Next:** review the completed surface stack bottom-up.
 - What exists now (added in Phase 12):
