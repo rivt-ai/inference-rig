@@ -100,7 +100,9 @@ func (f *githubFetcher) Fetch(ctx context.Context, rel Release, accel Accel, dir
 	if asset.Size <= 0 || !strings.HasPrefix(asset.Digest, "sha256:") {
 		return "", fmt.Errorf("release asset %s lacks a SHA256 digest or size", asset.Name)
 	}
-	fmt.Fprintln(progress, "download "+asset.Name+"...")
+	if _, err := fmt.Fprintln(progress, "download "+asset.Name+"..."); err != nil {
+		return "", err
+	}
 	archive := filepath.Join(dir, "release.tar.gz")
 	hash, size, err := download(ctx, f.http(), asset.URL, archive)
 	if err != nil {
@@ -109,7 +111,9 @@ func (f *githubFetcher) Fetch(ctx context.Context, rel Release, accel Accel, dir
 	if size != asset.Size || !strings.EqualFold(hash, strings.TrimPrefix(asset.Digest, "sha256:")) {
 		return "", fmt.Errorf("release asset integrity check failed")
 	}
-	fmt.Fprintln(progress, "extract prebuilt...")
+	if _, err := fmt.Fprintln(progress, "extract prebuilt..."); err != nil {
+		return "", err
+	}
 	if err := extractTarGz(ctx, archive, dir); err != nil {
 		return "", err
 	}
