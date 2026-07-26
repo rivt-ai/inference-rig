@@ -69,7 +69,7 @@ terminology may survive in shared packages.
 |----|--------|------|-------|--------|
 | 1 | `phase-01-bootstrap` | `main` | 0 + 1 | **this PR** |
 | 2 | `phase-02-shared-infra` | `phase-01-bootstrap` | 2 | done |
-| 3 | `phase-03-supervisor` | `phase-02-shared-infra` | 3 | todo |
+| 3 | `phase-03-supervisor` | `phase-02-shared-infra` | 3 | done |
 | 4 | `phase-04-profiles` | `phase-03-supervisor` | 4 | todo |
 | 5 | `phase-05-backend-contracts` | `phase-04-profiles` | 5 | todo |
 | 6 | `phase-06-llamacpp` | `phase-05-backend-contracts` | 6 | todo |
@@ -100,8 +100,11 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 
 - `main`: initial empty commit (LICENSE, README, .gitignore). Pushed.
 - `phase-01-bootstrap`: Phase 0 porting matrix + Phase 1 neutral bootstrap. Builds green, `go test ./...` passes, no `llamarig`/`mlxrig` imports.
-- `phase-02-shared-infra` (this PR): Phase 2 shared infrastructure ported + neutralized. Builds green, `go test ./...` passes, no `llamarig`/`mlxrig`/`zap` imports.
-- **Top of stack:** `phase-02-shared-infra`. **Next:** Phase 3 (generic process supervisor) on `phase-03-supervisor`, based on `phase-02-shared-infra`.
+- `phase-02-shared-infra`: Phase 2 shared infrastructure ported + neutralized. Builds green, `go test ./...` passes, no `llamarig`/`mlxrig`/`zap` imports.
+- `phase-03-supervisor` (this PR): Phase 3 generic process supervisor ported + neutralized. Builds green, `go test ./...` passes (supervisor lifecycle stable at `-count=3`), neutralization grep clean.
+- **Top of stack:** `phase-03-supervisor`. **Next:** Phase 4 (canonical YAML profiles + storage) on `phase-04-profiles`, based on `phase-03-supervisor`.
+- What exists now (added in Phase 3):
+  - `core/runtime` — generic process `Supervisor` + `LaunchSpec` (the neutral union of the two engine configs). Unifies the two ~95%-identical engine runtimes (`llamarig` `LlamaServer`, `mlxrig` `MLXServer`) into ONE neutral supervisor: process-group start, PID-file bookkeeping, TCP/HTTP readiness probing + timeout, graceful SIGINT stop with `StopTimeout`→SIGKILL escalation, `cmd.Wait`/`done` goroutine, adopt-on-recover (executable match, stale/mismatch rejection), unsafe-PID-name rejection, injectable clock/HTTP client. No engine defaults, no `config` engine-type import (PIDDir is caller-supplied). `LaunchSpec.BuildErr` lets a backend defer a command-render failure to `Start`. Backends supply the `LaunchSpec` in Phases 6/7 (the engine `build.go` builders are NOT ported here). Fake-process tests (`TestMain` re-exec helper) cover the full lifecycle with no real engine.
 - What exists now (added in Phase 2):
   - `platform/filedoc` — atomic file write/replace (+ backup, symlink rejection, SHA-256).
   - `platform/pidfile` — PID file create/read/stale-detect (gopsutil executable match).
