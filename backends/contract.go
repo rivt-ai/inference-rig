@@ -3,6 +3,7 @@ package backends
 import (
 	"context"
 
+	"inferencerig/core/modelcatalog"
 	"inferencerig/core/profiles"
 	"inferencerig/core/runtime"
 )
@@ -52,6 +53,10 @@ type Backend interface {
 
 	// Capabilities advertises what this backend supports for capability gating.
 	Capabilities() Capabilities
+
+	// CatalogPolicy interprets remote repository files and owns local artifact
+	// layout behind the shared catalog mechanism.
+	CatalogPolicy() modelcatalog.CatalogPolicy
 }
 
 // Compile-time proof that the backend contract satisfies the profile store's
