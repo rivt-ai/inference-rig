@@ -1,0 +1,191 @@
+package mlx
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"inferencerig/backends"
+	"inferencerig/platform/filedoc"
+)
+
+// ErrNoManagedInstall marks an upgrade without an existing environment.
+var ErrNoManagedInstall = errors.New("no managed MLX install")
+
+type commandRunner interface {
+	Run(context.Context, string, io.Writer, string, ...string) error
+}
+
+type execRunner struct{}
+
+func (execRunner) Run(ctx context.Context, dir string, out io.Writer, name string, args ...string) error {
+	command := exec.CommandContext(ctx, name, args...)
+	command.Dir, command.Stdout, command.Stderr = dir, out, out
+	return command.Run()
+}
+
+type installState struct {
+	Version    string `json:"version"`
+	Executable string `json:"executable"`
+}
+
+type installer struct {
+	backend *Backend
+	mu      sync.Mutex
+}
+
+// Install creates or upgrades the managed Python environment idempotently.
+func (b *Backend) Install(ctx context.Context, opts backends.InstallOptions) (backends.InstallResult, error) {
+	return b.installer.install(ctx, opts)
+}
+
+func (i *installer) install(ctx context.Context, opts backends.InstallOptions) (backends.InstallResult, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if err := i.validateHost(); err != nil {
+		return backends.InstallResult{}, err
+	}
+	root, err := i.backend.engineRoot()
+	if err != nil {
+		return backends.InstallResult{}, err
+	}
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return backends.InstallResult{}, err
+	}
+	inspection, err := inspectInstall(root, opts)
+	if err != nil {
+		return backends.InstallResult{}, err
+	}
+	if inspection.state.Version == inspection.version && inspection.state.Executable == inspection.python &&
+		inspection.statErr == nil && !opts.Force {
+		return backends.InstallResult{
+			Version: inspection.version, Path: inspection.python, Changed: false,
+			Message: "mlx-lm " + inspection.version + " already installed",
+		}, nil
+	}
+	progress := opts.Progress
+	if progress == nil {
+		progress = io.Discard
+	}
+	if err := i.ensureEnvironment(ctx, root, inspection.python, inspection.statErr, progress); err != nil {
+		return backends.InstallResult{}, err
+	}
+	return i.installPackage(ctx, root, inspection.python, inspection.version, progress)
+}
+
+type installInspection struct {
+	state   installState
+	python  string
+	statErr error
+	version string
+}
+
+func inspectInstall(root string, opts backends.InstallOptions) (installInspection, error) {
+	state, err := readState(root)
+	if err != nil {
+		return installInspection{}, err
+	}
+	python := filepath.Join(root, "venv", "bin", "python")
+	_, statErr := os.Stat(python)
+	if opts.Upgrade && errors.Is(statErr, os.ErrNotExist) {
+		return installInspection{}, ErrNoManagedInstall
+	}
+	version := opts.Version
+	if version == "" {
+		version = ManagedVersion
+	}
+	return installInspection{state: state, python: python, statErr: statErr, version: version}, nil
+}
+
+func (i *installer) validateHost() error {
+	if i.backend.opts.goos == "darwin" && i.backend.opts.goarch == "arm64" {
+		return nil
+	}
+	return fmt.Errorf(
+		"mlx-lm requires darwin/arm64; current host is %s/%s",
+		i.backend.opts.goos, i.backend.opts.goarch,
+	)
+}
+
+func (i *installer) ensureEnvironment(ctx context.Context, root, python string, statErr error, progress io.Writer) error {
+	if statErr == nil {
+		return nil
+	}
+	if !errors.Is(statErr, os.ErrNotExist) {
+		return statErr
+	}
+	if err := i.run(ctx, root, progress, i.backend.opts.Executable, "-m", "venv", filepath.Join(root, "venv")); err != nil {
+		return fmt.Errorf("create Python environment: %w", err)
+	}
+	if _, err := os.Stat(python); err != nil {
+		return fmt.Errorf("managed Python was not created: %w", err)
+	}
+	return nil
+}
+
+func (i *installer) installPackage(ctx context.Context, root, python, version string, progress io.Writer) (backends.InstallResult, error) {
+	requirement := "mlx-lm==" + version
+	if err := i.run(ctx, root, progress, python, "-m", "pip", "install", "--upgrade", requirement); err != nil {
+		return backends.InstallResult{}, fmt.Errorf("install %s: %w", requirement, err)
+	}
+	if err := i.run(ctx, root, progress, python, "-c", "import mlx_lm, mlx_lm.server"); err != nil {
+		return backends.InstallResult{}, fmt.Errorf("validate mlx-lm: %w", err)
+	}
+	if err := writeState(root, installState{Version: version, Executable: python}); err != nil {
+		return backends.InstallResult{}, err
+	}
+	return backends.InstallResult{
+		Version: version, Path: python, Changed: true, Message: "installed mlx-lm " + version,
+	}, nil
+}
+
+func (i *installer) run(ctx context.Context, dir string, progress io.Writer, name string, args ...string) error {
+	if _, err := fmt.Fprintln(progress, name+" "+strings.Join(args, " ")); err != nil {
+		return err
+	}
+	return i.backend.opts.runner.Run(ctx, dir, progress, name, args...)
+}
+
+func (i *installer) activeExecutable() (string, bool) {
+	root, err := i.backend.engineRoot()
+	if err != nil {
+		return "", false
+	}
+	state, err := readState(root)
+	if err != nil || state.Executable == "" {
+		return "", false
+	}
+	info, err := os.Stat(state.Executable)
+	return state.Executable, err == nil && !info.IsDir()
+}
+
+func readState(root string) (installState, error) {
+	data, err := os.ReadFile(filepath.Join(root, "state.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return installState{}, nil
+	}
+	if err != nil {
+		return installState{}, err
+	}
+	var state installState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return installState{}, err
+	}
+	return state, nil
+}
+
+func writeState(root string, state installState) error {
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = filedoc.WriteFile(filepath.Join(root, "state.json"), string(data)+"\n", filedoc.WriteOptions{Perm: 0o600})
+	return err
+}
