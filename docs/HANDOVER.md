@@ -70,7 +70,7 @@ terminology may survive in shared packages.
 | 1 | `phase-01-bootstrap` | `main` | 0 + 1 | **this PR** |
 | 2 | `phase-02-shared-infra` | `phase-01-bootstrap` | 2 | done |
 | 3 | `phase-03-supervisor` | `phase-02-shared-infra` | 3 | done |
-| 4 | `phase-04-profiles` | `phase-03-supervisor` | 4 | todo |
+| 4 | `phase-04-profiles` | `phase-03-supervisor` | 4 | done |
 | 5 | `phase-05-backend-contracts` | `phase-04-profiles` | 5 | todo |
 | 6 | `phase-06-llamacpp` | `phase-05-backend-contracts` | 6 | todo |
 | 7 | `phase-07-mlx` | `phase-06-llamacpp` | 7 | todo |
@@ -101,8 +101,11 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 - `main`: initial empty commit (LICENSE, README, .gitignore). Pushed.
 - `phase-01-bootstrap`: Phase 0 porting matrix + Phase 1 neutral bootstrap. Builds green, `go test ./...` passes, no `llamarig`/`mlxrig` imports.
 - `phase-02-shared-infra`: Phase 2 shared infrastructure ported + neutralized. Builds green, `go test ./...` passes, no `llamarig`/`mlxrig`/`zap` imports.
-- `phase-03-supervisor` (this PR): Phase 3 generic process supervisor ported + neutralized. Builds green, `go test ./...` passes (supervisor lifecycle stable at `-count=3`), neutralization grep clean.
-- **Top of stack:** `phase-03-supervisor`. **Next:** Phase 4 (canonical YAML profiles + storage) on `phase-04-profiles`, based on `phase-03-supervisor`.
+- `phase-03-supervisor`: Phase 3 generic process supervisor ported + neutralized. Builds green, `go test ./...` passes (supervisor lifecycle stable at `-count=3`), neutralization grep clean.
+- `phase-04-profiles` (this PR): Phase 4 canonical YAML profile schema + CRUD store ported + neutralized. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
+- **Top of stack:** `phase-04-profiles`. **Next:** Phase 5 (backend contracts + registry) on `phase-05-backend-contracts`, based on `phase-04-profiles`.
+- What exists now (added in Phase 4):
+  - `core/profiles` — the canonical YAML profile schema + engine-agnostic CRUD store. The neutral `Profile` schema owns the common fields (`version`, `name`, `backend`, `model.{source,reference}`, `listen.{host,port}`) and keeps `engine_args` a free-form `map[string]any` the backend owns; decoded with `yaml.v3` `KnownFields(true)` so unknown top-level keys are rejected. `FileStore` (directory-per-profile at `<root>/<name>/profile.yaml` under `config.ProfilesDir()`) provides `List`/`Get`/`Validate`/`Create`/`Replace`/`Delete` with path-escape + symlink rejection (`filedoc.RejectSymlink`), size limits, atomic writes (`filedoc.WriteFile`), `filedoc.SyncDir` on delete, and a mutex — reusing Phase-2 `platform/filedoc`, not reimplementing it. Shared common-field validation (name matches dir, version/name/backend required, `listen.port` 1..65535, `model.source` required) runs first; **engine_args validation is delegated to a `BackendValidator` interface** (`ValidateProfile(Profile) (Profile, error)`) resolved via an injected `BackendLookup func(backend string) (BackendValidator, error)` — the store hardcodes no engine and an unknown backend is rejected as invalid. `Effective` = profile after shared normalization + backend validation; `Parsed` = raw decode. No command/models.ini rendering here (Phases 6/7). The real `backends` registry is wired in Phase 5; a `fakeBackend` in tests drives the full CRUD lifecycle to prove engine-independence.
 - What exists now (added in Phase 3):
   - `core/runtime` — generic process `Supervisor` + `LaunchSpec` (the neutral union of the two engine configs). Unifies the two ~95%-identical engine runtimes (`llamarig` `LlamaServer`, `mlxrig` `MLXServer`) into ONE neutral supervisor: process-group start, PID-file bookkeeping, TCP/HTTP readiness probing + timeout, graceful SIGINT stop with `StopTimeout`→SIGKILL escalation, `cmd.Wait`/`done` goroutine, adopt-on-recover (executable match, stale/mismatch rejection), unsafe-PID-name rejection, injectable clock/HTTP client. No engine defaults, no `config` engine-type import (PIDDir is caller-supplied). `LaunchSpec.BuildErr` lets a backend defer a command-render failure to `Start`. Backends supply the `LaunchSpec` in Phases 6/7 (the engine `build.go` builders are NOT ported here). Fake-process tests (`TestMain` re-exec helper) cover the full lifecycle with no real engine.
 - What exists now (added in Phase 2):
