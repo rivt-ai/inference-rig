@@ -125,7 +125,7 @@ func (b *Backend) Plan(r backends.ResolvedModel) (backends.ArtifactPlan, error) 
 	if !safeRelativePath(targetDir) {
 		return backends.ArtifactPlan{}, fmt.Errorf("unsafe snapshot target %q", targetDir)
 	}
-	plan := backends.ArtifactPlan{MultiFile: true}
+	plan := backends.ArtifactPlan{MultiFile: true, TargetRoot: filepath.Join(root, targetDir)}
 	for _, artifact := range r.Artifacts {
 		if !safeRelativePath(artifact.Name) {
 			return backends.ArtifactPlan{}, fmt.Errorf("unsafe artifact path %q", artifact.Name)
