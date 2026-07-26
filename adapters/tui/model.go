@@ -3,265 +3,447 @@ package tui
 import (
 	"context"
 	"fmt"
-	"io"
-	"slices"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"github.com/antonikliment/tuikit"
 
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
 
-const pageCount = 6
+const (
+	pageCount       = 4
+	refreshInterval = 5 * time.Second
+)
 
 type snapshot struct {
-	info     *controlv1.GetInfoResponse
-	backends *controlv1.ListBackendsResponse
-	profiles *controlv1.ListProfilesResponse
-	catalog  *controlv1.ListModelCatalogResponse
-	local    *controlv1.ListLocalModelsResponse
-	runtime  *controlv1.GetRuntimeStatusResponse
-	download *controlv1.ModelDownload
-	signals  *controlv1.GetSignalsResponse
-	events   *controlv1.ListEventsResponse
+	info               *controlv1.GetInfoResponse
+	backends           *controlv1.ListBackendsResponse
+	profiles           *controlv1.ListProfilesResponse
+	catalog            *controlv1.ListModelCatalogResponse
+	local              *controlv1.ListLocalModelsResponse
+	signals            *controlv1.GetSignalsResponse
+	events             *controlv1.ListEventsResponse
+	downloads          []*controlv1.ModelDownload
+	controlLog, webLog []string
+	warnings           map[string]string
+	refreshed          time.Time
 }
 
-type snapshotMsg struct {
+type pollResult struct {
 	value snapshot
-	err   error
+	ok    map[string]bool
 }
 
+type tickMsg struct{}
+type refreshMsg struct{}
 type actionMsg struct {
 	download *controlv1.ModelDownload
+	notice   string
 	err      error
+}
+
+type dashboard struct {
+	ctx        context.Context
+	client     controlv1connect.ControlServiceClient
+	manage     bool
+	active     int
+	data       snapshot
+	services   servicesPage
+	models     modelsPage
+	system     systemPage
+	activity   activityPage
+	refreshing bool
+	notice     string
 }
 
 type model struct {
-	ctx      context.Context
-	client   controlv1connect.ControlServiceClient
-	page     int
-	selected int
-	data     snapshot
-	err      error
+	frame *tuikit.Frame
+	app   *dashboard
 }
 
-func newModel(ctx context.Context, client controlv1connect.ControlServiceClient) *model {
-	return &model{ctx: ctx, client: client}
-}
-
-func (m *model) Init() tea.Cmd { return m.refresh() }
-
-func (m *model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
-	switch message := message.(type) {
-	case snapshotMsg:
-		m.data, m.err = message.value, message.err
-	case actionMsg:
-		m.err = message.err
-		if message.download != nil {
-			m.data.download = message.download
-		}
-		return m, m.refresh()
-	case tea.KeyPressMsg:
-		return m.handleKey(message.String())
+func newModel(ctx context.Context, client controlv1connect.ControlServiceClient, manage bool) *model {
+	app := &dashboard{
+		ctx: ctx, client: client, manage: manage,
+		data:     snapshot{warnings: map[string]string{}},
+		services: newServicesPage(),
+		models:   newModelsPage(),
+		activity: newActivityPage(),
 	}
-	return m, nil
-}
-
-func (m *model) handleKey(key string) (tea.Model, tea.Cmd) {
-	switch key {
-	case "q", "ctrl+c":
-		return m, tea.Quit
-	case "tab", "right":
-		m.page, m.selected = (m.page+1)%pageCount, 0
-		return m, m.refresh()
-	case "shift+tab", "left":
-		m.page, m.selected = (m.page+pageCount-1)%pageCount, 0
-		return m, m.refresh()
-	case "up", "k":
-		if m.selected > 0 {
-			m.selected--
-		}
-	case "down", "j":
-		if m.selected+1 < len(m.data.profiles.GetProfiles()) {
-			m.selected++
-		}
-	case "r":
-		return m, m.refresh()
-	case "s", "x", "R", "d", "c", "a", "i":
-		return m, m.action(key)
+	pages := []tuikit.Page{
+		&page{app: app, index: 0, title: "Services"},
+		&page{app: app, index: 1, title: "Models"},
+		&page{app: app, index: 2, title: "System"},
+		&page{app: app, index: 3, title: "Activity"},
 	}
-	return m, nil
+	frame := tuikit.New(
+		tuikit.WithTheme(theme),
+		tuikit.WithBrand("InferenceRig", "Local inference control plane"),
+		tuikit.WithPages(pages...),
+		tuikit.WithStatus(app.status),
+	)
+	return &model{frame: frame, app: app}
 }
 
-func (m *model) View() tea.View {
-	var content strings.Builder
-	fmt.Fprintf(&content, "InferenceRig  [%s]\n\n", []string{"overview", "profiles", "models", "runtime", "downloads", "events"}[m.page])
-	switch m.page {
-	case 0:
-		m.viewOverview(&content)
+func (m *model) Init() tea.Cmd {
+	commands := []tea.Cmd{m.app.refresh(), tick()}
+	if m.app.manage {
+		commands = append(commands, autostartServices(m.app.ctx, m.app.client))
+	}
+	return tea.Batch(commands...)
+}
+
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return m.frame.Update(msg) }
+func (m *model) View() tea.View                          { return m.frame.View() }
+
+type page struct {
+	app   *dashboard
+	index int
+	title string
+}
+
+func (p *page) Title() string { return p.title }
+func (p *page) Update(msg tea.Msg) tea.Cmd {
+	p.app.active = p.index
+	return p.app.update(msg)
+}
+func (p *page) View(width, height int) string {
+	p.app.active = p.index
+	switch p.index {
 	case 1:
-		m.viewProfiles(&content)
+		return p.app.models.View(width, height, p.app.data)
 	case 2:
-		m.viewModels(&content)
+		return p.app.system.View(width, height, p.app.data)
 	case 3:
-		m.viewRuntime(&content)
-	case 4:
-		m.viewDownloads(&content)
-	case 5:
-		m.viewEvents(&content)
-	}
-	if m.err != nil {
-		fmt.Fprintf(&content, "\nerror: %v\n", m.err)
-	}
-	content.WriteString("\n←/→ pages  j/k select  r refresh  s start  x stop  R restart  d download  c cancel  a autostart  i install  q quit\n")
-	view := tea.NewView(content.String())
-	view.AltScreen = true
-	return view
-}
-
-func (m *model) refresh() tea.Cmd {
-	return func() tea.Msg {
-		value, err := loadSnapshot(m.ctx, m.client, m.page, m.selected, m.data.download)
-		return snapshotMsg{value: value, err: err}
-	}
-}
-
-func loadSnapshot(ctx context.Context, client controlv1connect.ControlServiceClient, page, selected int, download *controlv1.ModelDownload) (snapshot, error) {
-	value := snapshot{download: download}
-	var err error
-	if value.info, err = client.GetInfo(ctx, &controlv1.GetInfoRequest{}); err != nil {
-		return value, err
-	}
-	if value.backends, err = client.ListBackends(ctx, &controlv1.ListBackendsRequest{}); err != nil {
-		return value, err
-	}
-	if value.profiles, err = client.ListProfiles(ctx, &controlv1.ListProfilesRequest{}); err != nil {
-		return value, err
-	}
-	profile := selectedProfile(value.profiles, selected)
-	backend := selectedBackend(value.backends)
-	switch page {
-	case 2:
-		value.catalog, err = client.ListModelCatalog(ctx, &controlv1.ListModelCatalogRequest{Backend: backend})
-		if err == nil {
-			value.local, err = client.ListLocalModels(ctx, &controlv1.ListLocalModelsRequest{Backend: backend})
-		}
-	case 3:
-		if profile != "" {
-			value.runtime, err = client.GetRuntimeStatus(ctx, &controlv1.GetRuntimeStatusRequest{Profile: profile})
-		}
-	case 4:
-		if download != nil {
-			status, statusErr := client.GetModelDownload(ctx, &controlv1.GetModelDownloadRequest{Id: download.GetId()})
-			if statusErr == nil {
-				value.download = status.GetDownload()
-			}
-			err = statusErr
-		}
-	case 5:
-		value.events, err = client.ListEvents(ctx, &controlv1.ListEventsRequest{})
+		return p.app.activity.View(width, height, p.app.data)
 	default:
-		value.signals, err = client.GetSignals(ctx, &controlv1.GetSignalsRequest{})
+		return p.app.services.View(width, height, p.app.data, p.app.manage)
 	}
-	return value, err
+}
+func (p *page) CapturingInput() bool {
+	return p.index == 3 && p.app.activity.CapturingInput() ||
+		p.index == 1 && p.app.models.CapturingInput()
 }
 
-func (m *model) action(key string) tea.Cmd {
-	profile := selectedProfile(m.data.profiles, m.selected)
-	backend := selectedBackend(m.data.backends)
+func (d *dashboard) update(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		return d.updateKey(msg)
+	case tickMsg:
+		return tea.Batch(d.refresh(), tick())
+	case refreshMsg:
+		return d.refresh()
+	case pollResult:
+		d.applyPoll(msg)
+	default:
+		return d.updateAction(msg)
+	}
+	return nil
+}
+
+func (d *dashboard) updateAction(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
+	case serviceRequest:
+		command := runServiceAction(d.ctx, d.client, msg)
+		if msg.panel != panelRuntime && msg.action == 1 {
+			return tea.Batch(command, d.services.spin.Tick)
+		}
+		return command
+	case spinner.TickMsg:
+		return d.services.advanceSpinner(msg)
+	case rpcRequest:
+		return d.runRPC(msg)
+	case actionMsg:
+		if msg.err != nil {
+			d.notice = ""
+			d.data.warnings["action"] = msg.err.Error()
+		} else {
+			delete(d.data.warnings, "action")
+			d.notice = msg.notice
+			if msg.download != nil {
+				d.upsertDownload(msg.download)
+			}
+		}
+		d.services.complete()
+		d.models.complete(msg)
+		return d.refresh()
+	}
+	return nil
+}
+
+func (d *dashboard) updateKey(msg tea.KeyPressMsg) tea.Cmd {
+	if !d.capturing() && msg.String() == "r" {
+		return d.refresh()
+	}
+	switch d.active {
+	case 0:
+		return d.services.Update(msg, d.data, d.manage)
+	case 1:
+		return d.models.Update(msg, d.data)
+	case 2:
+		d.system.Update(msg)
+	case 3:
+		d.activity.Update(msg)
+	}
+	return nil
+}
+
+func (d *dashboard) capturing() bool {
+	return d.active == 3 && d.activity.CapturingInput() ||
+		d.active == 1 && d.models.CapturingInput()
+}
+
+func (d *dashboard) refresh() tea.Cmd {
+	if d.refreshing {
+		return nil
+	}
+	d.refreshing = true
+	backend := d.models.backend(d.data.backends)
+	return poll(d.ctx, d.client, backend, d.data.downloads, d.manage)
+}
+
+func (d *dashboard) applyPoll(result pollResult) {
+	current, next := d.data, result.value
+	if !result.ok["base"] {
+		next.info, next.backends, next.profiles = current.info, current.backends, current.profiles
+	}
+	if !result.ok["catalog"] {
+		next.catalog = current.catalog
+	}
+	if !result.ok["local"] {
+		next.local = current.local
+	}
+	if !result.ok["signals"] {
+		next.signals = current.signals
+	}
+	if !result.ok["events"] {
+		next.events = current.events
+	}
+	if !result.ok["downloads"] {
+		next.downloads = current.downloads
+	}
+	if !result.ok["logs"] {
+		next.controlLog, next.webLog = current.controlLog, current.webLog
+	}
+	d.data, d.refreshing = next, false
+}
+
+func (d *dashboard) status() (string, tuikit.Level) {
+	if len(d.data.warnings) > 0 {
+		keys := make([]string, 0, len(d.data.warnings))
+		for key := range d.data.warnings {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for i, key := range keys {
+			keys[i] = key + ": " + d.data.warnings[key]
+		}
+		return strings.Join(keys, ", ") + refreshedText(d.data.refreshed), tuikit.LevelWarning
+	}
+	if d.notice != "" {
+		return d.notice + refreshedText(d.data.refreshed), tuikit.LevelSuccess
+	}
+	return "Ready" + refreshedText(d.data.refreshed), tuikit.LevelInfo
+}
+
+func refreshedText(value time.Time) string {
+	if value.IsZero() {
+		return "   Last refreshed: --:--:--"
+	}
+	return "   Last refreshed: " + value.Format("15:04:05")
+}
+
+func (d *dashboard) upsertDownload(value *controlv1.ModelDownload) {
+	for i, item := range d.data.downloads {
+		if item.GetId() == value.GetId() {
+			d.data.downloads[i] = value
+			return
+		}
+	}
+	d.data.downloads = append(d.data.downloads, value)
+}
+
+func (d *dashboard) runRPC(request rpcRequest) tea.Cmd {
 	return func() tea.Msg {
-		var result actionMsg
-		switch key {
-		case "s":
-			_, result.err = m.client.StartRuntime(m.ctx, &controlv1.StartRuntimeRequest{Profile: profile})
-		case "x":
-			_, result.err = m.client.StopRuntime(m.ctx, &controlv1.StopRuntimeRequest{Profile: profile})
-		case "R":
-			_, result.err = m.client.RestartRuntime(m.ctx, &controlv1.RestartRuntimeRequest{Profile: profile})
-		case "d":
+		msg := actionMsg{notice: request.notice}
+		switch request.kind {
+		case rpcStart:
+			_, msg.err = d.client.StartRuntime(d.ctx, &controlv1.StartRuntimeRequest{Profile: request.profile})
+		case rpcStop:
+			_, msg.err = d.client.StopRuntime(d.ctx, &controlv1.StopRuntimeRequest{Profile: request.profile})
+		case rpcRestart:
+			_, msg.err = d.client.RestartRuntime(d.ctx, &controlv1.RestartRuntimeRequest{Profile: request.profile})
+		case rpcAutostart:
+			_, msg.err = d.client.SetProfileAutostart(d.ctx, &controlv1.SetProfileAutostartRequest{Name: request.profile, Enabled: request.enabled})
+		case rpcDownload:
 			var response *controlv1.StartModelDownloadResponse
-			response, result.err = m.client.StartModelDownload(m.ctx, &controlv1.StartModelDownloadRequest{Profile: profile})
-			result.download = response.GetDownload()
-		case "c":
+			response, msg.err = d.client.StartModelDownload(d.ctx, &controlv1.StartModelDownloadRequest{Profile: request.profile})
+			msg.download = response.GetDownload()
+		case rpcCancel:
 			var response *controlv1.CancelModelDownloadResponse
-			response, result.err = m.client.CancelModelDownload(m.ctx, &controlv1.CancelModelDownloadRequest{Id: m.data.download.GetId()})
-			result.download = response.GetDownload()
-		case "a":
-			enabled := !slices.Contains(m.data.info.GetAutostartProfiles(), profile)
-			_, result.err = m.client.SetProfileAutostart(m.ctx, &controlv1.SetProfileAutostartRequest{Name: profile, Enabled: enabled})
-		case "i":
-			_, result.err = m.client.InstallBackend(m.ctx, &controlv1.InstallBackendRequest{Backend: backend})
+			response, msg.err = d.client.CancelModelDownload(d.ctx, &controlv1.CancelModelDownloadRequest{Id: request.id})
+			msg.download = response.GetDownload()
+		case rpcApply:
+			_, msg.err = d.client.ApplyDownloadToProfile(d.ctx, &controlv1.ApplyDownloadToProfileRequest{Profile: request.profile, Id: request.id})
+		case rpcCleanup:
+			_, msg.err = d.client.CleanupProfile(d.ctx, &controlv1.CleanupProfileRequest{Name: request.profile})
+		case rpcDelete:
+			_, msg.err = d.client.DeleteLocalModel(d.ctx, &controlv1.DeleteLocalModelRequest{Backend: request.backend, Path: request.path})
+		case rpcInstall:
+			_, msg.err = d.client.InstallBackend(d.ctx, &controlv1.InstallBackendRequest{Backend: request.backend})
 		}
-		return result
+		return msg
 	}
 }
 
-func (m *model) viewOverview(out *strings.Builder) {
-	fmt.Fprintf(out, "Backends: %d\nProfiles: %d\nRunning: %s\n", m.data.info.GetBackends(), m.data.info.GetProfiles(), strings.Join(m.data.info.GetRunningProfiles(), ", "))
-	if signals := m.data.signals.GetSignals(); signals != nil {
-		fmt.Fprintf(out, "Memory available: %d bytes\nCPU: %.1f%%\n", signals.GetAvailableMemoryBytes(), signals.GetCpuUsedPercent())
-	}
+type poller struct {
+	ctx     context.Context
+	client  controlv1connect.ControlServiceClient
+	backend string
+	result  pollResult
+	mu      sync.Mutex
+	wg      sync.WaitGroup
 }
 
-func (m *model) viewProfiles(out *strings.Builder) {
-	for index, profile := range m.data.profiles.GetProfiles() {
-		marker := " "
-		if index == m.selected {
-			marker = ">"
+func poll(ctx context.Context, client controlv1connect.ControlServiceClient, backend string, downloads []*controlv1.ModelDownload, local bool) tea.Cmd {
+	return func() tea.Msg {
+		pollCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		p := &poller{
+			ctx: pollCtx, client: client, backend: backend,
+			result: pollResult{value: snapshot{warnings: map[string]string{}, refreshed: time.Now(), downloads: downloads}, ok: map[string]bool{}},
 		}
-		fmt.Fprintf(out, "%s %s  %s  %s\n", marker, profile.GetName(), profile.GetBackend(), profile.GetModelSource())
+		if !local {
+			p.result.ok["logs"] = true
+		}
+		p.fetch("base", p.base)
+		p.fetch("catalog", p.catalog)
+		p.fetch("local", p.local)
+		p.fetch("signals", p.signals)
+		p.fetch("events", p.events)
+		p.fetch("downloads", p.downloads)
+		if local {
+			p.fetch("logs", p.logs)
+		}
+		p.wg.Wait()
+		return p.result
 	}
 }
 
-func (m *model) viewModels(out *strings.Builder) {
-	for _, item := range m.data.catalog.GetModels() {
-		fmt.Fprintf(out, "%s  %d downloads\n", item.GetId(), item.GetDownloads())
-	}
-	fmt.Fprintln(out, "\nLocal:")
-	for _, item := range m.data.local.GetModels() {
-		fmt.Fprintf(out, "%s  %d bytes\n", item.GetPath(), item.GetSizeBytes())
-	}
+func (p *poller) fetch(key string, call func() error) {
+	p.wg.Go(func() {
+		err := call()
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.result.ok[key] = err == nil
+		if err != nil {
+			p.result.value.warnings[key] = err.Error()
+		}
+	})
 }
 
-func (m *model) viewRuntime(out *strings.Builder) {
-	fmt.Fprintf(out, "%s: %s\n", selectedProfile(m.data.profiles, m.selected), m.data.runtime.GetStatus().GetState())
-}
-
-func (m *model) viewDownloads(out *strings.Builder) {
-	if m.data.download == nil {
-		out.WriteString("No download started in this session.\n")
-		return
+func (p *poller) base() (err error) {
+	if p.result.value.info, err = p.client.GetInfo(p.ctx, &controlv1.GetInfoRequest{}); err != nil {
+		return err
 	}
-	fmt.Fprintf(out, "%s  %s  %.1f%%\n", m.data.download.GetId(), m.data.download.GetState(), m.data.download.GetPercent())
-}
-
-func (m *model) viewEvents(out *strings.Builder) {
-	for _, event := range m.data.events.GetEvents() {
-		fmt.Fprintf(out, "%s  %s  success=%v\n", event.GetTime(), event.GetAction(), event.GetSuccess())
+	if p.result.value.backends, err = p.client.ListBackends(p.ctx, &controlv1.ListBackendsRequest{}); err != nil {
+		return err
 	}
-}
-
-func selectedProfile(profiles *controlv1.ListProfilesResponse, index int) string {
-	items := profiles.GetProfiles()
-	if index < 0 || index >= len(items) {
-		return ""
-	}
-	return items[index].GetName()
-}
-
-func selectedBackend(backends *controlv1.ListBackendsResponse) string {
-	if len(backends.GetBackends()) == 0 {
-		return ""
-	}
-	return backends.GetBackends()[0].GetName()
-}
-
-// RunInteractive starts the full-screen canonical control dashboard.
-func RunInteractive(ctx context.Context, input io.Reader, output io.Writer, client controlv1connect.ControlServiceClient) error {
-	if client == nil {
-		return fmt.Errorf("tui: control client is required")
-	}
-	_, err := tea.NewProgram(newModel(ctx, client), tea.WithContext(ctx), tea.WithInput(input), tea.WithOutput(output)).Run()
+	p.result.value.profiles, err = p.client.ListProfiles(p.ctx, &controlv1.ListProfilesRequest{})
 	return err
+}
+
+func (p *poller) catalog() (err error) {
+	if p.backend != "" {
+		p.result.value.catalog, err = p.client.ListModelCatalog(p.ctx, &controlv1.ListModelCatalogRequest{Backend: p.backend})
+	}
+	return err
+}
+
+func (p *poller) local() (err error) {
+	if p.backend != "" {
+		p.result.value.local, err = p.client.ListLocalModels(p.ctx, &controlv1.ListLocalModelsRequest{Backend: p.backend})
+	}
+	return err
+}
+
+func (p *poller) signals() (err error) {
+	p.result.value.signals, err = p.client.GetSignals(p.ctx, &controlv1.GetSignalsRequest{})
+	return err
+}
+
+func (p *poller) events() (err error) {
+	p.result.value.events, err = p.client.ListEvents(p.ctx, &controlv1.ListEventsRequest{})
+	return err
+}
+
+func (p *poller) downloads() error {
+	for i, item := range p.result.value.downloads {
+		response, err := p.client.GetModelDownload(p.ctx, &controlv1.GetModelDownloadRequest{Id: item.GetId()})
+		if err != nil {
+			return err
+		}
+		p.result.value.downloads[i] = response.GetDownload()
+	}
+	return nil
+}
+
+func (p *poller) logs() error {
+	p.result.value.controlLog, p.result.value.webLog = readLogs()
+	return nil
+}
+
+func tick() tea.Cmd {
+	return tea.Tick(refreshInterval, func(time.Time) tea.Msg { return tickMsg{} })
+}
+
+type rpcKind int
+
+const (
+	rpcStart rpcKind = iota
+	rpcStop
+	rpcRestart
+	rpcAutostart
+	rpcDownload
+	rpcCancel
+	rpcApply
+	rpcCleanup
+	rpcDelete
+	rpcInstall
+)
+
+type rpcRequest struct {
+	kind                       rpcKind
+	profile, backend, path, id string
+	enabled                    bool
+	notice                     string
+}
+
+func running(info *controlv1.GetInfoResponse, profile string) bool {
+	for _, name := range info.GetRunningProfiles() {
+		if name == profile {
+			return true
+		}
+	}
+	return false
+}
+
+func selected[T any](items []T, index int) (T, bool) {
+	var zero T
+	if index < 0 || index >= len(items) {
+		return zero, false
+	}
+	return items[index], true
+}
+
+func countText(count int, singular string) string {
+	if count == 1 {
+		return fmt.Sprintf("1 %s", singular)
+	}
+	return fmt.Sprintf("%d %ss", count, singular)
 }

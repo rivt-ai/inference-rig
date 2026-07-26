@@ -5,33 +5,25 @@ import (
 	"fmt"
 	"io"
 
-	controlv1 "inferencerig/core/rpc/gen/v1"
+	tea "charm.land/bubbletea/v2"
+
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
 
-// Run renders a compact terminal dashboard from canonical RPC snapshots.
-func Run(ctx context.Context, out io.Writer, client controlv1connect.ControlServiceClient, profile string) error {
-	if client == nil {
+// Options supplies the canonical client and local-process policy.
+type Options struct {
+	Client              controlv1connect.ControlServiceClient
+	ManageLocalServices bool
+}
+
+// RunInteractive starts the full-screen canonical control dashboard.
+func RunInteractive(ctx context.Context, input io.Reader, output io.Writer, options Options) error {
+	if options.Client == nil {
 		return fmt.Errorf("tui: control client is required")
 	}
-	backends, err := client.ListBackends(ctx, &controlv1.ListBackendsRequest{})
-	if err != nil {
-		return err
-	}
-	profiles, err := client.ListProfiles(ctx, &controlv1.ListProfilesRequest{})
-	if err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(out, "InferenceRig\nBackends: %d\nProfiles: %d\n", len(backends.GetBackends()), len(profiles.GetProfiles())); err != nil {
-		return err
-	}
-	if profile == "" {
-		return nil
-	}
-	status, err := client.GetRuntimeStatus(ctx, &controlv1.GetRuntimeStatusRequest{Profile: profile})
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(out, "Runtime %s: %s\n", profile, status.GetStatus().GetState())
+	_, err := tea.NewProgram(
+		newModel(ctx, options.Client, options.ManageLocalServices),
+		tea.WithContext(ctx), tea.WithInput(input), tea.WithOutput(output),
+	).Run()
 	return err
 }
