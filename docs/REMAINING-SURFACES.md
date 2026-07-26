@@ -49,12 +49,12 @@ Each sequence ships as its own stacked draft PR:
 |---|---|---|
 | `ListModelCatalog`, `WatchModelCatalog` | **Model catalog browse/search** | ✅ shared HTTP/cache/refresh module with backend-owned artifact policy |
 | `ListLocalModels`, `DeleteLocalModel` | **Local model management** | ✅ backend-owned scanning and containment-checked deletion through canonical RPC |
-| `ApplyModelDownloadToPreset` → `ApplyDownloadToProfile` | Wire a finished download into a profile | ❌ missing |
-| `CleanupPreset` → `CleanupProfile` | Reclaim a profile's model artifacts | ❌ missing |
-| `SetPresetAutostart` → `SetProfileAutostart`, `SetStartupServices` | Autostart / startup-services config | ❌ missing (`configstore.SetStartupServices` exists but no RPC) |
-| `RestartRuntime` | Restart (have start+stop only) | ❌ missing (minor) |
-| `GetInfo` | App/system info | ❌ missing (minor; `Health` partial) |
-| `GetLlamaServerParams` → capability-gated `GetBackendParams` | Backend-specific param introspection | ❌ missing (must be capability-gated, not llama-named) |
+| `ApplyModelDownloadToPreset` → `ApplyDownloadToProfile` | Wire a finished download into a profile | ✅ validates download provenance and completion before canonical YAML replacement |
+| `CleanupPreset` → `CleanupProfile` | Reclaim a profile's model artifacts | ✅ rejects shared artifacts, removes the profile, then reclaims its local artifact |
+| `SetPresetAutostart` → `SetProfileAutostart`, `SetStartupServices` | Autostart / startup-services config | ✅ neutral config mutations exposed through RPC |
+| `RestartRuntime` | Restart (have start+stop only) | ✅ manager-owned stop/start sequence |
+| `GetInfo` | App/system info | ✅ profiles/backends/runtimes/config/build snapshot |
+| `GetLlamaServerParams` → capability-gated `GetBackendParams` | Backend-specific param introspection | ✅ optional advertised backend facet |
 
 ### Interface tier
 
@@ -82,7 +82,7 @@ Without this nothing runs; every other surface needs a live control socket.
 - Add manager methods + RPCs: `ListModelCatalog`/`WatchModelCatalog`, `ListLocalModels`, `DeleteLocalModel`.
 - **Exit:** browse/search catalog + list/delete local models for *both* backends through one neutral mechanism; policy stays in backends. Tests over a recorded HTTP fixture (no live network).
 
-### S3 — Complete the canonical RPC surface
+### S3 — Complete the canonical RPC surface — ✅ complete
 - Add the remaining manager methods + proto RPCs (regen deterministically, `buf lint`): `ApplyDownloadToProfile`, `CleanupProfile`, `SetProfileAutostart`, `SetStartupServices`, `RestartRuntime`, `GetInfo`, and capability-gated `GetBackendParams`.
 - **Exit:** RPC surface reaches functional parity with source (neutralized); each method covered by a generated-client test. Depends on S2 for the catalog/local pieces.
 

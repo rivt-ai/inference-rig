@@ -113,7 +113,8 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 - `phase-12-validation` (this PR): Phase 12 cross-backend integration and hardware validation. Builds green; `make test`, custom `make lint-ci`, `make e2e-live`, and `buf lint` pass. Hardware tests skip explicitly when their documented engine/model inputs or required host are absent.
 - `surface-s1-serve`: runnable control daemon assembly, graceful shutdown, shared PID lifecycle, and CLI daemon commands. See `docs/REMAINING-SURFACES.md` for the outer-surface stack.
 - `surface-s2-catalog`: neutral remote catalog transport/cache/refresh module, two backend catalog-policy adapters, safe local model inventory/deletion, and four canonical RPCs.
-- **Top of stack:** `surface-s2-catalog`. **Next:** S3 canonical RPC completion.
+- `surface-s3-rpc`: completed canonical RPC surface, download provenance/application, safe profile cleanup, neutral autostart config, restart/info, capability-gated backend parameters, and profile-aware runtime slots.
+- **Top of stack:** `surface-s3-rpc`. **Next:** S4 CLI breadth.
 - What exists now (added in Phase 12):
   - `test/control_integration_test.go` — both real backends registered together and driven through one canonical Unix-socket RPC client. It verifies capability discovery, canonical profile creation, runtime lifecycle through the shared factory, backend-specific materialization isolation, and both artifact-plan forms.
   - `test/live` and `make e2e-live` — opt-in real-engine hardware tests that start through the shared supervisor, wait for the backend readiness endpoint, assert running state, and stop cleanly.
