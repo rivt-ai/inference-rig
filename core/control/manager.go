@@ -238,6 +238,21 @@ func (m *Manager) RuntimeStatus(ctx context.Context, name string) (coreruntime.S
 	return status, mapRuntimeError(err)
 }
 
+// StopAllRuntimes stops every active backend slot during daemon shutdown.
+func (m *Manager) StopAllRuntimes(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var errs []error
+	for name, slot := range m.runtimes {
+		if _, err := slot.process.Stop(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("stop backend %q runtime: %w", name, err))
+			continue
+		}
+		delete(m.runtimes, name)
+	}
+	return errors.Join(errs...)
+}
+
 // ResolveProfileModel resolves and plans the selected profile through its
 // backend.
 func (m *Manager) ResolveProfileModel(ctx context.Context, name string) (backends.ResolvedModel, backends.ArtifactPlan, error) {
