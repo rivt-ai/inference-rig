@@ -75,8 +75,8 @@ terminology may survive in shared packages.
 | 6 | `phase-06-llamacpp` | `phase-05-backend-contracts` | 6 | done |
 | 7 | `phase-07-mlx` | `phase-06-llamacpp` | 7 | done |
 | 8 | `phase-08-downloads` | `phase-07-mlx` | 8 | done |
-| 9 | `phase-09-control-rpc` | `phase-08-downloads` | 9 | **this PR** |
-| 10 | `phase-10-interfaces` | `phase-09-control-rpc` | 10 | todo |
+| 9 | `phase-09-control-rpc` | `phase-08-downloads` | 9 | done |
+| 10 | `phase-10-interfaces` | `phase-09-control-rpc` | 10 | **this PR** |
 | 11 | `phase-11-migration` | `phase-10-interfaces` | 11 | todo |
 | 12 | `phase-12-validation` | `phase-11-migration` | 12 | todo |
 
@@ -107,8 +107,13 @@ Merge cascades bottom-up as each PR is approved. When a lower PR merges to
 - `phase-06-llamacpp`: Phase 6 llama.cpp backend. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
 - `phase-07-mlx`: Phase 7 MLX backend. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
 - `phase-08-downloads`: Phase 8 neutral artifact-plan download executor. Builds green, `go test ./...` passes, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
-- `phase-09-control-rpc` (this PR): Phase 9 canonical control manager and ConnectRPC service. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
-- **Top of stack:** `phase-09-control-rpc`. **Next:** Phase 10 (user interfaces) on `phase-10-interfaces`, based on `phase-09-control-rpc`.
+- `phase-09-control-rpc`: Phase 9 canonical control manager and ConnectRPC service. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, neutralization grep clean.
+- `phase-10-interfaces` (this PR): Phase 10 canonical-RPC-backed interfaces. Builds green, `go test ./...` and `buf lint` pass, `golangci-lint run ./...` = 0 issues, and no interface imports backend internals.
+- **Top of stack:** `phase-10-interfaces`. **Next:** Phase 11 (read-only migration tooling) on `phase-11-migration`, based on `phase-10-interfaces`.
+- What exists now (added in Phase 10):
+  - `adapters/cli`, `adapters/mcp`, `adapters/public_http`, and `adapters/tui` — thin interface adapters over the generated canonical control client. CLI commands are wired into the root command; MCP exposes backend/profile/runtime tools; the authenticated REST facade serves read and runtime actions; and the terminal view renders backend/profile/runtime snapshots. Focused fake-client tests prove every interface reaches RPC rather than backend packages.
+  - `core/setup.Wizard` — capability discovery and canonical profile creation through RPC only.
+  - `webui` — an embedded browser client that discovers backends and profiles through the public facade, which in turn calls canonical RPC.
 - What exists now (added in Phase 9):
   - `core/control.Manager` — the engine-neutral orchestration owner for backend discovery/install, canonical profile CRUD and materialization, runtime lifecycle/status, artifact resolution/downloads, signals, audit, and events. It depends only on the backend registry and shared interfaces; optional batch materialization lets one backend regenerate its complete derived configuration without leaking that format into the core.
   - `inferencerig.control.v1` — one buf-linted canonical protocol with checked-in deterministic Go/Connect generation. `core/rpc.ControlService` maps every manager operation onto that protocol, including event streaming and stable error codes. A Unix-socket end-to-end test drives profile creation, backend discovery, runtime start, resolution, download completion, signals, and events through the generated client.
