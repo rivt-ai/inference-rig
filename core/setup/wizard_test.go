@@ -1,12 +1,16 @@
 package setup
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
 
+	"inferencerig/core/profiles"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
+
+	"gopkg.in/yaml.v3"
 )
 
 type testClient struct {
@@ -38,5 +42,23 @@ func TestWizardDiscoversCapabilitiesAndCreatesThroughRPC(t *testing.T) {
 	})
 	if err != nil || profile.GetName() != "demo" || !strings.Contains(client.put.GetProfileYaml(), "backend: test") {
 		t.Fatalf("profile = %#v, request = %#v, err = %v", profile, client.put, err)
+	}
+	var parsed profiles.Profile
+	if err := yaml.Unmarshal([]byte(client.put.GetProfileYaml()), &parsed); err != nil || parsed.Model.Source != "repo" {
+		t.Fatalf("profile YAML = %q, parsed = %#v, err = %v", client.put.GetProfileYaml(), parsed, err)
+	}
+}
+
+func TestWizardInteractiveUsesCapabilities(t *testing.T) {
+	client := &testClient{}
+	var output bytes.Buffer
+	profile, err := NewWizard(client).RunInteractive(
+		context.Background(), strings.NewReader("\ndemo\nowner/repo\n\n9000\n"), &output,
+	)
+	if err != nil || profile.GetName() != "demo" {
+		t.Fatalf("profile = %#v, output = %q, err = %v", profile, output.String(), err)
+	}
+	if strings.Contains(output.String(), "model reference") {
+		t.Fatalf("multi-file backend prompted for a single-file reference: %q", output.String())
 	}
 }
