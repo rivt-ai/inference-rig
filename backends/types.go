@@ -94,13 +94,17 @@ type ArtifactPlan struct {
 // both the discrete-accelerator axis (HasGPU/VRAMBytes) and the unified-memory
 // axis (UnifiedMemory/MemoryBudgetBytes) so a single neutral type serves both
 // backend families; a backend reads only the fields it cares about.
+// AcceleratorName and VRAMUsedBytes are reported for telemetry only; Fit
+// implementations ignore them.
 type HostResources struct {
 	TotalRAMBytes     int64
 	AvailableRAMBytes int64
 	HasGPU            bool
 	VRAMBytes         int64
+	VRAMUsedBytes     int64
 	UnifiedMemory     bool
 	MemoryBudgetBytes int64
+	AcceleratorName   string
 }
 
 // FitEstimate is a backend's decision about whether a model fits a host.
