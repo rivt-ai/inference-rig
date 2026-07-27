@@ -230,6 +230,27 @@ message Signals {
   int32 logical_cpu_cores = 4;
   double cpu_used_percent = 5;
   repeated string warnings = 6;
+  repeated Accelerator accelerators = 7;
+  repeated Disk disks = 8;
+}
+
+// Accelerator is one GPU-class compute device. unified_memory distinguishes the
+// two memory models a host can have: a unified device (Apple Metal) shares
+// system RAM, so its byte fields mirror system memory, while a discrete device
+// reports its own dedicated VRAM. One message serves both.
+message Accelerator {
+  string name = 1;
+  bool unified_memory = 2;
+  uint64 total_memory_bytes = 3;
+  uint64 used_memory_bytes = 4;
+}
+
+message Disk {
+  string label = 1;
+  string path = 2;
+  uint64 total_bytes = 3;
+  uint64 used_bytes = 4;
+  double used_percent = 5;
 }
 
 message ListEventsRequest {}

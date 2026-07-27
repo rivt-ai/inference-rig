@@ -8,13 +8,24 @@ import (
 )
 
 type Snapshot struct {
-	CapturedAt string                `json:"captured_at"`
-	Host       HostStats             `json:"host"`
-	Memory     MemoryStats           `json:"memory"`
-	Disks      []DiskStats           `json:"disks,omitempty"`
-	CPU        CPUStats              `json:"cpu"`
-	Runtime    []RuntimeProcessStats `json:"runtime,omitempty"`
-	Warnings   []string              `json:"warnings,omitempty"`
+	CapturedAt   string                `json:"captured_at"`
+	Host         HostStats             `json:"host"`
+	Memory       MemoryStats           `json:"memory"`
+	Disks        []DiskStats           `json:"disks,omitempty"`
+	CPU          CPUStats              `json:"cpu"`
+	Accelerators []AcceleratorStats    `json:"accelerators,omitempty"`
+	Runtime      []RuntimeProcessStats `json:"runtime,omitempty"`
+	Warnings     []string              `json:"warnings,omitempty"`
+}
+
+// AcceleratorStats describes one GPU-class device. UnifiedMemory reports
+// whether the device shares system RAM (Apple Metal) instead of owning discrete
+// VRAM; on a unified device the byte fields mirror system memory.
+type AcceleratorStats struct {
+	Name          string `json:"name"`
+	UnifiedMemory bool   `json:"unified_memory"`
+	TotalBytes    uint64 `json:"total_bytes"`
+	UsedBytes     uint64 `json:"used_bytes"`
 }
 
 type MachineSnapshot struct {

@@ -14,6 +14,8 @@ import (
 
 	"inferencerig/config"
 	"inferencerig/platform/audit"
+
+	controlv1 "inferencerig/core/rpc/gen/v1"
 )
 
 type systemPage struct{ vp viewport.Model }
@@ -32,15 +34,14 @@ func (p *systemPage) View(width, height int, data snapshot) string {
 	if signals == nil {
 		resourceRows = append(resourceRows, warningStyle.Render("Control telemetry unavailable"))
 	} else {
-		used := signals.GetTotalMemoryBytes() - min(signals.GetTotalMemoryBytes(), signals.GetAvailableMemoryBytes())
-		percent := 0
-		if signals.GetTotalMemoryBytes() > 0 {
-			percent = int(math.Round(float64(used) * 100 / float64(signals.GetTotalMemoryBytes())))
-		}
+		total := signals.GetTotalMemoryBytes()
+		used := total - min(total, signals.GetAvailableMemoryBytes())
 		resourceRows = append(resourceRows,
 			resourceRow("CPU", int(math.Round(signals.GetCpuUsedPercent())), fmt.Sprintf("%d logical cores", signals.GetLogicalCpuCores())),
-			resourceRow("RAM", percent, fmt.Sprintf("(%s/%s)", tuikit.FormatBytes(int64(used)), tuikit.FormatBytes(int64(signals.GetTotalMemoryBytes())))),
+			resourceRow("RAM", usedPercent(used, total), bytePair(used, total)),
 		)
+		resourceRows = append(resourceRows, acceleratorRows(signals.GetAccelerators())...)
+		resourceRows = append(resourceRows, diskRows(signals.GetDisks())...)
 		for _, warning := range signals.GetWarnings() {
 			resourceRows = append(resourceRows, warningStyle.Render(warning))
 		}
@@ -53,9 +54,11 @@ func (p *systemPage) View(width, height int, data snapshot) string {
 		tuikit.Field("Running", fmt.Sprint(len(data.info.GetRunningProfiles()))),
 		tuikit.Field("Commit", build.GetCommit()),
 	}
+	// Grow both panels together so added GPU/disk rows stay inside the border.
+	panelHeight := max(10, len(resourceRows)+2, len(controlRows)+2)
 	content := tuikit.Flow(width, 2, []string{
-		panel(cyan, false, tuikit.AdaptiveWidth(width, 2, 36, 70), 10, lipgloss.JoinVertical(lipgloss.Left, resourceRows...)),
-		panel(blue, false, tuikit.AdaptiveWidth(width, 2, 36, 70), 10, lipgloss.JoinVertical(lipgloss.Left, controlRows...)),
+		panel(cyan, false, tuikit.AdaptiveWidth(width, 2, 36, 70), panelHeight, lipgloss.JoinVertical(lipgloss.Left, resourceRows...)),
+		panel(blue, false, tuikit.AdaptiveWidth(width, 2, 36, 70), panelHeight, lipgloss.JoinVertical(lipgloss.Left, controlRows...)),
 	})
 	p.vp.SetWidth(width)
 	p.vp.SetHeight(height)
@@ -67,6 +70,69 @@ var meter = tuikit.NewMeter(20, green)
 
 func resourceRow(label string, percent int, detail string) string {
 	return fmt.Sprintf("%-8s %s %3d%%  %s", label+":", meter.View(percent), percent, mutedStyle.Render(detail))
+}
+
+func usedPercent(used, total uint64) int {
+	if total == 0 {
+		return 0
+	}
+	return int(math.Round(float64(used) * 100 / float64(total)))
+}
+
+func bytePair(used, total uint64) string {
+	if total == 0 {
+		return ""
+	}
+	return fmt.Sprintf("(%s/%s)", tuikit.FormatBytes(int64(used)), tuikit.FormatBytes(int64(total)))
+}
+
+// acceleratorRows renders one GPU row per reported device. A unified-memory
+// device draws from system RAM, so its meter deliberately tracks the same
+// figures as the RAM row and the detail says so; a discrete device shows its
+// own VRAM. With no device reported the row stays, marked unavailable, so the
+// panel reads the same on a CPU-only host.
+func acceleratorRows(accelerators []*controlv1.Accelerator) []string {
+	if len(accelerators) == 0 {
+		return []string{resourceRow("GPU", 0, "(unavailable)")}
+	}
+	rows := make([]string, 0, len(accelerators))
+	for _, accelerator := range accelerators {
+		name := accelerator.GetName()
+		if name == "" {
+			name = "GPU"
+		}
+		used, total := accelerator.GetUsedMemoryBytes(), accelerator.GetTotalMemoryBytes()
+		// A unified device's bytes are the RAM row's bytes, so name the sharing
+		// instead of repeating the figures one line below themselves.
+		detail := name + " (unified with RAM)"
+		if !accelerator.GetUnifiedMemory() {
+			detail = strings.TrimSpace(name + " " + bytePair(used, total))
+		}
+		rows = append(rows, resourceRow("GPU", usedPercent(used, total), detail))
+	}
+	return rows
+}
+
+func diskRows(disks []*controlv1.Disk) []string {
+	rows := make([]string, 0, len(disks))
+	for _, disk := range disks {
+		detail := strings.TrimSpace(bytePair(disk.GetUsedBytes(), disk.GetTotalBytes()) + " " + disk.GetPath())
+		rows = append(rows, resourceRow(diskLabel(disk.GetLabel()), int(math.Round(disk.GetUsedPercent())), detail))
+	}
+	return rows
+}
+
+func diskLabel(label string) string {
+	switch label {
+	case "model_storage":
+		return "Models"
+	case "root":
+		return "Root"
+	case "":
+		return "Disk"
+	default:
+		return label
+	}
 }
 
 type activityPage struct {

@@ -509,11 +509,26 @@ func downloadProto(job modeldownload.Job) *controlv1.ModelDownload {
 }
 
 func signalsProto(snapshot signals.Snapshot) *controlv1.Signals {
+	accelerators := make([]*controlv1.Accelerator, 0, len(snapshot.Accelerators))
+	for _, item := range snapshot.Accelerators {
+		accelerators = append(accelerators, &controlv1.Accelerator{
+			Name: item.Name, UnifiedMemory: item.UnifiedMemory,
+			TotalMemoryBytes: item.TotalBytes, UsedMemoryBytes: item.UsedBytes,
+		})
+	}
+	disks := make([]*controlv1.Disk, 0, len(snapshot.Disks))
+	for _, item := range snapshot.Disks {
+		disks = append(disks, &controlv1.Disk{
+			Label: item.Label, Path: item.Path, TotalBytes: item.TotalBytes,
+			UsedBytes: item.UsedBytes, UsedPercent: item.UsedPercent,
+		})
+	}
 	return &controlv1.Signals{
 		CapturedAt: snapshot.CapturedAt, TotalMemoryBytes: snapshot.Memory.TotalBytes,
 		AvailableMemoryBytes: snapshot.Memory.AvailableBytes,
 		LogicalCpuCores:      int32(snapshot.CPU.LogicalCores),
 		CpuUsedPercent:       snapshot.CPU.UsedPercent, Warnings: snapshot.Warnings,
+		Accelerators: accelerators, Disks: disks,
 	}
 }
 
