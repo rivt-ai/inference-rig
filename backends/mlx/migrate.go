@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"inferencerig/core/migrate"
 	"inferencerig/core/profiles"
+	"inferencerig/platform/filedoc"
 )
 
 const legacyProfileLimit = 2 << 20
@@ -63,15 +64,10 @@ func (i *YAMLImporter) Preview(ctx context.Context) ([]migrate.Candidate, error)
 	return out, nil
 }
 
-//nolint:gocyclo // Linear source validation keeps each rejection next to its input.
 func (i *YAMLImporter) readCandidate(name string, index int) (migrate.Candidate, error) {
 	path := filepath.Join(i.root, name, "base.yaml")
-	info, err := os.Lstat(path)
-	if err != nil {
+	if _, err := filedoc.StatRegular(path, legacyProfileLimit); err != nil {
 		return migrate.Candidate{}, fmt.Errorf("inspect legacy profile %q: %w", name, err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() > legacyProfileLimit {
-		return migrate.Candidate{}, fmt.Errorf("legacy profile %q must be a regular non-symlink file under %d bytes", name, legacyProfileLimit)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {

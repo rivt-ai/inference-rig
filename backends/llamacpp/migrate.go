@@ -3,12 +3,14 @@ package llamacpp
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 
 	"gopkg.in/yaml.v3"
 	"inferencerig/core/migrate"
 	"inferencerig/core/profiles"
+	"inferencerig/platform/filedoc"
 )
 
 // INIImporter previews legacy models.ini sections as canonical profiles.
@@ -27,12 +29,8 @@ func (i *INIImporter) Preview(ctx context.Context) ([]migrate.Candidate, error) 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	info, err := os.Lstat(i.path)
-	if err != nil {
+	if _, err := filedoc.StatRegular(i.path, 0); err != nil {
 		return nil, fmt.Errorf("inspect models.ini: %w", err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("models.ini source must be a regular non-symlink file")
 	}
 	data, err := os.ReadFile(i.path)
 	if err != nil {
@@ -47,11 +45,7 @@ func (i *INIImporter) Preview(ctx context.Context) ([]migrate.Candidate, error) 
 		defaults = global.Values
 		delete(sections, globalSection)
 	}
-	names := make([]string, 0, len(sections))
-	for name := range sections {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(sections))
 	out := make([]migrate.Candidate, 0, len(names))
 	for index, name := range names {
 		candidate, err := i.candidate(name, sections[name], defaults, index)
