@@ -3,20 +3,20 @@
   import { get, post, put, remove, setToken } from './api';
 
   type Section = 'overview' | 'profiles' | 'models' | 'activity';
-  let section: Section = 'overview';
-  let loading = false;
-  let error = '';
-  let token = '';
-  let info: any = {};
-  let backends: any[] = [];
-  let profiles: any[] = [];
-  let signals: any = {};
-  let events: any[] = [];
-  let catalog: any[] = [];
-  let localModels: any[] = [];
-  let selectedBackend = '';
-  let query = '';
-  let editing: any = null;
+  let section: Section = $state('overview');
+  let loading = $state(false);
+  let error = $state('');
+  let token = $state('');
+  let info: any = $state({});
+  let backends: any[] = $state([]);
+  let profiles: any[] = $state([]);
+  let signals: any = $state({});
+  let events: any[] = $state([]);
+  let catalog: any[] = $state([]);
+  let localModels: any[] = $state([]);
+  let selectedBackend = $state('');
+  let query = $state('');
+  let editing: any = $state(null);
 
   async function refresh() {
     loading = true;
