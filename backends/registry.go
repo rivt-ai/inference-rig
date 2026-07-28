@@ -7,7 +7,7 @@ package backends
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"sync"
 )
 
@@ -60,6 +60,6 @@ func (r *Registry) Names() []string {
 	for name := range r.m {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }

@@ -47,6 +47,10 @@ func TestAllowsNonLoopback(t *testing.T) {
 		"0.0.0.0:7000":   true,
 		":7000":          true,
 		"192.168.1.5:70": true,
+		// Bare IPv6 literals do not parse as host:port; they must still be
+		// classified by address, not treated as a wildcard bind.
+		"::1": false,
+		"::":  true,
 	}
 	for addr, want := range cases {
 		cfg := Config{ListenAddr: addr}

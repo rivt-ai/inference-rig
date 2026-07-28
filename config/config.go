@@ -130,11 +130,12 @@ func ValidateStartupServices(services []string) error {
 // AllowsNonLoopback reports whether ListenAddr binds beyond the local host,
 // which exposes the gateway and warrants a bearer token.
 func (c *Config) AllowsNonLoopback() bool {
+	// A ':'-leading address such as ":7000" parses cleanly with an empty host,
+	// which the switch below already treats as a wildcard bind. Addresses that
+	// fail to parse fall through to ParseIP, so a bare IPv6 literal like "::1"
+	// is still recognized as loopback.
 	host, _, err := net.SplitHostPort(c.ListenAddr)
 	if err != nil {
-		if c.ListenAddr != "" && c.ListenAddr[0] == ':' {
-			return true
-		}
 		host = c.ListenAddr
 	}
 	switch host {
@@ -192,16 +193,14 @@ func ControlSocketPath() (string, error) { return homePath("run", "control.sock"
 
 // ExpandHome expands a leading ~ to the user's home directory.
 func ExpandHome(path string) string {
-	if path == "~" {
-		if home, err := os.UserHomeDir(); err == nil {
-			return home
-		}
+	if path != "~" && !strings.HasPrefix(path, "~/") {
 		return path
 	}
-	if strings.HasPrefix(path, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, path[2:])
-		}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
 	}
-	return path
+	// filepath.Join ignores an empty element, so path[1:] covers both "~" and
+	// "~/sub" without a second case.
+	return filepath.Join(home, path[1:])
 }
