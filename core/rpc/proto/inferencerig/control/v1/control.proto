@@ -4,6 +4,8 @@ package inferencerig.control.v1;
 
 option go_package = "inferencerig/core/rpc/gen/v1;controlv1";
 
+import "google/protobuf/struct.proto";
+
 service ControlService {
   rpc Health(HealthRequest) returns (HealthResponse);
   rpc ListBackends(ListBackendsRequest) returns (ListBackendsResponse);
@@ -17,6 +19,9 @@ service ControlService {
   rpc StopRuntime(StopRuntimeRequest) returns (StopRuntimeResponse);
   rpc GetRuntimeStatus(GetRuntimeStatusRequest) returns (GetRuntimeStatusResponse);
   rpc ResolveProfileModel(ResolveProfileModelRequest) returns (ResolveProfileModelResponse);
+  // ResolveModel resolves an arbitrary catalog reference without requiring a
+  // profile, so the UI can browse and download before a profile exists.
+  rpc ResolveModel(ResolveModelRequest) returns (ResolveModelResponse);
   rpc StartModelDownload(StartModelDownloadRequest) returns (StartModelDownloadResponse);
   rpc GetModelDownload(GetModelDownloadRequest) returns (GetModelDownloadResponse);
   rpc CancelModelDownload(CancelModelDownloadRequest) returns (CancelModelDownloadResponse);
@@ -34,6 +39,20 @@ service ControlService {
   rpc RestartRuntime(RestartRuntimeRequest) returns (RestartRuntimeResponse);
   rpc GetInfo(GetInfoRequest) returns (GetInfoResponse);
   rpc GetBackendParams(GetBackendParamsRequest) returns (GetBackendParamsResponse);
+
+  // EstimateFit reports whether a model of a given size fits the host, for the
+  // memory model the named backend uses. Both backends have implemented this
+  // since Phase 6/7; it simply had no way to reach a caller.
+  rpc EstimateFit(EstimateFitRequest) returns (EstimateFitResponse);
+
+  // Service logs. The archive store behind these has existed since Phase 2 with
+  // its own retention policy and was unreachable from any adapter.
+  rpc GetLogs(GetLogsRequest) returns (GetLogsResponse);
+  rpc WatchLogs(WatchLogsRequest) returns (stream WatchLogsResponse);
+  rpc ListLogArchives(ListLogArchivesRequest) returns (ListLogArchivesResponse);
+  rpc GetLogArchive(GetLogArchiveRequest) returns (GetLogArchiveResponse);
+  rpc DeleteLogArchive(DeleteLogArchiveRequest) returns (DeleteLogArchiveResponse);
+  rpc ClearLogArchives(ClearLogArchivesRequest) returns (ClearLogArchivesResponse);
 }
 
 message HealthRequest {}
@@ -71,6 +90,11 @@ message PutProfileRequest {
   string name = 1;
   string profile_yaml = 2;
   bool create_only = 3;
+  // profile is the structured alternative to profile_yaml, used when
+  // profile_yaml is empty. The server renders the YAML, so a structured editor
+  // does not need a YAML implementation of its own and cannot disagree with the
+  // server about how a profile serializes.
+  Profile profile = 4;
 }
 message DeleteProfileRequest { string name = 1; }
 message GetProfileResponse {
@@ -89,6 +113,11 @@ message Profile {
   string model_reference = 5;
   string host = 6;
   int32 port = 7;
+  // engine_args mirrors profiles.Profile.EngineArgs. Struct rather than
+  // map<string, string> because engine args carry scalars, bools, and lists,
+  // and both backends depend on the distinction: MLX renders a false bool as
+  // --no-key and a list as a repeated flag.
+  google.protobuf.Struct engine_args = 8;
 }
 message DeleteProfileResponse { bool ok = 1; }
 
@@ -126,10 +155,21 @@ message StopRuntimeResponse {
   CommandResult result = 2;
   RuntimeStatus status = 3;
 }
+// GetRuntimeStatusRequest with an empty profile reports every profile at once.
+// A dashboard polling each profile separately would issue one call per profile
+// per tick.
 message GetRuntimeStatusRequest { string profile = 1; }
 message GetRuntimeStatusResponse {
   bool ok = 1;
+  // status is the aggregate when no profile was named, or that profile's status.
   RuntimeStatus status = 2;
+  // profiles is populated only for the all-profiles form.
+  repeated ProfileRuntimeStatus profiles = 3;
+}
+message ProfileRuntimeStatus {
+  string name = 1;
+  string backend = 2;
+  RuntimeStatus status = 3;
 }
 message CommandResult {
   string action = 1;
@@ -184,9 +224,25 @@ message ArtifactItem {
   int64 size_bytes = 4;
 }
 
+message ResolveModelRequest {
+  string backend = 1;
+  // reference is a catalog reference or repository URL.
+  string reference = 2;
+}
+message ResolveModelResponse {
+  bool ok = 1;
+  ResolvedModel model = 2;
+  ArtifactPlan plan = 3;
+}
+
 message StartModelDownloadRequest {
+  // profile downloads that profile's model. Leave it empty and set
+  // backend + reference to download a catalog entry before any profile exists,
+  // which is the order the catalog UI works in.
   string profile = 1;
   bool force = 2;
+  string backend = 3;
+  string reference = 4;
 }
 message StartModelDownloadResponse {
   bool ok = 1;
@@ -232,6 +288,26 @@ message Signals {
   repeated string warnings = 6;
   repeated Accelerator accelerators = 7;
   repeated Disk disks = 8;
+  uint64 used_memory_bytes = 9;
+  double used_memory_percent = 10;
+  HostInfo host = 11;
+  // runtime carries per-process resource use. The collector has produced this
+  // since Phase 2; the message previously dropped it on the floor.
+  repeated RuntimeProcess runtime = 12;
+}
+
+message HostInfo {
+  string hostname = 1;
+  string os = 2;
+  string platform = 3;
+}
+
+message RuntimeProcess {
+  string name = 1;
+  int32 pid = 2;
+  uint64 rss_bytes = 3;
+  double cpu_percent = 4;
+  string command = 5;
 }
 
 // Accelerator is one GPU-class compute device. unified_memory distinguishes the
@@ -243,6 +319,17 @@ message Accelerator {
   bool unified_memory = 2;
   uint64 total_memory_bytes = 3;
   uint64 used_memory_bytes = 4;
+  // The fields below are optional and often unset: utilisation needs a vendor
+  // tool (NVML, Metal counters), and Apple Silicon does not report GPU
+  // temperature without elevated privileges. Clients must treat has_* as the
+  // signal to render, not a zero value, which is indistinguishable from idle.
+  double utilization_percent = 5;
+  bool has_utilization = 6;
+  double temperature_celsius = 7;
+  bool has_temperature = 8;
+  // source names what produced this reading, so an implausible number can be
+  // traced to its collector.
+  string source = 9;
 }
 
 message Disk {
@@ -251,6 +338,7 @@ message Disk {
   uint64 total_bytes = 3;
   uint64 used_bytes = 4;
   double used_percent = 5;
+  uint64 free_bytes = 6;
 }
 
 message ListEventsRequest {}
@@ -273,12 +361,36 @@ message ListModelCatalogRequest {
   string backend = 1;
   string query = 2;
   int32 limit = 3;
+  // sort orders results server-side: "downloads", "likes", "modified", "fit".
+  string sort = 4;
+  // min_fit drops models whose best variant does not reach this fit level.
+  FitLevel min_fit = 5;
 }
 message ListModelCatalogResponse {
   bool ok = 1;
   repeated CatalogModel models = 2;
   bool cache_hit = 3;
   bool stale = 4;
+  // machine is the host the fit estimates were computed against, so a client
+  // can explain a verdict instead of just showing a colour.
+  MachineProfile machine = 5;
+  CatalogCacheState cache = 6;
+  // errors carries per-source failures from a partially successful refresh.
+  repeated string errors = 7;
+}
+message MachineProfile {
+  uint64 total_memory_bytes = 1;
+  uint64 available_memory_bytes = 2;
+  string accelerator_name = 3;
+  bool unified_memory = 4;
+  uint64 accelerator_memory_bytes = 5;
+}
+message CatalogCacheState {
+  bool hit = 1;
+  bool stale = 2;
+  bool refreshing = 3;
+  string updated_at = 4;
+  int64 ttl_seconds = 5;
 }
 message CatalogModel {
   string id = 1;
@@ -288,12 +400,48 @@ message CatalogModel {
   string last_modified = 5;
   repeated string tags = 6;
   repeated ModelVariant variants = 7;
+  // best_variant is the largest variant that still fits the host, which is what
+  // a one-click download should use.
+  ModelVariant best_variant = 8;
 }
 message ModelVariant {
   string name = 1;
   string reference = 2;
   int64 size_bytes = 3;
   bool multi_file = 4;
+  // quant is the backend's own quantisation label for this variant: a GGUF
+  // quant for llama.cpp, a bit width for MLX. Empty when the backend does not
+  // express one.
+  string quant = 5;
+  FitEstimate fit = 6;
+}
+
+enum FitLevel {
+  FIT_LEVEL_UNSPECIFIED = 0;
+  FIT_LEVEL_UNKNOWN = 1;
+  FIT_LEVEL_FITS = 2;
+  FIT_LEVEL_MARGINAL = 3;
+  FIT_LEVEL_TOO_LARGE = 4;
+}
+
+message FitEstimate {
+  FitLevel level = 1;
+  string reason = 2;
+  int64 required_bytes = 3;
+  int64 available_bytes = 4;
+}
+
+message EstimateFitRequest {
+  string backend = 1;
+  // profile estimates for an existing profile's model; size_bytes estimates for
+  // a candidate of a known size. Exactly one is expected.
+  string profile = 2;
+  int64 size_bytes = 3;
+}
+message EstimateFitResponse {
+  bool ok = 1;
+  FitEstimate fit = 2;
+  MachineProfile machine = 3;
 }
 message WatchModelCatalogRequest {}
 message WatchModelCatalogResponse {
@@ -311,20 +459,37 @@ message LocalModel {
   string filename = 2;
   int64 size_bytes = 3;
   string modified_at = 4;
+  // used_by_profiles names the profiles referencing this model. It is what
+  // separates a configured model from a stray download, and it is what makes
+  // deleting one an informed choice.
+  repeated string used_by_profiles = 5;
 }
 message DeleteLocalModelRequest {
   string backend = 1;
   string path = 2;
+  // cascade_profiles also removes the profiles that reference this model.
+  // Without it, deleting a model a profile depends on leaves that profile
+  // pointing at nothing.
+  bool cascade_profiles = 3;
 }
 message DeleteLocalModelResponse { bool ok = 1; }
 
 message ApplyDownloadToProfileRequest {
   string profile = 1;
   string id = 2;
+  // preview computes the change without writing it, so the UI can show what
+  // applying a download would do to a profile before it does it.
+  bool preview = 3;
 }
 message ApplyDownloadToProfileResponse {
   bool ok = 1;
   Profile profile = 2;
+  // preview_diff is set only when the request asked for a preview.
+  TextDiff preview_diff = 3;
+}
+message TextDiff {
+  string original = 1;
+  string updated = 2;
 }
 message CleanupProfileRequest { string name = 1; }
 message CleanupProfileResponse { bool ok = 1; }
@@ -357,13 +522,77 @@ message BuildInfo {
   string commit = 2;
   string commit_time = 3;
 }
+// Logs. service is a free-form service name ("control", "web", or a backend
+// runtime) rather than a closed enum, because which services exist depends on
+// which backends are installed.
+message GetLogsRequest {
+  string service = 1;
+  int32 lines = 2;
+}
+message GetLogsResponse {
+  bool ok = 1;
+  string service = 2;
+  string text = 3;
+}
+message WatchLogsRequest { string service = 1; }
+message WatchLogsResponse {
+  string service = 1;
+  string line = 2;
+}
+message ListLogArchivesRequest {}
+message ListLogArchivesResponse {
+  bool ok = 1;
+  repeated LogArchive archives = 2;
+}
+message LogArchive {
+  string id = 1;
+  string service = 2;
+  int64 size_bytes = 3;
+  string archived_at = 4;
+}
+message GetLogArchiveRequest {
+  string id = 1;
+  int32 lines = 2;
+}
+message GetLogArchiveResponse {
+  bool ok = 1;
+  string service = 2;
+  string text = 3;
+}
+message DeleteLogArchiveRequest { string id = 1; }
+message DeleteLogArchiveResponse {
+  bool ok = 1;
+  int32 deleted = 2;
+}
+message ClearLogArchivesRequest {}
+message ClearLogArchivesResponse {
+  bool ok = 1;
+  int32 deleted = 2;
+}
+
 message GetBackendParamsRequest { string backend = 1; }
 message GetBackendParamsResponse {
   bool ok = 1;
   repeated BackendParameter params = 2;
 }
+// BackendParameter describes one settable profile parameter. The extra fields
+// beyond name/description/required are what let a client offer completion and
+// validation for any backend, replacing the hardcoded llama.cpp flag table the
+// llamarig UI shipped in its own source.
 message BackendParameter {
   string name = 1;
   string description = 2;
   bool required = 3;
+  repeated string aliases = 4;
+  string value_hint = 5;
+  string default_value = 6;
+  ParameterType type = 7;
+}
+
+enum ParameterType {
+  PARAMETER_TYPE_UNSPECIFIED = 0;
+  PARAMETER_TYPE_STRING = 1;
+  PARAMETER_TYPE_INT = 2;
+  PARAMETER_TYPE_BOOL = 3;
+  PARAMETER_TYPE_LIST = 4;
 }

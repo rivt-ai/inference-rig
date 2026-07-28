@@ -36,7 +36,7 @@ func (b controlBridge) WatchEvents(
 func (b controlBridge) WatchModelCatalog(
 	ctx context.Context,
 	request *controlv1.WatchModelCatalogRequest,
-	stream *controlv1ModelCatalogStream,
+	stream *connect.ServerStream[controlv1.WatchModelCatalogResponse],
 ) error {
 	upstream, err := b.ControlServiceClient.WatchModelCatalog(ctx, request)
 	if err != nil {
@@ -45,7 +45,17 @@ func (b controlBridge) WatchModelCatalog(
 	return pipeStream(upstream, stream)
 }
 
-type controlv1ModelCatalogStream = connect.ServerStream[controlv1.WatchModelCatalogResponse]
+func (b controlBridge) WatchLogs(
+	ctx context.Context,
+	request *controlv1.WatchLogsRequest,
+	stream *connect.ServerStream[controlv1.WatchLogsResponse],
+) error {
+	upstream, err := b.ControlServiceClient.WatchLogs(ctx, request)
+	if err != nil {
+		return err
+	}
+	return pipeStream(upstream, stream)
+}
 
 // pipeStream copies an upstream server stream to the downstream one until the
 // upstream ends or either side fails. Closing the upstream is what releases the

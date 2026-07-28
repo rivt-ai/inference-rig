@@ -91,7 +91,7 @@ func TestGatewayForwardsEveryProcedureUnchanged(t *testing.T) {
 // Every procedure named with a mutating verb must be in mutatingProcedures.
 // Without this, adding a write RPC silently ships it unauthenticated.
 func TestEveryMutatingProcedureRequiresAuth(t *testing.T) {
-	mutatingVerbs := []string{"Put", "Delete", "Set", "Install", "Start", "Stop", "Restart", "Cancel", "Apply", "Cleanup"}
+	mutatingVerbs := []string{"Put", "Delete", "Set", "Install", "Start", "Stop", "Restart", "Cancel", "Apply", "Cleanup", "Clear"}
 	unary, _ := controlProcedures(t)
 	for _, procedure := range unary {
 		name := procedure[strings.LastIndex(procedure, "/")+1:]

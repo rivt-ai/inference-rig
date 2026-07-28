@@ -37,6 +37,8 @@ var mutatingProcedures = map[string]struct{}{
 	controlv1connect.ControlServiceCancelModelDownloadProcedure:    {},
 	controlv1connect.ControlServiceApplyDownloadToProfileProcedure: {},
 	controlv1connect.ControlServiceDeleteLocalModelProcedure:       {},
+	controlv1connect.ControlServiceDeleteLogArchiveProcedure:       {},
+	controlv1connect.ControlServiceClearLogArchivesProcedure:       {},
 }
 
 // ResolveAuthToken returns the gateway token. An unset token is generated
