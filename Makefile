@@ -26,3 +26,6 @@ webui:
 
 e2e-live:
 	go test -tags=live ./test/live -count=1 -timeout=10m
+
+analyze:
+	go tool sizeanalyzer -html report.html
