@@ -32,10 +32,18 @@ func webCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			token, generated := public_http.ResolveAuthToken(os.Getenv(cfg.Security.AuthTokenEnv))
+			if generated {
+				command.Printf("no %s set; generated a gateway token for this run:\n\n    %s\n\n",
+					cfg.Security.AuthTokenEnv, token)
+			}
 			server := &http.Server{
 				Addr: cfg.ListenAddr,
 				Handler: public_http.NewHandler(public_http.Dependencies{
-					Control: client, AuthToken: os.Getenv(cfg.Security.AuthTokenEnv), AppFS: app,
+					Control:            client,
+					AuthToken:          token,
+					AppFS:              app,
+					DisableOriginCheck: cfg.Security.DisableOriginCheck,
 				}),
 				ReadHeaderTimeout: 5 * time.Second,
 			}
