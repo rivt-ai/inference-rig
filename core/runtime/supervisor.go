@@ -99,13 +99,13 @@ func (s *Supervisor) Status(context.Context) (Status, error) {
 func (s *Supervisor) Start(ctx context.Context) (CommandResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.startLocked(ctx, "start")
+	return s.start(ctx)
 }
 
 func (s *Supervisor) Stop(ctx context.Context) (CommandResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.stopLocked(ctx, "stop")
+	return s.stop(ctx)
 }
 
 // Recover adopts an already-running process recorded in the PID file, provided
@@ -135,23 +135,23 @@ func (s *Supervisor) Recover(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (s *Supervisor) startLocked(ctx context.Context, action string) (CommandResult, error) {
+func (s *Supervisor) start(ctx context.Context) (CommandResult, error) {
 	start := s.now()
 	if s.spec.BuildErr != nil {
 		err := NewError(ErrorInvalidInput, s.spec.BuildErr.Error(), s.spec.BuildErr)
-		return s.commandResult(action, start, 1, "", err), err
+		return s.commandResult("start", start, 1, "", err), err
 	}
 	if s.isRunning() {
 		err := Errorf(ErrorRuntime, "%s is already running", s.displayName())
-		return s.commandResult(action, start, 1, "", err), err
+		return s.commandResult("start", start, 1, "", err), err
 	}
 	command, err := s.spec.command()
 	if err != nil {
-		return s.commandResult(action, start, 1, "", err), err
+		return s.commandResult("start", start, 1, "", err), err
 	}
 	file, err := s.pidFile()
 	if err != nil {
-		return s.commandResult(action, start, 1, "", err), err
+		return s.commandResult("start", start, 1, "", err), err
 	}
 	cmd := exec.Command(command.Executable, command.Argv...)
 	cmd.Env = append(os.Environ(), envList(s.spec.Env)...)
@@ -159,7 +159,7 @@ func (s *Supervisor) startLocked(ctx context.Context, action string) (CommandRes
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		err = NewError(ErrorRuntime, fmt.Sprintf("start %s failed", s.displayName()), err)
-		return s.commandResult(action, start, 1, "", err), err
+		return s.commandResult("start", start, 1, "", err), err
 	}
 	s.started(cmd)
 	recorded := make(chan struct{})
@@ -173,31 +173,31 @@ func (s *Supervisor) startLocked(ctx context.Context, action string) (CommandRes
 	close(recorded)
 	if pidErr != nil {
 		err = NewError(ErrorRuntime, "write PID file failed", pidErr)
-		return s.rollbackStart(ctx, action, start, err)
+		return s.rollbackStart(ctx, start, err)
 	}
 	if err := s.waitReady(ctx); err != nil {
 		s.err = err
-		return s.rollbackStart(ctx, action, start, NewError(ErrorRuntime, err.Error(), nil))
+		return s.rollbackStart(ctx, start, NewError(ErrorRuntime, err.Error(), nil))
 	}
-	return s.commandResult(action, start, 0, command.Display, nil), nil
+	return s.commandResult("start", start, 0, command.Display, nil), nil
 }
 
-func (s *Supervisor) stopLocked(ctx context.Context, action string) (CommandResult, error) {
+func (s *Supervisor) stop(ctx context.Context) (CommandResult, error) {
 	start := s.now()
 	if !s.isRunning() {
-		return s.commandResult(action, start, 0, "", nil), nil
+		return s.commandResult("stop", start, 0, "", nil), nil
 	}
 	if err := s.stopProcess(ctx); err != nil {
-		return s.commandResult(action, start, 1, "", err), err
+		return s.commandResult("stop", start, 1, "", err), err
 	}
-	return s.commandResult(action, start, 0, "", nil), nil
+	return s.commandResult("stop", start, 0, "", nil), nil
 }
 
-func (s *Supervisor) rollbackStart(ctx context.Context, action string, start time.Time, err error) (CommandResult, error) {
+func (s *Supervisor) rollbackStart(ctx context.Context, start time.Time, err error) (CommandResult, error) {
 	if cleanupErr := s.stopProcess(ctx); cleanupErr != nil {
 		err = fmt.Errorf("%w; cleanup failed: %w", err, cleanupErr)
 	}
-	return s.commandResult(action, start, 1, "", err), err
+	return s.commandResult("start", start, 1, "", err), err
 }
 
 func (s *Supervisor) stopProcess(ctx context.Context) error {
@@ -291,11 +291,13 @@ func (s *Supervisor) statusLocked() Status {
 			_ = file.Remove(s.pid)
 		}
 	}
-	detail := fmt.Sprintf("%s stopped", s.displayName())
-	if pid > 0 {
-		detail = fmt.Sprintf("%s pid=%d", s.displayName(), pid)
-	} else if s.err != nil {
-		detail = fmt.Sprintf("%s stopped: %v", s.displayName(), s.err)
+	name := s.displayName()
+	detail := name + " stopped"
+	switch {
+	case pid > 0:
+		detail = fmt.Sprintf("%s pid=%d", name, pid)
+	case s.err != nil:
+		detail = fmt.Sprintf("%s stopped: %v", name, s.err)
 	}
 	lastErr := ""
 	if s.err != nil {
