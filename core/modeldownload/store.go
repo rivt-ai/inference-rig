@@ -35,10 +35,10 @@ func validateItem(plan backends.ArtifactPlan, item backends.ArtifactItem, seen m
 		return fmt.Errorf("%w: duplicate target %q", ErrInvalidInput, item.TargetPath)
 	}
 	seen[item.TargetPath] = struct{}{}
-	if !plan.MultiFile && item.TargetPath != plan.TargetRoot {
-		return fmt.Errorf("%w: single-file target differs from root", ErrInvalidInput)
-	}
 	if !plan.MultiFile {
+		if item.TargetPath != plan.TargetRoot {
+			return fmt.Errorf("%w: single-file target differs from root", ErrInvalidInput)
+		}
 		return nil
 	}
 	relative, err := filepath.Rel(plan.TargetRoot, item.TargetPath)
@@ -48,20 +48,29 @@ func validateItem(plan backends.ArtifactPlan, item backends.ArtifactItem, seen m
 	return nil
 }
 
+// prepareParent creates target's parent and rejects symlinked ancestors. stage,
+// when non-empty, is a sibling staging path that is also symlink-checked and
+// cleared; the directory case passes "" because it stages under its own root.
 func prepareParent(target, stage string) error {
 	dir := filepath.Dir(target)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	if err := rejectSymlinkAncestors(dir); err != nil {
-		return err
+	if err := filedoc.RejectSymlinkAncestors(dir); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
-	for _, path := range []string{target, stage} {
+	paths := []string{target}
+	if stage != "" {
+		paths = append(paths, stage)
+	}
+	for _, path := range paths {
 		if err := filedoc.RejectSymlink(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("%w: %v", ErrInvalidInput, err)
 		}
 	}
-	_ = os.Remove(stage)
+	if stage != "" {
+		_ = os.Remove(stage)
+	}
 	return nil
 }
 
@@ -76,13 +85,6 @@ func prepareDirectory(target, stage string, force bool) error {
 		return err
 	}
 	return os.Mkdir(stage, 0o700)
-}
-
-func rejectSymlinkAncestors(path string) error {
-	if err := filedoc.RejectSymlinkAncestors(path); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
-	}
-	return nil
 }
 
 func safeRelative(value string) bool {

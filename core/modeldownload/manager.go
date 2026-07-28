@@ -68,7 +68,7 @@ func (m *Manager) Start(ctx context.Context, req Request) (Job, error) {
 	job := newJob(req.Plan, StateQueued)
 	stored := job
 	m.jobs[job.ID] = &stored
-	m.active[job.TargetPath] = job.ID
+	m.active[req.Plan.TargetRoot] = job.ID
 	downloadCtx, cancel := context.WithCancel(context.Background())
 	m.cancel[job.ID] = cancel
 	m.mu.Unlock()
@@ -166,7 +166,7 @@ func (m *Manager) executeDirectory(ctx context.Context, id string, req Request) 
 			return fmt.Errorf("%w: artifact escapes target root", ErrInvalidInput)
 		}
 		stagedPath := filepath.Join(stage, relative)
-		if err := prepareParent(stagedPath, stagedPath); err != nil {
+		if err := prepareParent(stagedPath, ""); err != nil {
 			return err
 		}
 		if err := m.downloadItem(ctx, id, item.URI, stagedPath, item.SizeBytes); err != nil {
