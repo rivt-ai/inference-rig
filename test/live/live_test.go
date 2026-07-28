@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	goruntime "runtime"
-	"strconv"
 	"testing"
 	"time"
 
@@ -38,11 +37,17 @@ func TestSingleFileBackendHardware(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(materialization.Files) == 0 {
+		t.Fatal("single-file backend rendered no files")
+	}
 	if err := os.WriteFile(materialization.Files[0].Path, materialization.Files[0].Content, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	spec, err := backend.LaunchSpec(profile, materialization)
-	runBackend(t, spec, err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runBackend(t, spec)
 }
 
 func TestDirectoryBackendAppleSiliconHardware(t *testing.T) {
@@ -66,18 +71,14 @@ func TestDirectoryBackendAppleSiliconHardware(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec, err := backend.LaunchSpec(profile, materialization)
-	runBackend(t, spec, err)
-}
-
-func runBackend(
-	t *testing.T,
-	spec coreruntime.LaunchSpec,
-	err error,
-) {
-	t.Helper()
 	if err != nil {
 		t.Fatal(err)
 	}
+	runBackend(t, spec)
+}
+
+func runBackend(t *testing.T, spec coreruntime.LaunchSpec) {
+	t.Helper()
 	spec.ReadinessTimeout = 3 * time.Minute
 	supervisor := coreruntime.NewSupervisor(spec)
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -102,13 +103,7 @@ func freePort(t *testing.T) int {
 		t.Fatal(err)
 	}
 	defer func() { _ = listener.Close() }()
-	_, raw, err := net.SplitHostPort(listener.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	port, err := strconv.Atoi(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return port
+	// Listening on "tcp" always yields a *net.TCPListener, so the port is
+	// available directly rather than through a string round-trip.
+	return listener.Addr().(*net.TCPAddr).Port
 }
