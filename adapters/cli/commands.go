@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"connectrpc.com/connect"
 	"context"
 	"fmt"
 	"os"
@@ -15,6 +16,9 @@ import (
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
+
+// dialTimeout bounds every control-socket dial the CLI makes.
+const dialTimeout = 30 * time.Second
 
 type dialer func(string, time.Duration) (controlv1connect.ControlServiceClient, error)
 type call func(context.Context, controlv1connect.ControlServiceClient, []string) (proto.Message, error)
@@ -192,7 +196,7 @@ func rpcCommand(use, short string, args cobra.PositionalArgs, dial dialer, invok
 	command := &cobra.Command{
 		Use: use, Short: short, Args: args, ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(command *cobra.Command, values []string) error {
-			client, err := dial(resolveSocket(socket), 30*time.Second)
+			client, err := dial(resolveSocket(socket), dialTimeout)
 			if err != nil {
 				return err
 			}
@@ -214,7 +218,7 @@ func streamCommand(use, short string, dial dialer, invoke streamCall) *cobra.Com
 	command := &cobra.Command{
 		Use: use, Short: short, Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			client, err := dial(resolveSocket(socket), 30*time.Second)
+			client, err := dial(resolveSocket(socket), dialTimeout)
 			if err != nil {
 				return err
 			}
@@ -233,13 +237,23 @@ func catalogWatchCommand(dial dialer) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		for stream.Receive() {
-			if err := print(stream.Msg()); err != nil {
-				return err
-			}
-		}
-		return stream.Err()
+		return drainStream(stream, print)
 	})
+}
+
+// drainStream prints every message then reports the stream's terminal error.
+// That last step is the one most easily dropped when a watch is added, and
+// dropping it turns a broken stream into a clean end of output.
+func drainStream[T any, PT interface {
+	*T
+	proto.Message
+}](stream *connect.ServerStreamForClient[T], print func(proto.Message) error) error {
+	for stream.Receive() {
+		if err := print(PT(stream.Msg())); err != nil {
+			return err
+		}
+	}
+	return stream.Err()
 }
 
 func watchEvents(ctx context.Context, client controlv1connect.ControlServiceClient, print func(proto.Message) error) error {
@@ -247,13 +261,13 @@ func watchEvents(ctx context.Context, client controlv1connect.ControlServiceClie
 	if err != nil {
 		return err
 	}
-	for stream.Receive() {
-		if err := print(stream.Msg()); err != nil {
-			return err
-		}
-	}
-	return stream.Err()
+	return drainStream(stream, print)
 }
+
+// ResolveSocket resolves the control socket from an explicit flag, then the
+// environment, then "" so the dialer applies its own default. Exported so other
+// command packages share this convention instead of restating it.
+func ResolveSocket(flag string) string { return resolveSocket(flag) }
 
 func resolveSocket(flag string) string {
 	if flag != "" {
