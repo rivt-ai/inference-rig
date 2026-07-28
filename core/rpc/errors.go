@@ -17,16 +17,13 @@ const errorKindHeader = config.ProjectDisplayName + "-Error-Kind"
 // with their connect wire codes, used in both directions by rpcError and
 // ErrorKindFromRPC. An unlisted kind maps to CodeUnknown; an unlisted code
 // maps back to ErrorRuntime.
-var errorKindCodes = []struct {
-	kind control.ErrorKind
-	code connect.Code
-}{
-	{control.ErrorInvalidInput, connect.CodeInvalidArgument},
-	{control.ErrorPermission, connect.CodePermissionDenied},
-	{control.ErrorNotFound, connect.CodeNotFound},
-	{control.ErrorConflict, connect.CodeFailedPrecondition},
-	{control.ErrorTimeout, connect.CodeDeadlineExceeded},
-	{control.ErrorRuntime, connect.CodeInternal},
+var errorKindCodes = map[control.ErrorKind]connect.Code{
+	control.ErrorInvalidInput: connect.CodeInvalidArgument,
+	control.ErrorPermission:   connect.CodePermissionDenied,
+	control.ErrorNotFound:     connect.CodeNotFound,
+	control.ErrorConflict:     connect.CodeFailedPrecondition,
+	control.ErrorTimeout:      connect.CodeDeadlineExceeded,
+	control.ErrorRuntime:      connect.CodeInternal,
 }
 
 // rpcError converts a control-plane error into a connect error, preserving the
@@ -36,12 +33,9 @@ func rpcError(err error) error {
 		return nil
 	}
 	kind := control.Kind(err)
-	code := connect.CodeUnknown
-	for _, m := range errorKindCodes {
-		if m.kind == kind {
-			code = m.code
-			break
-		}
+	code, ok := errorKindCodes[kind]
+	if !ok {
+		code = connect.CodeUnknown
 	}
 	connectErr := connect.NewError(code, err)
 	if kind != "" {
@@ -60,9 +54,10 @@ func ErrorKindFromRPC(err error) control.ErrorKind {
 	if kind := connectErr.Meta().Get(errorKindHeader); kind != "" {
 		return control.ErrorKind(kind)
 	}
-	for _, m := range errorKindCodes {
-		if m.code == connectErr.Code() {
-			return m.kind
+	// Codes are unique across the table, so iteration order does not matter.
+	for kind, code := range errorKindCodes {
+		if code == connectErr.Code() {
+			return kind
 		}
 	}
 	return control.ErrorRuntime

@@ -45,7 +45,7 @@ func CoreError(kind ErrorKind, message string, err error) *Error {
 }
 
 func Errorf(kind ErrorKind, format string, args ...any) *Error {
-	return &Error{Kind: kind, Message: fmt.Sprintf(format, args...)}
+	return CoreError(kind, fmt.Sprintf(format, args...), nil)
 }
 
 func Kind(err error) ErrorKind {

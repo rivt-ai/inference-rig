@@ -111,32 +111,27 @@ func moveLog(source, target string) error {
 }
 
 func copyAndDelete(source, target string) error {
+	// src is read-only, so its close error carries no data-loss signal and the
+	// deferred close needs no bookkeeping to stay correct.
 	src, err := os.Open(source)
 	if err != nil {
 		return err
 	}
-	var srcClosed bool
-	defer func() {
-		if !srcClosed {
-			_ = src.Close()
-		}
-	}()
+	defer func() { _ = src.Close() }()
 	dst, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(dst, src)
-	closeErr := dst.Close()
-	if err != nil {
+	if _, err := io.Copy(dst, src); err != nil {
+		_ = dst.Close()
 		_ = os.Remove(target)
 		return err
 	}
-	if closeErr != nil {
+	if err := dst.Close(); err != nil {
 		_ = os.Remove(target)
-		return closeErr
+		return err
 	}
-	srcClosed = true
-	return errors.Join(src.Close(), os.Remove(source))
+	return os.Remove(source)
 }
 
 func TailLogLines(name string, lines int) (string, error) {
@@ -181,27 +176,37 @@ func FollowLog(ctx context.Context, name string, lines int, out io.Writer, inter
 	}
 }
 
-// writeInitialTail opens the log once so the tail read and the follow offset
-// share a single view of the file; a stat after a separate tail read could
-// skip lines written in between.
-func writeInitialTail(path string, lines int, out io.Writer) (os.FileInfo, int64, error) {
+// tailFile returns the formatted tail of path along with the stat it was read
+// from, opening the file once so the read and the reported size share a single
+// view of it; a stat taken after a separate read could skip lines written in
+// between. A missing file yields an empty tail and a nil FileInfo.
+func tailFile(path string, lines int) (string, os.FileInfo, error) {
 	file, err := os.Open(path)
 	if os.IsNotExist(err) {
-		return nil, 0, nil
+		return "", nil, nil
 	}
 	if err != nil {
-		return nil, 0, err
+		return "", nil, err
 	}
 	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil {
-		return nil, 0, err
+		return "", nil, err
 	}
 	data, err := readTailChunks(file, info.Size(), lines)
 	if err != nil {
+		return "", nil, err
+	}
+	return formatTail(data, lines), info, nil
+}
+
+// writeInitialTail emits the starting tail and reports the offset to follow from.
+func writeInitialTail(path string, lines int, out io.Writer) (os.FileInfo, int64, error) {
+	text, info, err := tailFile(path, lines)
+	if err != nil || info == nil {
 		return nil, 0, err
 	}
-	if _, err := io.WriteString(out, formatTail(data, lines)); err != nil {
+	if _, err := io.WriteString(out, text); err != nil {
 		return nil, 0, err
 	}
 	return info, info.Size(), nil
@@ -366,23 +371,8 @@ func tailFileLines(path string, lines int) (string, error) {
 	if lines < 1 || lines > MaxTailLines {
 		return "", fmt.Errorf("log lines must be between 1 and %d", MaxTailLines)
 	}
-	file, err := os.Open(path)
-	if os.IsNotExist(err) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = file.Close() }()
-	info, err := file.Stat()
-	if err != nil {
-		return "", err
-	}
-	data, err := readTailChunks(file, info.Size(), lines)
-	if err != nil {
-		return "", err
-	}
-	return formatTail(data, lines), nil
+	text, _, err := tailFile(path, lines)
+	return text, err
 }
 
 func readTailChunks(file *os.File, end int64, lines int) ([]byte, error) {
