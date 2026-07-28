@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 
@@ -72,7 +72,8 @@ func (s *FileStore) List(ctx context.Context) ([]ProfileSummary, error) {
 		}
 		out = append(out, summaryOf(doc))
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	// os.ReadDir returns entries sorted by filename and the loop only filters,
+	// so out is already ordered by profile name.
 	return out, nil
 }
 
@@ -198,23 +199,29 @@ func (s *FileStore) profileDir(name string) (string, error) {
 	if err := ValidateName(name); err != nil {
 		return "", err
 	}
-	cleanRoot := filepath.Clean(s.root)
 	cleanDir := filepath.Clean(filepath.Join(s.root, name))
-	if cleanDir != filepath.Join(cleanRoot, name) {
+	if cleanDir != filepath.Join(s.root, name) {
 		return "", fmt.Errorf("%w: profile path escapes root", ErrInvalid)
 	}
 	return cleanDir, nil
 }
 
 func (s *FileStore) readLimited(path string) ([]byte, error) {
-	info, err := os.Stat(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	if info.Size() > s.limitBytes {
+	defer func() { _ = file.Close() }()
+	// Bound the read itself rather than trusting a prior Stat, so a file that
+	// grows between the two cannot be read past the limit.
+	data, err := io.ReadAll(io.LimitReader(file, s.limitBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > s.limitBytes {
 		return nil, ErrTooLarge
 	}
-	return os.ReadFile(path)
+	return data, nil
 }
 
 // parseEffective decodes the profile, runs shared common-field validation, then

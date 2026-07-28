@@ -14,10 +14,9 @@ func ValidateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("%w: profile name is required", ErrInvalid)
 	}
-	if name == "." || name == ".." {
-		return fmt.Errorf("%w: invalid profile name %q", ErrInvalid, name)
-	}
-	if !safeNamePattern.MatchString(name) {
+	// "." and ".." match safeNamePattern (dots are in the class), so they need
+	// an explicit rejection; both report the same way.
+	if name == "." || name == ".." || !safeNamePattern.MatchString(name) {
 		return fmt.Errorf("%w: invalid profile name %q", ErrInvalid, name)
 	}
 	return nil
