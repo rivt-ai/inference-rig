@@ -1,10 +1,12 @@
 package llamacpp
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -44,8 +46,8 @@ func renderModelsINI(defaults map[string]string, sections []section) (string, er
 		}
 		out.WriteString(block)
 	}
-	ordered := append([]section(nil), sections...)
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Name < ordered[j].Name })
+	ordered := slices.Clone(sections)
+	slices.SortFunc(ordered, func(a, b section) int { return cmp.Compare(a.Name, b.Name) })
 	seen := map[string]struct{}{}
 	for _, s := range ordered {
 		if s.Name == globalSection {
@@ -73,14 +75,9 @@ func renderSection(s section) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
 	var out strings.Builder
 	out.WriteString("\n[" + s.Name + "]\n")
-	for _, key := range keys {
+	for _, key := range slices.Sorted(maps.Keys(values)) {
 		fmt.Fprintf(&out, "%s = %s\n", key, values[key])
 	}
 	return out.String(), nil
@@ -159,8 +156,6 @@ func canonicalKey(key string) (string, error) {
 // parseINI parses models.ini content into its sections, applying the same key
 // canonicalization and comment/grammar rules as the renderer. It is the
 // counterpart used for round-trip checks and migration of existing files.
-//
-//nolint:gocognit,gocyclo // INI grammar stays local; a parser dependency buys little.
 func parseINI(data []byte) (map[string]section, error) {
 	sections := map[string]section{}
 	current := ""
@@ -180,7 +175,7 @@ func parseINI(data []byte) (map[string]section, error) {
 		if current == "" {
 			continue // version and future file-level keys
 		}
-		if err := parseValueLine(line, trimmed, sections[current].Values); err != nil {
+		if err := parseValueLine(trimmed, sections[current].Values); err != nil {
 			return nil, err
 		}
 	}
@@ -202,8 +197,8 @@ func parseHeader(trimmed string, sections map[string]section) (string, error) {
 	return name, nil
 }
 
-func parseValueLine(line, trimmed string, values map[string]string) error {
-	key, value, ok := strings.Cut(line, "=")
+func parseValueLine(trimmed string, values map[string]string) error {
+	key, value, ok := strings.Cut(trimmed, "=")
 	if !ok {
 		return fmt.Errorf("%w: expected key = value, got %q", ErrInvalidINI, trimmed)
 	}
