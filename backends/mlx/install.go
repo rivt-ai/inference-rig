@@ -2,7 +2,6 @@ package mlx
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 	"sync"
 
 	"inferencerig/backends"
-	"inferencerig/platform/filedoc"
 )
 
 // ErrNoManagedInstall marks an upgrade without an existing environment.
@@ -88,7 +86,7 @@ type installInspection struct {
 }
 
 func inspectInstall(root string, opts backends.InstallOptions) (installInspection, error) {
-	state, err := readState(root)
+	state, err := backends.ReadInstallState[installState](root)
 	if err != nil {
 		return installInspection{}, err
 	}
@@ -138,7 +136,7 @@ func (i *installer) installPackage(ctx context.Context, root, python, version st
 	if err := i.run(ctx, root, progress, python, "-c", "import mlx_lm, mlx_lm.server"); err != nil {
 		return backends.InstallResult{}, fmt.Errorf("validate mlx-lm: %w", err)
 	}
-	if err := writeState(root, installState{Version: version, Executable: python}); err != nil {
+	if err := backends.WriteInstallState(root, installState{Version: version, Executable: python}); err != nil {
 		return backends.InstallResult{}, err
 	}
 	return backends.InstallResult{
@@ -158,34 +156,15 @@ func (i *installer) activeExecutable() (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	state, err := readState(root)
+	state, err := backends.ReadInstallState[installState](root)
 	if err != nil || state.Executable == "" {
 		return "", false
 	}
-	info, err := os.Stat(state.Executable)
-	return state.Executable, err == nil && !info.IsDir()
-}
-
-func readState(root string) (installState, error) {
-	data, err := os.ReadFile(filepath.Join(root, "state.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		return installState{}, nil
+	// Report an empty path whenever the bool is false, matching the llama.cpp
+	// backend, so a caller that ignores the bool cannot pick up a path that was
+	// just found to be missing or a directory.
+	if info, err := os.Stat(state.Executable); err != nil || info.IsDir() {
+		return "", false
 	}
-	if err != nil {
-		return installState{}, err
-	}
-	var state installState
-	if err := json.Unmarshal(data, &state); err != nil {
-		return installState{}, err
-	}
-	return state, nil
-}
-
-func writeState(root string, state installState) error {
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return err
-	}
-	_, err = filedoc.WriteFile(filepath.Join(root, "state.json"), string(data)+"\n", filedoc.WriteOptions{Perm: 0o600})
-	return err
+	return state.Executable, true
 }

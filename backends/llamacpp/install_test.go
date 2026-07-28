@@ -59,7 +59,7 @@ func TestInstallUpgradeAndRetention(t *testing.T) {
 	if _, err := os.Stat(firstDir); !os.IsNotExist(err) {
 		t.Fatalf("oldest install retained after retention: %v", err)
 	}
-	st, err := readInstallState(root)
+	st, err := backends.ReadInstallState[installState](root)
 	if err != nil || st.Previous == nil || st.Previous.Version != "b2" {
 		t.Fatalf("state previous = %#v, err = %v", st.Previous, err)
 	}
