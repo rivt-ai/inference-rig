@@ -20,6 +20,7 @@ import (
 // ProfileStore is the canonical profile persistence API used by control.
 type ProfileStore interface {
 	List(context.Context) ([]profiles.ProfileSummary, error)
+	ListDocuments(context.Context) ([]profiles.ProfileDocument, error)
 	Get(context.Context, string) (profiles.ProfileDocument, error)
 	Create(context.Context, profiles.CreateRequest) (profiles.ProfileDocument, error)
 	Replace(context.Context, string, string) (profiles.WriteResult, error)
@@ -110,6 +111,14 @@ func (m *Manager) ListProfiles(ctx context.Context) ([]profiles.ProfileSummary, 
 	return items, mapProfileError(err)
 }
 
+// ListProfileDocuments returns every profile as a full document. Listing
+// already reads and validates each one, so callers needing the documents take
+// them here instead of re-reading every profile through GetProfile.
+func (m *Manager) ListProfileDocuments(ctx context.Context) ([]profiles.ProfileDocument, error) {
+	docs, err := m.profiles.ListDocuments(ctx)
+	return docs, mapProfileError(err)
+}
+
 func (m *Manager) GetProfile(ctx context.Context, name string) (profiles.ProfileDocument, error) {
 	doc, err := m.profiles.Get(ctx, name)
 	return doc, mapProfileError(err)
@@ -119,22 +128,24 @@ func (m *Manager) GetProfile(ctx context.Context, name string) (profiles.Profile
 func (m *Manager) PutProfile(ctx context.Context, name, yaml string, createOnly bool) (doc profiles.ProfileDocument, err error) {
 	start := time.Now()
 	defer func() { m.record(ctx, "profile.put", start, err) }()
+	// Defers run LIFO, so this mapping is applied before the audit record above
+	// observes err — matching the previous behavior of mapping at every return,
+	// without a path that can forget to.
+	defer func() { err = mapProfileError(err) }()
+	create := profiles.CreateRequest{Name: name, ProfileYAML: yaml}
 	if createOnly {
-		doc, err = m.profiles.Create(ctx, profiles.CreateRequest{Name: name, ProfileYAML: yaml})
-		return doc, mapProfileError(err)
+		return m.profiles.Create(ctx, create)
 	}
 	if _, err = m.profiles.Get(ctx, name); errors.Is(err, os.ErrNotExist) {
-		doc, err = m.profiles.Create(ctx, profiles.CreateRequest{Name: name, ProfileYAML: yaml})
-		return doc, mapProfileError(err)
+		return m.profiles.Create(ctx, create)
 	}
 	if err != nil {
-		return profiles.ProfileDocument{}, mapProfileError(err)
+		return profiles.ProfileDocument{}, err
 	}
 	if _, err = m.profiles.Replace(ctx, name, yaml); err != nil {
-		return profiles.ProfileDocument{}, mapProfileError(err)
+		return profiles.ProfileDocument{}, err
 	}
-	doc, err = m.profiles.Get(ctx, name)
-	return doc, mapProfileError(err)
+	return m.profiles.Get(ctx, name)
 }
 
 // DeleteProfile stops its backend runtime before deleting the profile.
@@ -368,22 +379,22 @@ func (m *Manager) record(ctx context.Context, action string, start time.Time, er
 	})
 }
 
-func mapProfileError(err error) error {
-	return MapSentinel(err, []SentinelKind{
-		{Target: profiles.ErrInvalid, Kind: ErrorInvalidInput},
-		{Target: profiles.ErrTooLarge, Kind: ErrorInvalidInput},
-		{Target: profiles.ErrExists, Kind: ErrorConflict},
-		{Target: os.ErrNotExist, Kind: ErrorNotFound},
-	})
+var profileErrorKinds = []SentinelKind{
+	{Target: profiles.ErrInvalid, Kind: ErrorInvalidInput},
+	{Target: profiles.ErrTooLarge, Kind: ErrorInvalidInput},
+	{Target: profiles.ErrExists, Kind: ErrorConflict},
+	{Target: os.ErrNotExist, Kind: ErrorNotFound},
 }
 
-func mapDownloadError(err error) error {
-	return MapSentinel(err, []SentinelKind{
-		{Target: modeldownload.ErrInvalidInput, Kind: ErrorInvalidInput},
-		{Target: modeldownload.ErrNotFound, Kind: ErrorNotFound},
-		{Target: modeldownload.ErrConflict, Kind: ErrorConflict},
-	})
+func mapProfileError(err error) error { return MapSentinel(err, profileErrorKinds) }
+
+var downloadErrorKinds = []SentinelKind{
+	{Target: modeldownload.ErrInvalidInput, Kind: ErrorInvalidInput},
+	{Target: modeldownload.ErrNotFound, Kind: ErrorNotFound},
+	{Target: modeldownload.ErrConflict, Kind: ErrorConflict},
 }
+
+func mapDownloadError(err error) error { return MapSentinel(err, downloadErrorKinds) }
 
 func mapRuntimeError(err error) error {
 	if err == nil {

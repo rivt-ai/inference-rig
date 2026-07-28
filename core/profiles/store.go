@@ -51,6 +51,22 @@ func (s *FileStore) Root() string { return s.root }
 
 // List returns every profile under the root, sorted by name.
 func (s *FileStore) List(ctx context.Context) ([]ProfileSummary, error) {
+	docs, err := s.ListDocuments(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ProfileSummary, 0, len(docs))
+	for _, doc := range docs {
+		out = append(out, summaryOf(doc))
+	}
+	return out, nil
+}
+
+// ListDocuments returns every profile under the root as a full document, sorted
+// by name. Building a summary already requires reading and validating the whole
+// profile, so callers that want the documents should take them from here rather
+// than following List with a Get per name.
+func (s *FileStore) ListDocuments(ctx context.Context) ([]ProfileDocument, error) {
 	entries, err := os.ReadDir(s.root)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -58,7 +74,7 @@ func (s *FileStore) List(ctx context.Context) ([]ProfileSummary, error) {
 		}
 		return nil, fmt.Errorf("read profiles dir: %w", err)
 	}
-	out := make([]ProfileSummary, 0, len(entries))
+	out := make([]ProfileDocument, 0, len(entries))
 	for _, entry := range entries {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -70,7 +86,7 @@ func (s *FileStore) List(ctx context.Context) ([]ProfileSummary, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, summaryOf(doc))
+		out = append(out, doc)
 	}
 	// os.ReadDir returns entries sorted by filename and the loop only filters,
 	// so out is already ordered by profile name.

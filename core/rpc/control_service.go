@@ -54,16 +54,12 @@ func (s *ControlService) ListBackends(context.Context, *controlv1.ListBackendsRe
 }
 
 func (s *ControlService) ListProfiles(ctx context.Context, _ *controlv1.ListProfilesRequest) (*controlv1.ListProfilesResponse, error) {
-	items, err := s.manager.ListProfiles(ctx)
+	docs, err := s.manager.ListProfileDocuments(ctx)
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	out := make([]*controlv1.Profile, 0, len(items))
-	for _, summary := range items {
-		doc, err := s.manager.GetProfile(ctx, summary.Name)
-		if err != nil {
-			return nil, rpcError(err)
-		}
+	out := make([]*controlv1.Profile, 0, len(docs))
+	for _, doc := range docs {
 		out = append(out, profileProto(doc))
 	}
 	return &controlv1.ListProfilesResponse{Ok: true, Profiles: out}, nil
