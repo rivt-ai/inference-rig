@@ -202,6 +202,38 @@ func GeneratedDir(backend string) (string, error) {
 	return homePath("generated", backend)
 }
 
+// Paths are the resolved InferenceRig locations. Every individual resolver
+// fails only when the home directory cannot be resolved, so callers needing
+// several of them get one error instead of repeating the same check per path.
+type Paths struct {
+	Home          string
+	Config        string
+	Profiles      string
+	CatalogCache  string
+	ModelStorage  string
+	ControlSocket string
+}
+
+// ResolvePaths resolves every standard location in one step.
+func ResolvePaths() (Paths, error) {
+	home, err := Home()
+	if err != nil {
+		return Paths{}, err
+	}
+	configPath, err := ConfigPath()
+	if err != nil {
+		return Paths{}, err
+	}
+	return Paths{
+		Home:          home,
+		Config:        configPath,
+		Profiles:      filepath.Join(home, "profiles"),
+		CatalogCache:  filepath.Join(home, "cache", "hf-catalog"),
+		ModelStorage:  filepath.Join(home, "models"),
+		ControlSocket: filepath.Join(home, "run", "control.sock"),
+	}, nil
+}
+
 // ControlSocketPath returns the Unix socket the control daemon listens on and
 // that CLI/TUI clients dial.
 func ControlSocketPath() (string, error) { return homePath("run", "control.sock") }

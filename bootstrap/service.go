@@ -40,26 +40,18 @@ func NewService() (*Service, error) {
 	if err := all.Register(registry); err != nil {
 		return nil, err
 	}
-	profileRoot, err := config.ProfilesDir()
+	paths, err := config.ResolvePaths()
 	if err != nil {
 		return nil, err
 	}
-	store := profiles.NewFileStore(profileRoot, 0, registry.BackendLookup())
-	cacheDir, err := config.DefaultCatalogCacheDir()
-	if err != nil {
-		return nil, err
-	}
-	configPath, err := config.ConfigPath()
-	if err != nil {
-		return nil, err
-	}
+	store := profiles.NewFileStore(paths.Profiles, 0, registry.BackendLookup())
 	manager := control.NewManager(control.Dependencies{
 		Registry: registry, Profiles: store,
 		Downloads: modeldownload.New(modeldownload.Options{}),
 		Signals:   signals.NewGopsutilCollector(nil, nil),
 		Audit:     audit.NewSink(slog.Default()),
-		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: cacheDir, CacheTTL: time.Hour}),
-		Config:    configstore.NewFileStore(configPath, 0),
+		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: paths.CatalogCache, CacheTTL: time.Hour}),
+		Config:    configstore.NewFileStore(paths.Config, 0),
 	})
 	path, handler := rpc.ControlHandler(rpc.NewControlService(manager))
 	server, err := rpc.NewServer(path, handler)

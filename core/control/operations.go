@@ -40,7 +40,9 @@ type RuntimeRestart struct {
 	Stopped, Started coreruntime.CommandResult
 }
 
-func (m *Manager) ApplyDownloadToProfile(ctx context.Context, name, id string) (profiles.ProfileDocument, error) {
+func (m *Manager) ApplyDownloadToProfile(ctx context.Context, name, id string) (doc profiles.ProfileDocument, err error) {
+	start := time.Now()
+	defer func() { m.record(ctx, "download.apply", start, err) }()
 	if m.downloads == nil {
 		return profiles.ProfileDocument{}, Errorf(ErrorInvalidInput, "downloads are not configured")
 	}
@@ -67,7 +69,9 @@ func (m *Manager) ApplyDownloadToProfile(ctx context.Context, name, id string) (
 	return m.PutProfile(ctx, name, string(data), false)
 }
 
-func (m *Manager) CleanupProfile(ctx context.Context, name string) error {
+func (m *Manager) CleanupProfile(ctx context.Context, name string) (err error) {
+	start := time.Now()
+	defer func() { m.record(ctx, "profile.cleanup", start, err) }()
 	_, backend, err := m.profileBackend(ctx, name)
 	if err != nil {
 		return err
@@ -97,8 +101,15 @@ func (m *Manager) requireUnsharedTarget(ctx context.Context, name, target string
 		if item.Name == name {
 			continue
 		}
+		// Resolution can reach the network, so a failure means "unknown", not
+		// "unrelated". Refuse rather than delete files another profile may own;
+		// the caller can retry once resolution works again.
 		_, plan, err := m.ResolveProfileModel(ctx, item.Name)
-		if err == nil && plan.TargetRoot == target {
+		if err != nil {
+			return Errorf(ErrorConflict,
+				"cannot verify whether profile %q shares this local model: %v", item.Name, err)
+		}
+		if plan.TargetRoot == target {
 			return Errorf(ErrorConflict, "local model is also referenced by profile %q", item.Name)
 		}
 	}
