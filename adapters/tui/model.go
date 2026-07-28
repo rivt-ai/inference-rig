@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -187,7 +188,7 @@ func (m *model) action(key string) tea.Cmd {
 			response, result.err = m.client.CancelModelDownload(m.ctx, &controlv1.CancelModelDownloadRequest{Id: m.data.download.GetId()})
 			result.download = response.GetDownload()
 		case "a":
-			enabled := !contains(m.data.info.GetAutostartProfiles(), profile)
+			enabled := !slices.Contains(m.data.info.GetAutostartProfiles(), profile)
 			_, result.err = m.client.SetProfileAutostart(m.ctx, &controlv1.SetProfileAutostartRequest{Name: profile, Enabled: enabled})
 		case "i":
 			_, result.err = m.client.InstallBackend(m.ctx, &controlv1.InstallBackendRequest{Backend: backend})
@@ -254,15 +255,6 @@ func selectedBackend(backends *controlv1.ListBackendsResponse) string {
 		return ""
 	}
 	return backends.GetBackends()[0].GetName()
-}
-
-func contains(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
 }
 
 // RunInteractive starts the full-screen canonical control dashboard.
