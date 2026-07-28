@@ -2,26 +2,24 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"inferencerig/config"
+	adaptercli "inferencerig/adapters/cli"
 	"inferencerig/core/rpc"
 	"inferencerig/core/setup"
 )
+
+// setupDialTimeout bounds the control-socket dial for the setup wizard.
+const setupDialTimeout = 30 * time.Second
 
 func setupCommand() *cobra.Command {
 	var socket string
 	command := &cobra.Command{
 		Use: "setup", Short: "Create a canonical profile interactively", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			path := socket
-			if path == "" {
-				path = os.Getenv(config.ProjectSocketEnv)
-			}
-			client, err := rpc.DialControl(path, 30*time.Second)
+			client, err := rpc.DialControl(adaptercli.ResolveSocket(socket), setupDialTimeout)
 			if err != nil {
 				return err
 			}

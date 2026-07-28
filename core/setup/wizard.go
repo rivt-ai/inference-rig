@@ -50,11 +50,7 @@ func (w *Wizard) Create(ctx context.Context, request Request) (*controlv1.Profil
 	if err != nil {
 		return nil, err
 	}
-	found := false
-	for _, backend := range backends {
-		found = found || backend.GetName() == request.Backend
-	}
-	if !found {
+	if backendByName(backends, request.Backend) == nil {
 		return nil, fmt.Errorf("setup: backend %q is not available", request.Backend)
 	}
 	data, err := yaml.Marshal(profiles.Profile{
@@ -85,28 +81,17 @@ func (w *Wizard) RunInteractive(ctx context.Context, input io.Reader, output io.
 	if err != nil {
 		return nil, err
 	}
-	name, err := prompt(reader, output, "profile name", "default")
-	if err != nil {
-		return nil, err
-	}
-	source, err := prompt(reader, output, "model source", "")
-	if err != nil {
-		return nil, err
-	}
+	p := &prompter{reader: reader, output: output}
+	name := p.ask("profile name", "default")
+	source := p.ask("model source", "")
 	reference := ""
 	if selected.GetCapabilities().GetSingleFileArtifacts() {
-		reference, err = prompt(reader, output, "model reference", "")
-		if err != nil {
-			return nil, err
-		}
+		reference = p.ask("model reference", "")
 	}
-	host, err := prompt(reader, output, "listen host", "127.0.0.1")
-	if err != nil {
-		return nil, err
-	}
-	portText, err := prompt(reader, output, "listen port", "8080")
-	if err != nil {
-		return nil, err
+	host := p.ask("listen host", "127.0.0.1")
+	portText := p.ask("listen port", "8080")
+	if p.err != nil {
+		return nil, p.err
 	}
 	port, err := strconv.Atoi(portText)
 	if err != nil {
@@ -116,6 +101,24 @@ func (w *Wizard) RunInteractive(ctx context.Context, input io.Reader, output io.
 		Name: name, Backend: selected.GetName(), ModelSource: source,
 		ModelReference: reference, Host: host, Port: port,
 	})
+}
+
+// prompter accumulates the first prompt error the way bufio.Scanner does, so a
+// questionnaire reads as a list of questions rather than as error handling.
+// Once err is set, later asks return immediately without prompting.
+type prompter struct {
+	reader *bufio.Reader
+	output io.Writer
+	err    error
+}
+
+func (p *prompter) ask(label, fallback string) string {
+	if p.err != nil {
+		return ""
+	}
+	value, err := prompt(p.reader, p.output, label, fallback)
+	p.err = err
+	return value
 }
 
 func selectBackend(reader *bufio.Reader, output io.Writer, backends []*controlv1.BackendInfo) (*controlv1.BackendInfo, error) {
