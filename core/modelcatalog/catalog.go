@@ -79,10 +79,13 @@ type ClientOptions struct {
 
 // Client owns remote catalog transport, caching, and refresh notifications.
 type Client struct {
-	http    *http.Client
-	baseURL string
-	cache   *catalogCache
-	broker  *refreshBroker
+	// refreshing holds the cache keys with a background refresh already in
+	// flight, so a stale entry triggers one refresh rather than one per read.
+	refreshing sync.Map
+	http       *http.Client
+	baseURL    string
+	cache      *catalogCache
+	broker     *refreshBroker
 }
 
 func NewClient(opts ClientOptions) *Client {
@@ -109,6 +112,12 @@ func (c *Client) Search(ctx context.Context, req SearchRequest, policy CatalogPo
 		}
 		return entry.Result, nil
 	}
+	return c.fetchAndStore(ctx, req, policy)
+}
+
+// fetchAndStore fetches a result and caches it, so the read path and the
+// background refresh cannot diverge on whether a fetch updates the cache.
+func (c *Client) fetchAndStore(ctx context.Context, req SearchRequest, policy CatalogPolicy) (Result, error) {
 	result, err := c.fetch(ctx, req, policy)
 	if err == nil {
 		err = c.cache.store(req, result)
@@ -119,12 +128,14 @@ func (c *Client) Search(ctx context.Context, req SearchRequest, policy CatalogPo
 func (c *Client) Subscribe() (<-chan RefreshEvent, func()) { return c.broker.subscribe() }
 
 func (c *Client) refresh(req SearchRequest, policy CatalogPolicy) {
+	key := c.cache.path(req)
+	if _, busy := c.refreshing.LoadOrStore(key, struct{}{}); busy {
+		return
+	}
+	defer c.refreshing.Delete(key)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	result, err := c.fetch(ctx, req, policy)
-	if err == nil {
-		err = c.cache.store(req, result)
-	}
+	_, err := c.fetchAndStore(ctx, req, policy)
 	event := RefreshEvent{Backend: req.Backend, Query: req.Query}
 	if err != nil {
 		event.Error = err.Error()
@@ -266,16 +277,17 @@ type cacheEntry struct {
 }
 
 type catalogCache struct {
-	dir string
-	ttl time.Duration
+	dir      string
+	ttl      time.Duration
+	disabled bool
 }
 
 func newCatalogCache(dir string, ttl time.Duration) *catalogCache {
-	return &catalogCache{dir: filepath.Clean(dir), ttl: ttl}
+	return &catalogCache{dir: filepath.Clean(dir), ttl: ttl, disabled: dir == "" || ttl <= 0}
 }
 
 func (c *catalogCache) load(req SearchRequest) (cacheEntry, bool) {
-	if c.dir == "." || c.ttl <= 0 {
+	if c.disabled {
 		return cacheEntry{}, false
 	}
 	data, err := os.ReadFile(c.path(req))
@@ -287,7 +299,7 @@ func (c *catalogCache) load(req SearchRequest) (cacheEntry, bool) {
 }
 
 func (c *catalogCache) store(req SearchRequest, result Result) error {
-	if c.dir == "." || c.ttl <= 0 {
+	if c.disabled {
 		return nil
 	}
 	entry := cacheEntry{UpdatedAt: time.Now().UTC(), Result: result}
@@ -323,9 +335,12 @@ func (b *refreshBroker) subscribe() (<-chan RefreshEvent, func()) {
 	b.mu.Unlock()
 	return ch, func() {
 		b.mu.Lock()
+		defer b.mu.Unlock()
+		if _, subscribed := b.subs[ch]; !subscribed {
+			return
+		}
 		delete(b.subs, ch)
 		close(ch)
-		b.mu.Unlock()
 	}
 }
 
