@@ -154,3 +154,36 @@ func waitDownload(t *testing.T, manager *Manager, id string) modeldownload.Job {
 	t.Fatal("download did not finish")
 	return modeldownload.Job{}
 }
+
+// recording must start the clock when the defer is registered, not when it
+// runs, so the recorded duration covers the operation rather than being zero.
+func TestRecordingMeasuresOperationDuration(t *testing.T) {
+	store := NewEventStore(DefaultEventLimit)
+	m := &Manager{events: store, audit: MultiAuditSink{store}}
+	_ = func() (err error) {
+		defer m.recording(context.Background(), "probe.action", &err)()
+		time.Sleep(2 * time.Millisecond)
+		return nil
+	}()
+	events := store.List()
+	if len(events) != 1 || events[0].Action != "probe.action" || !events[0].Success {
+		t.Fatalf("events = %#v", events)
+	}
+	if events[0].Duration == "" || events[0].Duration == "0s" {
+		t.Fatalf("duration not measured: %q", events[0].Duration)
+	}
+}
+
+// A failing operation records the mapped error kind.
+func TestRecordingCapturesErrorKind(t *testing.T) {
+	store := NewEventStore(DefaultEventLimit)
+	m := &Manager{events: store, audit: MultiAuditSink{store}}
+	_ = func() (err error) {
+		defer m.recording(context.Background(), "probe.fail", &err)()
+		return Errorf(ErrorNotFound, "nope")
+	}()
+	events := store.List()
+	if len(events) != 1 || events[0].Success || events[0].ErrorKind != ErrorNotFound {
+		t.Fatalf("events = %#v", events)
+	}
+}

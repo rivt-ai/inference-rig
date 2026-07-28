@@ -2,7 +2,6 @@ package audit
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +16,7 @@ import (
 	"inferencerig/config"
 )
 
-const DefaultTailLines, MaxTailLines, maxTailReadBytes = 500, 5000, 10 * 1024 * 1024
+const MaxTailLines, maxTailReadBytes = 5000, 10 * 1024 * 1024
 
 var archiveNamePattern, logNamePattern = regexp.MustCompile(`^([A-Za-z0-9_-]+)-(\d{8}T\d{6}\.\d{9}Z)\.log$`), regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
@@ -145,104 +144,27 @@ func TailLogLines(name string, lines int) (string, error) {
 	return tailFileLines(path, lines)
 }
 
-func FollowLog(ctx context.Context, name string, lines int, out io.Writer, interval time.Duration) error {
-	if !logNamePattern.MatchString(name) {
-		return fmt.Errorf("invalid log name %q", name)
-	}
-	if lines < 1 || lines > MaxTailLines {
-		return fmt.Errorf("log lines must be between 1 and %d", MaxTailLines)
-	}
-	path, err := GetLogPath(name)
-	if err != nil {
-		return err
-	}
-	previous, offset, err := writeInitialTail(path, lines, out)
-	if err != nil {
-		return err
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			info, nextOffset, err := followUpdate(path, previous, offset, out)
-			if err != nil {
-				return err
-			}
-			previous, offset = info, nextOffset
-		}
-	}
-}
-
-// tailFile returns the formatted tail of path along with the stat it was read
-// from, opening the file once so the read and the reported size share a single
-// view of it; a stat taken after a separate read could skip lines written in
-// between. A missing file yields an empty tail and a nil FileInfo.
-func tailFile(path string, lines int) (string, os.FileInfo, error) {
+// tailFile returns the formatted tail of path, opening the file once so the
+// read and the size it is bounded by share a single view of it. A missing file
+// yields an empty tail and no error.
+func tailFile(path string, lines int) (string, error) {
 	file, err := os.Open(path)
 	if os.IsNotExist(err) {
-		return "", nil, nil
+		return "", nil
 	}
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
 	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
 	data, err := readTailChunks(file, info.Size(), lines)
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
-	return formatTail(data, lines), info, nil
-}
-
-// writeInitialTail emits the starting tail and reports the offset to follow from.
-func writeInitialTail(path string, lines int, out io.Writer) (os.FileInfo, int64, error) {
-	text, info, err := tailFile(path, lines)
-	if err != nil || info == nil {
-		return nil, 0, err
-	}
-	if _, err := io.WriteString(out, text); err != nil {
-		return nil, 0, err
-	}
-	return info, info.Size(), nil
-}
-
-func followUpdate(path string, previous os.FileInfo, offset int64, out io.Writer) (os.FileInfo, int64, error) {
-	info, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return nil, 0, nil
-	}
-	if err != nil {
-		return nil, offset, err
-	}
-	if previous == nil || !os.SameFile(previous, info) || info.Size() < offset {
-		offset = 0
-	}
-	if err := copyFrom(path, offset, info.Size(), out); err != nil {
-		return nil, offset, err
-	}
-	return info, info.Size(), nil
-}
-
-func copyFrom(path string, offset, size int64, out io.Writer) error {
-	if size <= offset {
-		return nil
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = file.Close() }()
-	if _, err := file.Seek(offset, io.SeekStart); err != nil {
-		return err
-	}
-	_, err = io.CopyN(out, file, size-offset)
-	return err
+	return formatTail(data, lines), nil
 }
 
 func ListArchives() ([]Archive, error) {
@@ -288,14 +210,6 @@ func DeleteArchive(id string) error {
 		return err
 	}
 	return nil
-}
-
-func ClearArchives() (int, error) {
-	archives, err := ListArchives()
-	if err != nil {
-		return 0, err
-	}
-	return deleteArchives(archives)
 }
 
 func CleanupArchives(retention time.Duration, now time.Time) (int, error) {
@@ -371,8 +285,7 @@ func tailFileLines(path string, lines int) (string, error) {
 	if lines < 1 || lines > MaxTailLines {
 		return "", fmt.Errorf("log lines must be between 1 and %d", MaxTailLines)
 	}
-	text, _, err := tailFile(path, lines)
-	return text, err
+	return tailFile(path, lines)
 }
 
 func readTailChunks(file *os.File, end int64, lines int) ([]byte, error) {

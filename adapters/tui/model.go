@@ -3,7 +3,8 @@ package tui
 import (
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -235,11 +236,7 @@ func (d *dashboard) applyPoll(result pollResult) {
 
 func (d *dashboard) status() (string, tuikit.Level) {
 	if len(d.data.warnings) > 0 {
-		keys := make([]string, 0, len(d.data.warnings))
-		for key := range d.data.warnings {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(d.data.warnings))
 		for i, key := range keys {
 			keys[i] = key + ": " + d.data.warnings[key]
 		}

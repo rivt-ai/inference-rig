@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"sort"
-	"time"
 
 	"inferencerig/backends"
 	"inferencerig/config"
@@ -26,8 +25,7 @@ type Info struct {
 }
 
 func (m *Manager) RestartRuntime(ctx context.Context, name string) (result RuntimeRestart, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "runtime.restart", start, err) }()
+	defer m.recording(ctx, "runtime.restart", &err)()
 	stopped, err := m.StopRuntime(ctx, name)
 	if err != nil {
 		return result, err
@@ -41,8 +39,7 @@ type RuntimeRestart struct {
 }
 
 func (m *Manager) ApplyDownloadToProfile(ctx context.Context, name, id string) (doc profiles.ProfileDocument, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "download.apply", start, err) }()
+	defer m.recording(ctx, "download.apply", &err)()
 	if m.downloads == nil {
 		return profiles.ProfileDocument{}, Errorf(ErrorInvalidInput, "downloads are not configured")
 	}
@@ -70,8 +67,7 @@ func (m *Manager) ApplyDownloadToProfile(ctx context.Context, name, id string) (
 }
 
 func (m *Manager) CleanupProfile(ctx context.Context, name string) (err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "profile.cleanup", start, err) }()
+	defer m.recording(ctx, "profile.cleanup", &err)()
 	_, backend, err := m.profileBackend(ctx, name)
 	if err != nil {
 		return err
