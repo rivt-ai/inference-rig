@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"strings"
 
-	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
+	"inferencerig/core/control"
+	"inferencerig/core/rpc"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
@@ -52,15 +53,31 @@ func NewHandler(deps Dependencies) http.Handler {
 	return mux
 }
 
+// httpStatus maps a control error kind onto its HTTP status. The kind survives
+// the RPC hop via rpc.ErrorKindFromRPC, so a caller's mistake is reported as
+// such instead of every failure surfacing as an upstream fault.
+func httpStatus(err error) int {
+	switch rpc.ErrorKindFromRPC(err) {
+	case control.ErrorInvalidInput:
+		return http.StatusBadRequest
+	case control.ErrorPermission:
+		return http.StatusForbidden
+	case control.ErrorNotFound:
+		return http.StatusNotFound
+	case control.ErrorConflict:
+		return http.StatusConflict
+	case control.ErrorTimeout:
+		return http.StatusGatewayTimeout
+	default:
+		return http.StatusBadGateway
+	}
+}
+
 func rpcResponse(call func(*http.Request) (proto.Message, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		response, err := call(r)
 		if err != nil {
-			status := http.StatusBadGateway
-			if connect.CodeOf(err) == connect.CodeInvalidArgument {
-				status = http.StatusBadRequest
-			}
-			writeJSON(w, status, map[string]string{"error": err.Error()})
+			writeJSON(w, httpStatus(err), map[string]string{"error": err.Error()})
 			return
 		}
 		data, err := protojson.Marshal(response)

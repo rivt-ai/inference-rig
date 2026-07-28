@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -50,12 +52,20 @@ func NewHandler(client controlv1connect.ControlServiceClient) http.Handler {
 		}
 		result, err := dispatch(r, client, req)
 		if err != nil {
-			write(w, response{JSONRPC: "2.0", ID: req.ID, Error: map[string]any{"code": -32602, "message": err.Error()}})
+			code := -32602
+			if errors.Is(err, errMethodNotFound) {
+				code = -32601
+			}
+			write(w, response{JSONRPC: "2.0", ID: req.ID, Error: map[string]any{"code": code, "message": err.Error()}})
 			return
 		}
 		write(w, response{JSONRPC: "2.0", ID: req.ID, Result: result})
 	})
 }
+
+// errMethodNotFound distinguishes an unrecognized JSON-RPC method, which the
+// spec codes as -32601, from a malformed call to a known one (-32602).
+var errMethodNotFound = errors.New("method not found")
 
 func dispatch(r *http.Request, client controlv1connect.ControlServiceClient, req request) (any, error) {
 	switch req.Method {
@@ -74,14 +84,14 @@ func dispatch(r *http.Request, client controlv1connect.ControlServiceClient, req
 		}
 		return callTool(r, client, params)
 	default:
-		return map[string]any{}, nil
+		return nil, fmt.Errorf("%w: %s", errMethodNotFound, req.Method)
 	}
 }
 
 func callTool(r *http.Request, client controlv1connect.ControlServiceClient, params callParams) (any, error) {
 	profile, _ := params.Arguments["profile"].(string)
 	var (
-		message any
+		message proto.Message
 		err     error
 	)
 	switch params.Name {
@@ -96,21 +106,17 @@ func callTool(r *http.Request, client controlv1connect.ControlServiceClient, par
 	case "runtime_stop":
 		message, err = client.StopRuntime(r.Context(), &controlv1.StopRuntimeRequest{Profile: profile})
 	default:
-		return nil, &unknownToolError{name: params.Name}
+		return nil, fmt.Errorf("unknown tool: %s", params.Name)
 	}
 	if err != nil {
 		return nil, err
 	}
-	data, err := protojson.Marshal(message.(proto.Message))
+	data, err := protojson.Marshal(message)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{"content": []map[string]string{{"type": "text", "text": string(data)}}}, nil
 }
-
-type unknownToolError struct{ name string }
-
-func (e *unknownToolError) Error() string { return "unknown tool: " + e.name }
 
 func objectSchema() map[string]any {
 	return map[string]any{"type": "object", "properties": map[string]any{}}
