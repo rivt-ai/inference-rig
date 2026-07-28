@@ -85,6 +85,9 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
+// shutdown deliberately builds its own context: Run reaches here precisely
+// when the caller's context is already cancelled, so inheriting it would give
+// Shutdown no time to stop runtimes and clear the socket.
 func (s *Service) shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
