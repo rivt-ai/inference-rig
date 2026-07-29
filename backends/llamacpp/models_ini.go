@@ -13,10 +13,10 @@ import (
 // ErrInvalidINI marks content that violates the models.ini grammar or key rules.
 var ErrInvalidINI = errors.New("invalid models.ini")
 
-// generatedHeader is the "do not edit" banner every generated models.ini
-// carries, followed by the file-level version key (Appendix A ยง5).
-const generatedHeader = "; InferenceRig generated file - DO NOT EDIT.\n" +
-	"; Regenerate from the canonical YAML profiles; manual edits are overwritten.\n" +
+// generatedHeader identifies every materialized models.ini and explains the
+// lifetime of manual changes, followed by the file-level version key.
+const generatedHeader = "; InferenceRig materialized runtime file.\n" +
+	"; Manual edits are allowed, but the next InferenceRig materialization overwrites them.\n" +
 	"version = 1\n"
 
 // globalSection is the models.ini cascade section name that holds backend-wide

@@ -26,8 +26,11 @@ func TestRenderModelsINIHeaderGlobalAndSections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(content, "; InferenceRig generated file - DO NOT EDIT.") {
-		t.Fatalf("missing warning header: %q", content)
+	if !strings.HasPrefix(content, "; InferenceRig materialized runtime file.") {
+		t.Fatalf("missing materialized-file header: %q", content)
+	}
+	if !strings.Contains(content, "; Manual edits are allowed, but the next InferenceRig materialization overwrites them.") {
+		t.Fatalf("missing manual-edit warning: %q", content)
 	}
 	if !strings.Contains(content, "version = 1\n") {
 		t.Fatal("missing version key")
