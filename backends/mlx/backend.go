@@ -91,10 +91,43 @@ func (b *Backend) Capabilities() backends.Capabilities {
 // engine argument namespace.
 func (b *Backend) Parameters(context.Context) ([]backends.Parameter, error) {
 	return []backends.Parameter{
-		{Name: "model.source", Description: "model repository or local snapshot", Required: true},
-		{Name: "listen.host", Description: "server listen host"},
-		{Name: "listen.port", Description: "server listen port", Required: true},
-		{Name: "engine_args.*", Description: "server command argument"},
+		{
+			Name: "model.source", Description: "model repository or local snapshot",
+			Required: true, Type: backends.ParameterString,
+			ValueHint: "mlx-community/Llama-3.2-3B-Instruct-4bit",
+		},
+		{
+			Name: "listen.host", Description: "server listen host",
+			Type: backends.ParameterString, ValueHint: "127.0.0.1",
+		},
+		{
+			Name: "listen.port", Description: "server listen port",
+			Required: true, Type: backends.ParameterInt, ValueHint: "8080",
+		},
+		{
+			Name: "engine_args.*", Description: "server command argument",
+			Type: backends.ParameterString,
+		},
+		// mlx_lm server flags worth completing. model, host, and port are
+		// deliberately absent: the command builder reserves them and rejects a
+		// profile that sets them as engine args, so offering them would be
+		// offering an error.
+		{
+			Name: "engine_args.max-tokens", Description: "default generation limit",
+			Type: backends.ParameterInt, ValueHint: "2048",
+		},
+		{
+			Name: "engine_args.temp", Description: "default sampling temperature",
+			Type: backends.ParameterString, ValueHint: "0.7",
+		},
+		{
+			Name: "engine_args.adapter-path", Description: "path to a LoRA adapter to load",
+			Type: backends.ParameterString,
+		},
+		{
+			Name: "engine_args.trust-remote-code", Description: "allow the repository to execute its own model code",
+			Type: backends.ParameterBool,
+		},
 	}, nil
 }
 

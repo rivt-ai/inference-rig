@@ -34,6 +34,7 @@ type response struct {
 
 var tools = []map[string]any{
 	{"name": "backends_list", "description": "List available inference backends", "inputSchema": objectSchema()},
+	{"name": "backend_install_status", "description": "Get backend installation status", "inputSchema": fieldsSchema("backend")},
 	{"name": "backend_install", "description": "Install an inference backend", "inputSchema": fieldsSchema("backend")},
 	{"name": "backend_params", "description": "List backend parameters", "inputSchema": fieldsSchema("backend")},
 	{"name": "profiles_list", "description": "List canonical profiles", "inputSchema": objectSchema()},
@@ -119,6 +120,11 @@ var toolCalls = map[string]func(context.Context, controlv1connect.ControlService
 	"backend_install": func(ctx context.Context, client controlv1connect.ControlServiceClient, params callParams) (proto.Message, error) {
 		return client.InstallBackend(ctx, &controlv1.InstallBackendRequest{
 			Backend: stringArg(params, "backend"), Version: stringArg(params, "version"),
+		})
+	},
+	"backend_install_status": func(ctx context.Context, client controlv1connect.ControlServiceClient, params callParams) (proto.Message, error) {
+		return client.GetBackendInstallStatus(ctx, &controlv1.GetBackendInstallStatusRequest{
+			Backend: stringArg(params, "backend"),
 		})
 	},
 	"backend_params": func(ctx context.Context, client controlv1connect.ControlServiceClient, params callParams) (proto.Message, error) {
