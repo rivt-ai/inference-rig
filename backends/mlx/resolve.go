@@ -140,12 +140,23 @@ func (b *Backend) Plan(r backends.ResolvedModel) (backends.ArtifactPlan, error) 
 	return plan, nil
 }
 
+// parseRepository accepts both the full repository URL and the bare
+// "owner/repo" id the catalog reports.
 func parseRepository(raw string) (string, string, bool) {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || parsed.Scheme != "https" || parsed.Host != "huggingface.co" {
+	trimmed := strings.TrimSpace(raw)
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
 		return "", "", false
 	}
-	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	path := parsed.Path
+	switch {
+	case parsed.Scheme == "https" && parsed.Host == "huggingface.co":
+	case parsed.Scheme == "" && parsed.Host == "":
+		path = trimmed
+	default:
+		return "", "", false
+	}
+	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) != 2 || !safeSegment(parts[0]) || !safeSegment(parts[1]) {
 		return "", "", false
 	}
@@ -230,6 +241,8 @@ func (b *Backend) ListLocal(ctx context.Context) ([]modelcatalog.LocalModel, err
 }
 
 type catalogPolicy struct{ backend *Backend }
+
+func (catalogPolicy) SearchFilter() string { return "mlx" }
 
 func (p catalogPolicy) Variants(source modelcatalog.Source, files []modelcatalog.RemoteFile) ([]modelcatalog.Variant, error) {
 	var total int64

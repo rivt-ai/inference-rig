@@ -224,7 +224,7 @@ func (p *modelsPage) View(width, height int, data snapshot) string {
 	p.setRows(data)
 	titles := []string{
 		fmt.Sprintf("Profiles (%d)", len(data.profiles.GetProfiles())),
-		fmt.Sprintf("Catalog (%d)", len(data.catalog.GetModels())),
+		catalogTitle(data),
 		fmt.Sprintf("Local (%d)", len(data.local.GetModels())),
 		fmt.Sprintf("Downloads (%d)", len(data.downloads)),
 	}
@@ -258,6 +258,29 @@ func (p *modelsPage) View(width, height int, data snapshot) string {
 	return tuikit.VerticalSlice(lipgloss.JoinVertical(lipgloss.Left, tabbed, detail, panel(muted, false, width, 2, help)), 0, height)
 }
 
+// catalogTitle reports a cold cache as refreshing rather than as an empty
+// catalog. The first request for a query returns nothing while the remote fetch
+// runs behind it, which is indistinguishable from "this backend has no models"
+// unless the tab says so.
+func catalogTitle(data snapshot) string {
+	models := len(data.catalog.GetModels())
+	if models == 0 && (data.catalogPending || data.catalog.GetCache().GetRefreshing()) {
+		return "Catalog (refreshing…)"
+	}
+	return fmt.Sprintf("Catalog (%d)", models)
+}
+
+// profileModel describes what a profile serves. The reference is optional — it
+// names a file inside a repository — while the source is what every profile
+// carries, so reading only the reference left the column blank for every
+// profile that points straight at a model.
+func profileModel(item *controlv1.Profile) string {
+	if reference := item.GetModelReference(); reference != "" {
+		return reference
+	}
+	return item.GetModelSource()
+}
+
 func (p *modelsPage) setRows(data snapshot) {
 	profiles := make([]table.Row, 0, len(data.profiles.GetProfiles()))
 	for _, item := range data.profiles.GetProfiles() {
@@ -265,7 +288,7 @@ func (p *modelsPage) setRows(data snapshot) {
 		if running(data.info, item.GetName()) {
 			state = "Running"
 		}
-		profiles = append(profiles, table.Row{item.GetName(), item.GetBackend(), item.GetModelReference(), state})
+		profiles = append(profiles, table.Row{item.GetName(), item.GetBackend(), profileModel(item), state})
 	}
 	p.profiles.SetRows(profiles)
 	catalog := make([]table.Row, 0, len(data.catalog.GetModels()))
@@ -314,7 +337,7 @@ func (p *modelsPage) detail(width, height int, data snapshot) string {
 			if running(data.info, item.GetName()) {
 				state = "Running"
 			}
-			rows = []string{theme.StatusTitle(item.GetName(), state, accent, green, width), tuikit.Field("Backend", item.GetBackend()), tuikit.Field("Model", tuikit.TruncMiddle(item.GetModelReference(), width-12)), tuikit.Field("Listen", fmt.Sprintf("%s:%d", item.GetHost(), item.GetPort()))}
+			rows = []string{theme.StatusTitle(item.GetName(), state, accent, green, width), tuikit.Field("Backend", item.GetBackend()), tuikit.Field("Model", tuikit.TruncMiddle(profileModel(item), width-12)), tuikit.Field("Listen", fmt.Sprintf("%s:%d", item.GetHost(), item.GetPort()))}
 		}
 	case paneCatalog:
 		rows = append(rows, mutedStyle.Render("/: search catalog · i: install selected backend"))

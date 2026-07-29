@@ -56,6 +56,29 @@ func (r *fakeRuntime) Status(context.Context) (coreruntime.Status, error) {
 }
 func (r *fakeRuntime) Recover(context.Context) (bool, error) { return false, nil }
 
+// A catalog entry is a repository plus a file inside it. Folding the two into
+// one field left the backend resolving a bare filename, which fetched a URI
+// with no scheme, so both halves must reach the backend intact.
+func TestResolveModelCarriesTheVariantIntoTheBackend(t *testing.T) {
+	registry := backends.NewRegistry()
+	if err := registry.Register(backendtest.New("test")); err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(Dependencies{
+		Registry: registry,
+		Profiles: profiles.NewFileStore(t.TempDir(), 0, registry.BackendLookup()),
+	})
+	resolved, _, err := manager.ResolveModel(
+		context.Background(), "test", "https://example.test/owner/repo", "sub/model.gguf",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Source != "https://example.test/owner/repo" || resolved.Reference != "sub/model.gguf" {
+		t.Fatalf("resolved = %#v", resolved)
+	}
+}
+
 //nolint:gocognit,gocyclo // One integration scenario verifies the manager's coordinated lifecycle.
 func TestManagerControlsProfilesRuntimeInstallAndDownloads(t *testing.T) {
 	body := []byte("model")

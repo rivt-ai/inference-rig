@@ -103,11 +103,54 @@ func (b *Backend) Capabilities() backends.Capabilities {
 // engine argument namespace.
 func (b *Backend) Parameters(context.Context) ([]backends.Parameter, error) {
 	return []backends.Parameter{
-		{Name: "model.source", Description: "model repository, URL, or local path", Required: true},
-		{Name: "model.reference", Description: "artifact filename within a repository"},
-		{Name: "listen.host", Description: "server listen host"},
-		{Name: "listen.port", Description: "server listen port", Required: true},
-		{Name: "engine_args.*", Description: "backend command/config argument"},
+		{
+			Name: "model.source", Description: "model repository, URL, or local path",
+			Required: true, Type: backends.ParameterString,
+			ValueHint: "TheBloke/Llama-2-7B-GGUF",
+		},
+		{
+			Name: "model.reference", Description: "artifact filename within a repository",
+			Type: backends.ParameterString, ValueHint: "llama-2-7b.Q4_K_M.gguf",
+		},
+		{
+			Name: "listen.host", Description: "server listen host",
+			Type: backends.ParameterString, DefaultValue: defaultListenHost, ValueHint: defaultListenHost,
+		},
+		{
+			Name: "listen.port", Description: "server listen port",
+			Required: true, Type: backends.ParameterInt, ValueHint: "8080",
+		},
+		{
+			Name: "engine_args.*", Description: "backend command/config argument",
+			Type: backends.ParameterString,
+		},
+		// The engine args below are the ones worth completing: they are the
+		// knobs that decide whether a model loads at all on a given machine.
+		{
+			Name: "engine_args.ctx-size", Aliases: []string{"c"},
+			Description: "context window in tokens",
+			Type:        backends.ParameterInt, ValueHint: "4096",
+		},
+		{
+			Name: "engine_args.n-gpu-layers", Aliases: []string{"ngl"},
+			Description: "layers to offload to the GPU; auto offloads as many as fit",
+			Type:        backends.ParameterString, ValueHint: "auto",
+		},
+		{
+			Name: "engine_args.threads", Aliases: []string{"t"},
+			Description: "CPU threads used for generation",
+			Type:        backends.ParameterInt,
+		},
+		{
+			Name: "engine_args.flash-attn", Aliases: []string{"fa"},
+			Description: "enable flash attention",
+			Type:        backends.ParameterBool,
+		},
+		{
+			Name: "engine_args.ubatch-size", Aliases: []string{"ub"},
+			Description: "physical batch size",
+			Type:        backends.ParameterInt, ValueHint: "512",
+		},
 	}, nil
 }
 
@@ -162,6 +205,8 @@ func (ggufPolicy) MultiFile() bool { return false }
 var _ modelcatalog.FormatPolicy = ggufPolicy{}
 
 type catalogPolicy struct{ backend *Backend }
+
+func (catalogPolicy) SearchFilter() string { return "gguf" }
 
 func (p catalogPolicy) Variants(source modelcatalog.Source, files []modelcatalog.RemoteFile) ([]modelcatalog.Variant, error) {
 	var variants []modelcatalog.Variant

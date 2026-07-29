@@ -167,10 +167,31 @@ type Capabilities struct {
 	ParameterIntrospection bool
 }
 
+// ParameterType is the value shape a Parameter accepts. A client needs it to
+// render the right control and to reject a value before the engine does.
+type ParameterType string
+
+const (
+	ParameterString ParameterType = "string"
+	ParameterInt    ParameterType = "int"
+	ParameterBool   ParameterType = "bool"
+	ParameterList   ParameterType = "list"
+)
+
+// Parameter describes one settable profile input. Everything past Required
+// exists so a client can offer completion and validation for any backend
+// instead of carrying an engine-specific flag table in its own source.
 type Parameter struct {
 	Name        string
 	Description string
 	Required    bool
+	// Aliases are alternative spellings the backend also accepts.
+	Aliases []string
+	// ValueHint is a short example of an acceptable value, shown as placeholder text.
+	ValueHint string
+	// DefaultValue is what the engine uses when the parameter is unset.
+	DefaultValue string
+	Type         ParameterType
 }
 
 // ParameterProvider is an optional backend facet used only when advertised.

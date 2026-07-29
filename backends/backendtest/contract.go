@@ -92,7 +92,7 @@ func checkResolvePlan(t *testing.T, b backends.Backend) {
 
 func checkFit(t *testing.T, b backends.Backend) {
 	t.Helper()
-	est, err := b.Fit(validProfile(b.Name()), backends.HostResources{
+	est, err := b.Fit(validProfile(b.Name()), 0, backends.HostResources{
 		AvailableRAMBytes: 64 << 30,
 		VRAMBytes:         24 << 30,
 	})

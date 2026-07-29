@@ -11,11 +11,8 @@ import (
 
 	"charm.land/huh/v2"
 
-	"inferencerig/core/profiles"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
-
-	"gopkg.in/yaml.v3"
 )
 
 type testClient struct {
@@ -42,23 +39,10 @@ func (c *testClient) GetBackendInstallStatus(context.Context, *controlv1.GetBack
 	return &controlv1.GetBackendInstallStatusResponse{Installed: true}, nil
 }
 
-func TestWizardDiscoversCapabilitiesAndCreatesThroughRPC(t *testing.T) {
-	client := &testClient{}
-	wizard := NewWizard(client)
-	backends, err := wizard.Backends(context.Background())
+func TestWizardDiscoversCapabilities(t *testing.T) {
+	backends, err := NewWizard(&testClient{}).Backends(context.Background())
 	if err != nil || !backends[0].GetCapabilities().GetMultiFileArtifacts() {
 		t.Fatalf("backends = %#v, err = %v", backends, err)
-	}
-	profile, err := wizard.Create(context.Background(), Answers{
-		ProfileName: "demo", Backend: "test", ModelSource: "repo", ModelReference: "model",
-		Host: "127.0.0.1", Port: 8080,
-	})
-	if err != nil || profile.GetName() != "demo" || !strings.Contains(client.put.GetProfileYaml(), "backend: test") {
-		t.Fatalf("profile = %#v, request = %#v, err = %v", profile, client.put, err)
-	}
-	var parsed profiles.Profile
-	if err := yaml.Unmarshal([]byte(client.put.GetProfileYaml()), &parsed); err != nil || parsed.Model.Source != "repo" {
-		t.Fatalf("profile YAML = %q, parsed = %#v, err = %v", client.put.GetProfileYaml(), parsed, err)
 	}
 }
 
@@ -81,17 +65,16 @@ func TestEnsureSkipsExistingConfigAndRejectsNoninteractiveFirstRun(t *testing.T)
 	}
 }
 
-func TestRenderConfigIncludesSelectedStorageAndAutostart(t *testing.T) {
+func TestRenderConfigIncludesSelectedStorage(t *testing.T) {
 	paths := Paths{DefaultCatalogCache: "/cache"}
 	content, err := renderConfig(paths, Answers{
 		ListenAddr: "127.0.0.1:9000", AuthTokenEnv: "TOKEN",
-		ModelStorageDir: "/models", ProfileName: "demo",
-		StartupServices: []string{"control"}, Autostart: true,
+		ModelStorageDir: "/models", StartupServices: []string{"control"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"model_storage_dir: /models", "- demo", "auth_token_env: TOKEN"} {
+	for _, want := range []string{"model_storage_dir: /models", "auth_token_env: TOKEN"} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("config %q does not contain %q", content, want)
 		}
@@ -107,9 +90,8 @@ func TestWriteCreatesConfigAndForcedRerunKeepsBackup(t *testing.T) {
 		DefaultCatalogCache: filepath.Join(home, "cache"),
 	}
 	answers := defaultAnswers(paths, "test")
-	answers.ModelSource = "owner/model"
 	wizard := NewWizard(&testClient{})
-	if _, result, err := wizard.write(context.Background(), paths, answers, false); err != nil {
+	if result, err := wizard.write(paths, answers, false); err != nil {
 		t.Fatal(err)
 	} else if result.BackupPath != "" {
 		t.Fatalf("first write backup = %q", result.BackupPath)
@@ -122,7 +104,7 @@ func TestWriteCreatesConfigAndForcedRerunKeepsBackup(t *testing.T) {
 		t.Fatalf("config permissions = %o", info.Mode().Perm())
 	}
 	answers.ListenAddr = "127.0.0.1:9001"
-	_, result, err := wizard.write(context.Background(), paths, answers, true)
+	result, err := wizard.write(paths, answers, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +127,9 @@ func TestConfigOverrideSuppressesSetup(t *testing.T) {
 	}
 }
 
-func TestCancelledFormDoesNotWriteProfile(t *testing.T) {
+// Setup writes no profile at all now: a cancelled form must also leave the
+// config untouched, and no PutProfile may ever be issued.
+func TestCancelledFormWritesNothing(t *testing.T) {
 	previous := runForm
 	runForm = func(context.Context, *huh.Form) error { return ErrCancelled }
 	t.Cleanup(func() { runForm = previous })
@@ -153,7 +137,7 @@ func TestCancelledFormDoesNotWriteProfile(t *testing.T) {
 	_, err := NewWizard(client).collect(
 		context.Background(),
 		Paths{Home: "/home", Config: "/home/config.yaml", ProfilesDir: "/home/profiles", DefaultModelStorage: "/models"},
-		strings.NewReader(""), &bytes.Buffer{}, false,
+		strings.NewReader(""), &bytes.Buffer{},
 	)
 	if !errors.Is(err, ErrCancelled) {
 		t.Fatalf("error = %v", err)

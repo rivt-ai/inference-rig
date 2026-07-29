@@ -32,10 +32,28 @@ func webCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			var token string
+			if cfg.Security.DisableAuth {
+				// Load rejects this alongside a non-loopback bind, so reaching
+				// here means the gateway is local-only and the operator asked
+				// for it. Say so once: an open gateway must never be silent.
+				command.Printf("security.disable_auth is set; serving %s without authentication\n\n", cfg.ListenAddr)
+			} else {
+				generated := false
+				token, generated = public_http.ResolveAuthToken(os.Getenv(cfg.Security.AuthTokenEnv))
+				if generated {
+					command.Printf("no %s set; generated a gateway token for this run:\n\n    %s\n\n",
+						cfg.Security.AuthTokenEnv, token)
+				}
+			}
 			server := &http.Server{
 				Addr: cfg.ListenAddr,
 				Handler: public_http.NewHandler(public_http.Dependencies{
-					Control: client, AuthToken: os.Getenv(cfg.Security.AuthTokenEnv), AppFS: app,
+					Control:            client,
+					AuthToken:          token,
+					DisableAuth:        cfg.Security.DisableAuth,
+					AppFS:              app,
+					DisableOriginCheck: cfg.Security.DisableOriginCheck,
 				}),
 				ReadHeaderTimeout: 5 * time.Second,
 			}
