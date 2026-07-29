@@ -11,7 +11,10 @@
 package llamacpp
 
 import (
+	"context"
+	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"inferencerig/backends"
@@ -89,10 +92,72 @@ func (b *Backend) Name() string { return Name }
 // backend that ships a router HTTP client and serves many models at once.
 func (b *Backend) Capabilities() backends.Capabilities {
 	return backends.Capabilities{
-		SingleFileArtifacts: true,
-		DiscreteVRAM:        true,
-		ManagedInstall:      true,
+		SingleFileArtifacts:    true,
+		DiscreteVRAM:           true,
+		ManagedInstall:         true,
+		ParameterIntrospection: true,
 	}
+}
+
+// Parameters describes the canonical profile inputs and the backend-owned
+// engine argument namespace.
+func (b *Backend) Parameters(context.Context) ([]backends.Parameter, error) {
+	return []backends.Parameter{
+		{
+			Name: "model.source", Description: "model repository, URL, or local path",
+			Required: true, Type: backends.ParameterString,
+			ValueHint: "TheBloke/Llama-2-7B-GGUF",
+		},
+		{
+			Name: "model.reference", Description: "artifact filename within a repository",
+			Type: backends.ParameterString, ValueHint: "llama-2-7b.Q4_K_M.gguf",
+		},
+		{
+			Name: "listen.host", Description: "server listen host",
+			Type: backends.ParameterString, DefaultValue: defaultListenHost, ValueHint: defaultListenHost,
+		},
+		{
+			Name: "listen.port", Description: "server listen port",
+			Required: true, Type: backends.ParameterInt, ValueHint: "8080",
+		},
+		{
+			Name: "engine_args.*", Description: "backend command/config argument",
+			Type: backends.ParameterString,
+		},
+		// The engine args below are the ones worth completing: they are the
+		// knobs that decide whether a model loads at all on a given machine.
+		{
+			Name: "engine_args.ctx-size", Aliases: []string{"c"},
+			Description: "context window in tokens",
+			Type:        backends.ParameterInt, ValueHint: "4096",
+		},
+		{
+			Name: "engine_args.n-gpu-layers", Aliases: []string{"ngl"},
+			Description: "layers to offload to the GPU; auto offloads as many as fit",
+			Type:        backends.ParameterString, ValueHint: "auto",
+		},
+		{
+			Name: "engine_args.threads", Aliases: []string{"t"},
+			Description: "CPU threads used for generation",
+			Type:        backends.ParameterInt,
+		},
+		{
+			Name: "engine_args.flash-attn", Aliases: []string{"fa"},
+			Description: "enable flash attention",
+			Type:        backends.ParameterBool,
+		},
+		{
+			Name: "engine_args.ubatch-size", Aliases: []string{"ub"},
+			Description: "physical batch size",
+			Type:        backends.ParameterInt, ValueHint: "512",
+		},
+	}, nil
+}
+
+// CatalogPolicy returns the backend adapter for remote variants and local
+// single-file artifacts.
+func (b *Backend) CatalogPolicy() modelcatalog.CatalogPolicy {
+	return catalogPolicy{backend: b}
 }
 
 // generatedININPath resolves where the generated models.ini is written.
@@ -139,5 +204,42 @@ func (ggufPolicy) MultiFile() bool { return false }
 // Ensure the policy satisfies the shared interface at compile time.
 var _ modelcatalog.FormatPolicy = ggufPolicy{}
 
+type catalogPolicy struct{ backend *Backend }
+
+func (catalogPolicy) SearchFilter() string { return "gguf" }
+
+func (p catalogPolicy) Variants(source modelcatalog.Source, files []modelcatalog.RemoteFile) ([]modelcatalog.Variant, error) {
+	var variants []modelcatalog.Variant
+	for _, file := range files {
+		if !(ggufPolicy{}).IsModelFile(file.Name) {
+			continue
+		}
+		variants = append(variants, modelcatalog.Variant{
+			Name: path.Base(file.Name), Reference: file.Name, SizeBytes: file.SizeBytes,
+		})
+	}
+	sort.Slice(variants, func(i, j int) bool { return variants[i].Name < variants[j].Name })
+	return variants, nil
+}
+
+func (p catalogPolicy) ListLocal(ctx context.Context) ([]modelcatalog.LocalModel, error) {
+	root, err := p.backend.modelStorageDir()
+	if err != nil {
+		return nil, err
+	}
+	return modelcatalog.NewScanner(root, ggufPolicy{}).ListLocal(ctx)
+}
+
+func (p catalogPolicy) DeleteLocal(target string) error {
+	root, err := p.backend.modelStorageDir()
+	if err != nil {
+		return err
+	}
+	return modelcatalog.RemoveLocal(root, target, false)
+}
+
+var _ modelcatalog.CatalogPolicy = catalogPolicy{}
+
 // Ensure the backend satisfies the full contract at compile time.
 var _ backends.Backend = (*Backend)(nil)
+var _ backends.ParameterProvider = (*Backend)(nil)

@@ -24,11 +24,18 @@ const generatedFileMode = 0o600
 // returned GeneratedFile records the path, bytes and mode; Materialize does not
 // touch disk — Generate performs the atomic replacement.
 func (b *Backend) Materialize(p profiles.Profile) (backends.Materialization, error) {
+	return b.MaterializeProfiles([]profiles.Profile{p})
+}
+
+// MaterializeProfiles renders every effective profile into one generated
+// models.ini. The neutral control manager discovers this optional batch facet
+// without importing the concrete backend.
+func (b *Backend) MaterializeProfiles(ps []profiles.Profile) (backends.Materialization, error) {
 	path, err := b.generatedININPath()
 	if err != nil {
 		return backends.Materialization{}, err
 	}
-	content, err := b.render([]profiles.Profile{p})
+	content, err := b.render(ps)
 	if err != nil {
 		return backends.Materialization{}, err
 	}
@@ -38,7 +45,7 @@ func (b *Backend) Materialize(p profiles.Profile) (backends.Materialization, err
 			Content: []byte(content),
 			Mode:    generatedFileMode,
 		}},
-		Summary: fmt.Sprintf("rendered models.ini section [%s]", p.Name),
+		Summary: fmt.Sprintf("rendered %d models.ini sections", len(ps)),
 	}, nil
 }
 

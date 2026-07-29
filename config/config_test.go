@@ -39,6 +39,16 @@ func TestParseRejectsNegativeRetention(t *testing.T) {
 	}
 }
 
+func TestParseRejectsDisableAuthOnRemoteBind(t *testing.T) {
+	if _, err := Parse([]byte("listen_addr: \"0.0.0.0:7000\"\nsecurity: {disable_auth: true}\n")); err == nil {
+		t.Fatal("expected error for disable_auth with a non-loopback bind")
+	}
+	cfg, err := Parse([]byte("listen_addr: \"127.0.0.1:7000\"\nsecurity: {disable_auth: true}\n"))
+	if err != nil || !cfg.Security.DisableAuth {
+		t.Fatalf("loopback disable_auth = %v, %v", cfg.Security.DisableAuth, err)
+	}
+}
+
 func TestAllowsNonLoopback(t *testing.T) {
 	cases := map[string]bool{
 		"127.0.0.1:7000": false,
@@ -81,11 +91,11 @@ func TestHomeHonorsEnv(t *testing.T) {
 
 func TestGeneratedDir(t *testing.T) {
 	t.Setenv(ProjectHomeEnv, "/tmp/rig-home")
-	dir, err := GeneratedDir("llamacpp")
+	dir, err := GeneratedDir("sample")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dir != "/tmp/rig-home/generated/llamacpp" {
+	if dir != "/tmp/rig-home/generated/sample" {
 		t.Errorf("GeneratedDir() = %q", dir)
 	}
 	for _, bad := range []string{"", ".", "..", "a/b", `a\b`} {

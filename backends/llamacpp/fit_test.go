@@ -22,7 +22,7 @@ func TestFitBySizeUsesGPUThenRAM(t *testing.T) {
 
 func TestFitUnknownForUnsizedProfile(t *testing.T) {
 	b := New(Options{})
-	est, err := b.Fit(demoProfile("demo", "/m.gguf"), backends.HostResources{AvailableRAMBytes: 64 << 30})
+	est, err := b.Fit(demoProfile("demo", "/m.gguf"), 0, backends.HostResources{AvailableRAMBytes: 64 << 30})
 	if err != nil {
 		t.Fatal(err)
 	}

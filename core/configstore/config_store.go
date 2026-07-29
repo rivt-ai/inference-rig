@@ -53,6 +53,56 @@ func (s *FileStore) SetStartupServices(ctx context.Context, services []string) (
 	})
 }
 
+// SetProfileAutostart adds or removes a profile from the neutral top-level
+// autostart list while preserving unrelated YAML nodes and comments.
+func (s *FileStore) SetProfileAutostart(ctx context.Context, name string, enabled bool) (WriteResult, error) {
+	return s.mutateDocument(ctx, func(document *yaml.Node) bool {
+		return setProfileAutostart(documentRoot(document), name, enabled)
+	})
+}
+
+func setProfileAutostart(root *yaml.Node, name string, enabled bool) bool {
+	if root == nil {
+		return false
+	}
+	current := mappingValue(root, "autostart_profiles")
+	if enabled {
+		return addProfileAutostart(root, current, name)
+	}
+	return removeProfileAutostart(current, name)
+}
+
+func addProfileAutostart(root, current *yaml.Node, name string) bool {
+	if current == nil {
+		root.Content = append(root.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "autostart_profiles"},
+			&yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"})
+		current = root.Content[len(root.Content)-1]
+	}
+	for _, item := range current.Content {
+		if item.Value == name {
+			return false
+		}
+	}
+	current.Content = append(current.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: name})
+	return true
+}
+
+func removeProfileAutostart(current *yaml.Node, name string) bool {
+	if current == nil || current.Kind != yaml.SequenceNode {
+		return false
+	}
+	kept := current.Content[:0]
+	for _, item := range current.Content {
+		if item.Value != name {
+			kept = append(kept, item)
+		}
+	}
+	changed := len(kept) != len(current.Content)
+	current.Content = kept
+	return changed
+}
+
 // mutateDocument applies mutate to the parsed config.yaml document and, when
 // it reports a change, validates and atomically rewrites the file preserving
 // comments and formatting.

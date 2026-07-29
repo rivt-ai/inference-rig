@@ -26,8 +26,22 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      # Web UI build + verify:web returns here when the webui lands (Phase 10);
-      # the Go build will embed webui/dist at that point.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      - name: Verify web UI
+        run: |
+          cd webui
+          pnpm install --frozen-lockfile
+          pnpm run verify:web
+
       - name: Test
         run: |
           go mod download
