@@ -94,13 +94,17 @@ type ArtifactPlan struct {
 // both the discrete-accelerator axis (HasGPU/VRAMBytes) and the unified-memory
 // axis (UnifiedMemory/MemoryBudgetBytes) so a single neutral type serves both
 // backend families; a backend reads only the fields it cares about.
+// AcceleratorName and VRAMUsedBytes are reported for telemetry only; Fit
+// implementations ignore them.
 type HostResources struct {
 	TotalRAMBytes     int64
 	AvailableRAMBytes int64
 	HasGPU            bool
 	VRAMBytes         int64
+	VRAMUsedBytes     int64
 	UnifiedMemory     bool
 	MemoryBudgetBytes int64
+	AcceleratorName   string
 }
 
 // FitEstimate is a backend's decision about whether a model fits a host.
@@ -130,6 +134,16 @@ type InstallResult struct {
 	Message string
 }
 
+// InstallStatus reports whether a backend has a usable engine executable.
+// Managed distinguishes an InferenceRig-managed installation from a usable
+// executable supplied by the host.
+type InstallStatus struct {
+	Installed bool
+	Managed   bool
+	Version   string
+	Path      string
+}
+
 // Capabilities advertises what a backend supports so shared code can gate
 // behavior by capability rather than by branching on a backend name. Fields are
 // intentionally minimal; later phases extend this type as new gated behavior
@@ -153,10 +167,31 @@ type Capabilities struct {
 	ParameterIntrospection bool
 }
 
+// ParameterType is the value shape a Parameter accepts. A client needs it to
+// render the right control and to reject a value before the engine does.
+type ParameterType string
+
+const (
+	ParameterString ParameterType = "string"
+	ParameterInt    ParameterType = "int"
+	ParameterBool   ParameterType = "bool"
+	ParameterList   ParameterType = "list"
+)
+
+// Parameter describes one settable profile input. Everything past Required
+// exists so a client can offer completion and validation for any backend
+// instead of carrying an engine-specific flag table in its own source.
 type Parameter struct {
 	Name        string
 	Description string
 	Required    bool
+	// Aliases are alternative spellings the backend also accepts.
+	Aliases []string
+	// ValueHint is a short example of an acceptable value, shown as placeholder text.
+	ValueHint string
+	// DefaultValue is what the engine uses when the parameter is unset.
+	DefaultValue string
+	Type         ParameterType
 }
 
 // ParameterProvider is an optional backend facet used only when advertised.

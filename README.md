@@ -10,5 +10,4 @@ daemon, CLI, TUI, web GUI, or MCP client.
 > ([llamarig](https://github.com/antonikliment/llamarig),
 > [mlxrig](https://github.com/antonikliment/mlxrig)) as a neutral core with
 > engine-specific behavior isolated behind backend interfaces. See
-> `docs/HANDOVER.md` for the stacked build and
 > `docs/hardware-validation.md` for verified support levels and live checks.

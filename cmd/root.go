@@ -32,9 +32,12 @@ func NewRootCommand() *cobra.Command {
 		Args:              cobra.NoArgs,
 		Version:           buildinfo.Version,
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
+		RunE: func(command *cobra.Command, _ []string) error {
+			return runTUI(command, "")
+		},
 	}
 	rootCmd.AddCommand(versionCommand())
-	rootCmd.AddCommand(serveCommand(), daemonCommand(), setupCommand())
+	rootCmd.AddCommand(serveCommand(), daemonCommand(), setupCommand(), tuiCommand(), webCommand())
 	rootCmd.AddCommand(adaptercli.Commands(rpc.DialControl)...)
 	return rootCmd
 }

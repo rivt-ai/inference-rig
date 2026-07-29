@@ -131,6 +131,9 @@ func backendCommand(dial dialer) *cobra.Command {
 		rpcCommand("list", "List backends", cobra.NoArgs, dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, _ []string) (proto.Message, error) {
 			return client.ListBackends(ctx, &controlv1.ListBackendsRequest{})
 		}),
+		rpcCommand("status <backend>", "Show backend installation status", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
+			return client.GetBackendInstallStatus(ctx, &controlv1.GetBackendInstallStatusRequest{Backend: args[0]})
+		}),
 		rpcCommand("install <backend> [version]", "Install a backend", cobra.RangeArgs(1, 2), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
 			version := ""
 			if len(args) == 2 {

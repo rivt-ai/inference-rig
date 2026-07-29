@@ -44,6 +44,38 @@ func (b *Backend) Install(ctx context.Context, opts backends.InstallOptions) (ba
 	return b.installer.install(ctx, opts)
 }
 
+// InstallStatus reports a valid managed environment first, then checks whether
+// the configured host Python can import the server package.
+func (b *Backend) InstallStatus(ctx context.Context) (backends.InstallStatus, error) {
+	root, err := b.engineRoot()
+	if err != nil {
+		return backends.InstallStatus{}, err
+	}
+	state, err := backends.ReadInstallState[installState](root)
+	if err != nil {
+		return backends.InstallStatus{}, err
+	}
+	if state.Executable != "" {
+		if info, statErr := os.Stat(state.Executable); statErr == nil && !info.IsDir() {
+			return backends.InstallStatus{
+				Installed: true, Managed: true,
+				Version: state.Version, Path: state.Executable,
+			}, nil
+		}
+	}
+	path, err := exec.LookPath(b.opts.Executable)
+	if err != nil {
+		return backends.InstallStatus{}, nil
+	}
+	if err := b.opts.runner.Run(ctx, "", io.Discard, path, "-c", "import mlx_lm, mlx_lm.server"); err != nil {
+		if ctx.Err() != nil {
+			return backends.InstallStatus{}, ctx.Err()
+		}
+		return backends.InstallStatus{}, nil
+	}
+	return backends.InstallStatus{Installed: true, Path: path}, nil
+}
+
 func (i *installer) install(ctx context.Context, opts backends.InstallOptions) (backends.InstallResult, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()

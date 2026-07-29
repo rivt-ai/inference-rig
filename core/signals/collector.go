@@ -20,6 +20,10 @@ type GopsutilCollector struct {
 	Runtime RuntimeStatusProvider
 	Clock   Clock
 	Disks   []DiskTarget
+	// Accelerators probes GPU-class devices. Optional: nil reports none. It is a
+	// plain func so the composition root can source it from backend policy
+	// without core/signals depending on the backend registry.
+	Accelerators func(context.Context) ([]AcceleratorStats, []string)
 }
 
 func NewGopsutilCollector(runtime RuntimeStatusProvider, disks []DiskTarget) *GopsutilCollector {
@@ -62,11 +66,31 @@ func (c *GopsutilCollector) Snapshot(ctx context.Context) (Snapshot, error) {
 		warnings = append(warnings, fmt.Sprintf("CPU usage unavailable: %v", err))
 	}
 
+	accelerators, acceleratorWarnings := c.acceleratorStats(ctx, snapshot.Memory)
+	snapshot.Accelerators = accelerators
+	warnings = append(warnings, acceleratorWarnings...)
+
 	processes, processWarnings := c.runtimeProcesses(ctx)
 	snapshot.Runtime = processes
 	warnings = append(warnings, processWarnings...)
 	snapshot.Warnings = warnings
 	return snapshot, nil
+}
+
+// acceleratorStats runs the injected probe and resolves unified-memory devices
+// against system RAM, which is the memory such a device actually draws from.
+func (c *GopsutilCollector) acceleratorStats(ctx context.Context, memory MemoryStats) ([]AcceleratorStats, []string) {
+	if c.Accelerators == nil {
+		return nil, nil
+	}
+	stats, warnings := c.Accelerators(ctx)
+	for i := range stats {
+		if stats[i].UnifiedMemory {
+			stats[i].TotalBytes = memory.TotalBytes
+			stats[i].UsedBytes = memory.UsedBytes
+		}
+	}
+	return stats, warnings
 }
 
 func (c *GopsutilCollector) Machine(ctx context.Context) (MachineSnapshot, error) {
@@ -104,8 +128,10 @@ func (c *GopsutilCollector) diskStats(ctx context.Context) ([]DiskStats, []strin
 }
 
 func (c *GopsutilCollector) runtimeProcesses(ctx context.Context) ([]RuntimeProcessStats, []string) {
+	// The provider is optional; a collector without one simply reports no
+	// per-process rows rather than warning on every snapshot.
 	if c.Runtime == nil {
-		return nil, []string{"runtime process provider unavailable"}
+		return nil, nil
 	}
 	status, err := c.Runtime.Status(ctx)
 	if err != nil {

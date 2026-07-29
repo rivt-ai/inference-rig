@@ -6,13 +6,10 @@ import (
 	"inferencerig/core/profiles"
 )
 
-// Fit estimates whether the profile's model fits the host. llama.cpp uses the
-// discrete axis: VRAM when the host reports a GPU, otherwise available RAM. A
-// profile alone carries no model size, so an un-sized profile yields an
-// "unknown" verdict; FitBySize applies the real math once a resolved artifact
-// size is known.
-func (b *Backend) Fit(_ profiles.Profile, host backends.HostResources) (backends.FitEstimate, error) {
-	return FitBySize(0, host), nil
+// Fit estimates whether a model of sizeBytes fits the host. llama.cpp uses the
+// discrete axis: VRAM when the host reports a GPU, otherwise available RAM.
+func (b *Backend) Fit(_ profiles.Profile, sizeBytes int64, host backends.HostResources) (backends.FitEstimate, error) {
+	return FitBySize(sizeBytes, host), nil
 }
 
 // FitBySize estimates fit for a known on-disk model size against the host's

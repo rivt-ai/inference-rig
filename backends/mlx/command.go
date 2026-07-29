@@ -3,8 +3,9 @@ package mlx
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -45,11 +46,7 @@ func buildCommand(executable string, p profiles.Profile) (Command, error) {
 }
 
 func renderArgs(args map[string]any) ([]string, error) {
-	keys := make([]string, 0, len(args))
-	for key := range args {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(args))
 	var out []string
 	for _, key := range keys {
 		flag, err := mlxFlag(key)
