@@ -9,6 +9,9 @@ startup_services:
 security:
   auth_token_env: "INFERENCERIG_CONTROL_TOKEN"
   disable_origin_check: false
+  # Serve the gateway with no bearer token at all. Only for a single-user local
+  # install: it is rejected unless listen_addr is loopback.
+  disable_auth: false
 
 # Per-profile backend configuration is canonical YAML under
 # ${INFERENCERIG_HOME}/profiles/<name>/profile.yaml (added in Phase 4).
