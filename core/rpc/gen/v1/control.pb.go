@@ -9,6 +9,7 @@ package controlv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -20,6 +21,116 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+type FitLevel int32
+
+const (
+	FitLevel_FIT_LEVEL_UNSPECIFIED FitLevel = 0
+	FitLevel_FIT_LEVEL_UNKNOWN     FitLevel = 1
+	FitLevel_FIT_LEVEL_FITS        FitLevel = 2
+	FitLevel_FIT_LEVEL_MARGINAL    FitLevel = 3
+	FitLevel_FIT_LEVEL_TOO_LARGE   FitLevel = 4
+)
+
+// Enum value maps for FitLevel.
+var (
+	FitLevel_name = map[int32]string{
+		0: "FIT_LEVEL_UNSPECIFIED",
+		1: "FIT_LEVEL_UNKNOWN",
+		2: "FIT_LEVEL_FITS",
+		3: "FIT_LEVEL_MARGINAL",
+		4: "FIT_LEVEL_TOO_LARGE",
+	}
+	FitLevel_value = map[string]int32{
+		"FIT_LEVEL_UNSPECIFIED": 0,
+		"FIT_LEVEL_UNKNOWN":     1,
+		"FIT_LEVEL_FITS":        2,
+		"FIT_LEVEL_MARGINAL":    3,
+		"FIT_LEVEL_TOO_LARGE":   4,
+	}
+)
+
+func (x FitLevel) Enum() *FitLevel {
+	p := new(FitLevel)
+	*p = x
+	return p
+}
+
+func (x FitLevel) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FitLevel) Descriptor() protoreflect.EnumDescriptor {
+	return file_inferencerig_control_v1_control_proto_enumTypes[0].Descriptor()
+}
+
+func (FitLevel) Type() protoreflect.EnumType {
+	return &file_inferencerig_control_v1_control_proto_enumTypes[0]
+}
+
+func (x FitLevel) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FitLevel.Descriptor instead.
+func (FitLevel) EnumDescriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{0}
+}
+
+type ParameterType int32
+
+const (
+	ParameterType_PARAMETER_TYPE_UNSPECIFIED ParameterType = 0
+	ParameterType_PARAMETER_TYPE_STRING      ParameterType = 1
+	ParameterType_PARAMETER_TYPE_INT         ParameterType = 2
+	ParameterType_PARAMETER_TYPE_BOOL        ParameterType = 3
+	ParameterType_PARAMETER_TYPE_LIST        ParameterType = 4
+)
+
+// Enum value maps for ParameterType.
+var (
+	ParameterType_name = map[int32]string{
+		0: "PARAMETER_TYPE_UNSPECIFIED",
+		1: "PARAMETER_TYPE_STRING",
+		2: "PARAMETER_TYPE_INT",
+		3: "PARAMETER_TYPE_BOOL",
+		4: "PARAMETER_TYPE_LIST",
+	}
+	ParameterType_value = map[string]int32{
+		"PARAMETER_TYPE_UNSPECIFIED": 0,
+		"PARAMETER_TYPE_STRING":      1,
+		"PARAMETER_TYPE_INT":         2,
+		"PARAMETER_TYPE_BOOL":        3,
+		"PARAMETER_TYPE_LIST":        4,
+	}
+)
+
+func (x ParameterType) Enum() *ParameterType {
+	p := new(ParameterType)
+	*p = x
+	return p
+}
+
+func (x ParameterType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ParameterType) Descriptor() protoreflect.EnumDescriptor {
+	return file_inferencerig_control_v1_control_proto_enumTypes[1].Descriptor()
+}
+
+func (ParameterType) Type() protoreflect.EnumType {
+	return &file_inferencerig_control_v1_control_proto_enumTypes[1]
+}
+
+func (x ParameterType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ParameterType.Descriptor instead.
+func (ParameterType) EnumDescriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{1}
+}
 
 type HealthRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -474,10 +585,15 @@ func (x *GetProfileRequest) GetName() string {
 }
 
 type PutProfileRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	ProfileYaml   string                 `protobuf:"bytes,2,opt,name=profile_yaml,json=profileYaml,proto3" json:"profile_yaml,omitempty"`
-	CreateOnly    bool                   `protobuf:"varint,3,opt,name=create_only,json=createOnly,proto3" json:"create_only,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Name        string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	ProfileYaml string                 `protobuf:"bytes,2,opt,name=profile_yaml,json=profileYaml,proto3" json:"profile_yaml,omitempty"`
+	CreateOnly  bool                   `protobuf:"varint,3,opt,name=create_only,json=createOnly,proto3" json:"create_only,omitempty"`
+	// profile is the structured alternative to profile_yaml, used when
+	// profile_yaml is empty. The server renders the YAML, so a structured editor
+	// does not need a YAML implementation of its own and cannot disagree with the
+	// server about how a profile serializes.
+	Profile       *Profile `protobuf:"bytes,4,opt,name=profile,proto3" json:"profile,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -531,6 +647,13 @@ func (x *PutProfileRequest) GetCreateOnly() bool {
 		return x.CreateOnly
 	}
 	return false
+}
+
+func (x *PutProfileRequest) GetProfile() *Profile {
+	if x != nil {
+		return x.Profile
+	}
+	return nil
 }
 
 type DeleteProfileRequest struct {
@@ -690,8 +813,13 @@ type Profile struct {
 	ModelReference string                 `protobuf:"bytes,5,opt,name=model_reference,json=modelReference,proto3" json:"model_reference,omitempty"`
 	Host           string                 `protobuf:"bytes,6,opt,name=host,proto3" json:"host,omitempty"`
 	Port           int32                  `protobuf:"varint,7,opt,name=port,proto3" json:"port,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// engine_args mirrors profiles.Profile.EngineArgs. Struct rather than
+	// map<string, string> because engine args carry scalars, bools, and lists,
+	// and both backends depend on the distinction: MLX renders a false bool as
+	// --no-key and a list as a repeated flag.
+	EngineArgs    *structpb.Struct `protobuf:"bytes,8,opt,name=engine_args,json=engineArgs,proto3" json:"engine_args,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Profile) Reset() {
@@ -771,6 +899,13 @@ func (x *Profile) GetPort() int32 {
 		return x.Port
 	}
 	return 0
+}
+
+func (x *Profile) GetEngineArgs() *structpb.Struct {
+	if x != nil {
+		return x.EngineArgs
+	}
+	return nil
 }
 
 type DeleteProfileResponse struct {
@@ -961,6 +1096,126 @@ func (x *InstallBackendResponse) GetMessage() string {
 	return ""
 }
 
+type GetBackendInstallStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Backend       string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBackendInstallStatusRequest) Reset() {
+	*x = GetBackendInstallStatusRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBackendInstallStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBackendInstallStatusRequest) ProtoMessage() {}
+
+func (x *GetBackendInstallStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBackendInstallStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetBackendInstallStatusRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *GetBackendInstallStatusRequest) GetBackend() string {
+	if x != nil {
+		return x.Backend
+	}
+	return ""
+}
+
+type GetBackendInstallStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Installed     bool                   `protobuf:"varint,2,opt,name=installed,proto3" json:"installed,omitempty"`
+	Managed       bool                   `protobuf:"varint,3,opt,name=managed,proto3" json:"managed,omitempty"`
+	Version       string                 `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	Path          string                 `protobuf:"bytes,5,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBackendInstallStatusResponse) Reset() {
+	*x = GetBackendInstallStatusResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBackendInstallStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBackendInstallStatusResponse) ProtoMessage() {}
+
+func (x *GetBackendInstallStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBackendInstallStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetBackendInstallStatusResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *GetBackendInstallStatusResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *GetBackendInstallStatusResponse) GetInstalled() bool {
+	if x != nil {
+		return x.Installed
+	}
+	return false
+}
+
+func (x *GetBackendInstallStatusResponse) GetManaged() bool {
+	if x != nil {
+		return x.Managed
+	}
+	return false
+}
+
+func (x *GetBackendInstallStatusResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *GetBackendInstallStatusResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
 type StartRuntimeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Profile       string                 `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
@@ -970,7 +1225,7 @@ type StartRuntimeRequest struct {
 
 func (x *StartRuntimeRequest) Reset() {
 	*x = StartRuntimeRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[17]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -982,7 +1237,7 @@ func (x *StartRuntimeRequest) String() string {
 func (*StartRuntimeRequest) ProtoMessage() {}
 
 func (x *StartRuntimeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[17]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -995,7 +1250,7 @@ func (x *StartRuntimeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartRuntimeRequest.ProtoReflect.Descriptor instead.
 func (*StartRuntimeRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{17}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *StartRuntimeRequest) GetProfile() string {
@@ -1016,7 +1271,7 @@ type StartRuntimeResponse struct {
 
 func (x *StartRuntimeResponse) Reset() {
 	*x = StartRuntimeResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[18]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1028,7 +1283,7 @@ func (x *StartRuntimeResponse) String() string {
 func (*StartRuntimeResponse) ProtoMessage() {}
 
 func (x *StartRuntimeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[18]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1041,7 +1296,7 @@ func (x *StartRuntimeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartRuntimeResponse.ProtoReflect.Descriptor instead.
 func (*StartRuntimeResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{18}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *StartRuntimeResponse) GetOk() bool {
@@ -1074,7 +1329,7 @@ type StopRuntimeRequest struct {
 
 func (x *StopRuntimeRequest) Reset() {
 	*x = StopRuntimeRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[19]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1086,7 +1341,7 @@ func (x *StopRuntimeRequest) String() string {
 func (*StopRuntimeRequest) ProtoMessage() {}
 
 func (x *StopRuntimeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[19]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1099,7 +1354,7 @@ func (x *StopRuntimeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRuntimeRequest.ProtoReflect.Descriptor instead.
 func (*StopRuntimeRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{19}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *StopRuntimeRequest) GetProfile() string {
@@ -1120,7 +1375,7 @@ type StopRuntimeResponse struct {
 
 func (x *StopRuntimeResponse) Reset() {
 	*x = StopRuntimeResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[20]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1132,7 +1387,7 @@ func (x *StopRuntimeResponse) String() string {
 func (*StopRuntimeResponse) ProtoMessage() {}
 
 func (x *StopRuntimeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[20]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1145,7 +1400,7 @@ func (x *StopRuntimeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRuntimeResponse.ProtoReflect.Descriptor instead.
 func (*StopRuntimeResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{20}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *StopRuntimeResponse) GetOk() bool {
@@ -1169,6 +1424,9 @@ func (x *StopRuntimeResponse) GetStatus() *RuntimeStatus {
 	return nil
 }
 
+// GetRuntimeStatusRequest with an empty profile reports every profile at once.
+// A dashboard polling each profile separately would issue one call per profile
+// per tick.
 type GetRuntimeStatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Profile       string                 `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
@@ -1178,7 +1436,7 @@ type GetRuntimeStatusRequest struct {
 
 func (x *GetRuntimeStatusRequest) Reset() {
 	*x = GetRuntimeStatusRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[21]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1190,7 +1448,7 @@ func (x *GetRuntimeStatusRequest) String() string {
 func (*GetRuntimeStatusRequest) ProtoMessage() {}
 
 func (x *GetRuntimeStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[21]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1203,7 +1461,7 @@ func (x *GetRuntimeStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRuntimeStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetRuntimeStatusRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{21}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *GetRuntimeStatusRequest) GetProfile() string {
@@ -1214,16 +1472,19 @@ func (x *GetRuntimeStatusRequest) GetProfile() string {
 }
 
 type GetRuntimeStatusResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	Status        *RuntimeStatus         `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Ok    bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	// status is the aggregate when no profile was named, or that profile's status.
+	Status *RuntimeStatus `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	// profiles is populated only for the all-profiles form.
+	Profiles      []*ProfileRuntimeStatus `protobuf:"bytes,3,rep,name=profiles,proto3" json:"profiles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetRuntimeStatusResponse) Reset() {
 	*x = GetRuntimeStatusResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[22]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1235,7 +1496,7 @@ func (x *GetRuntimeStatusResponse) String() string {
 func (*GetRuntimeStatusResponse) ProtoMessage() {}
 
 func (x *GetRuntimeStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[22]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1248,7 +1509,7 @@ func (x *GetRuntimeStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRuntimeStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetRuntimeStatusResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{22}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *GetRuntimeStatusResponse) GetOk() bool {
@@ -1259,6 +1520,73 @@ func (x *GetRuntimeStatusResponse) GetOk() bool {
 }
 
 func (x *GetRuntimeStatusResponse) GetStatus() *RuntimeStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+func (x *GetRuntimeStatusResponse) GetProfiles() []*ProfileRuntimeStatus {
+	if x != nil {
+		return x.Profiles
+	}
+	return nil
+}
+
+type ProfileRuntimeStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Backend       string                 `protobuf:"bytes,2,opt,name=backend,proto3" json:"backend,omitempty"`
+	Status        *RuntimeStatus         `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProfileRuntimeStatus) Reset() {
+	*x = ProfileRuntimeStatus{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProfileRuntimeStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProfileRuntimeStatus) ProtoMessage() {}
+
+func (x *ProfileRuntimeStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProfileRuntimeStatus.ProtoReflect.Descriptor instead.
+func (*ProfileRuntimeStatus) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ProfileRuntimeStatus) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ProfileRuntimeStatus) GetBackend() string {
+	if x != nil {
+		return x.Backend
+	}
+	return ""
+}
+
+func (x *ProfileRuntimeStatus) GetStatus() *RuntimeStatus {
 	if x != nil {
 		return x.Status
 	}
@@ -1278,7 +1606,7 @@ type CommandResult struct {
 
 func (x *CommandResult) Reset() {
 	*x = CommandResult{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[23]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1290,7 +1618,7 @@ func (x *CommandResult) String() string {
 func (*CommandResult) ProtoMessage() {}
 
 func (x *CommandResult) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[23]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1303,7 +1631,7 @@ func (x *CommandResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandResult.ProtoReflect.Descriptor instead.
 func (*CommandResult) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{23}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *CommandResult) GetAction() string {
@@ -1353,7 +1681,7 @@ type RuntimeStatus struct {
 
 func (x *RuntimeStatus) Reset() {
 	*x = RuntimeStatus{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[24]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1365,7 +1693,7 @@ func (x *RuntimeStatus) String() string {
 func (*RuntimeStatus) ProtoMessage() {}
 
 func (x *RuntimeStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[24]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1378,7 +1706,7 @@ func (x *RuntimeStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeStatus.ProtoReflect.Descriptor instead.
 func (*RuntimeStatus) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{24}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *RuntimeStatus) GetState() string {
@@ -1424,7 +1752,7 @@ type ProcessStatus struct {
 
 func (x *ProcessStatus) Reset() {
 	*x = ProcessStatus{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[25]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1436,7 +1764,7 @@ func (x *ProcessStatus) String() string {
 func (*ProcessStatus) ProtoMessage() {}
 
 func (x *ProcessStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[25]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1449,7 +1777,7 @@ func (x *ProcessStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessStatus.ProtoReflect.Descriptor instead.
 func (*ProcessStatus) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{25}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ProcessStatus) GetName() string {
@@ -1510,7 +1838,7 @@ type ResolveProfileModelRequest struct {
 
 func (x *ResolveProfileModelRequest) Reset() {
 	*x = ResolveProfileModelRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[26]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1522,7 +1850,7 @@ func (x *ResolveProfileModelRequest) String() string {
 func (*ResolveProfileModelRequest) ProtoMessage() {}
 
 func (x *ResolveProfileModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[26]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1535,7 +1863,7 @@ func (x *ResolveProfileModelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveProfileModelRequest.ProtoReflect.Descriptor instead.
 func (*ResolveProfileModelRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{26}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ResolveProfileModelRequest) GetProfile() string {
@@ -1556,7 +1884,7 @@ type ResolveProfileModelResponse struct {
 
 func (x *ResolveProfileModelResponse) Reset() {
 	*x = ResolveProfileModelResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[27]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1568,7 +1896,7 @@ func (x *ResolveProfileModelResponse) String() string {
 func (*ResolveProfileModelResponse) ProtoMessage() {}
 
 func (x *ResolveProfileModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[27]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1581,7 +1909,7 @@ func (x *ResolveProfileModelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveProfileModelResponse.ProtoReflect.Descriptor instead.
 func (*ResolveProfileModelResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{27}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ResolveProfileModelResponse) GetOk() bool {
@@ -1617,7 +1945,7 @@ type ResolvedModel struct {
 
 func (x *ResolvedModel) Reset() {
 	*x = ResolvedModel{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[28]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1629,7 +1957,7 @@ func (x *ResolvedModel) String() string {
 func (*ResolvedModel) ProtoMessage() {}
 
 func (x *ResolvedModel) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[28]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1642,7 +1970,7 @@ func (x *ResolvedModel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolvedModel.ProtoReflect.Descriptor instead.
 func (*ResolvedModel) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{28}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ResolvedModel) GetSource() string {
@@ -1684,7 +2012,7 @@ type Artifact struct {
 
 func (x *Artifact) Reset() {
 	*x = Artifact{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[29]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1696,7 +2024,7 @@ func (x *Artifact) String() string {
 func (*Artifact) ProtoMessage() {}
 
 func (x *Artifact) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[29]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1709,7 +2037,7 @@ func (x *Artifact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Artifact.ProtoReflect.Descriptor instead.
 func (*Artifact) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{29}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *Artifact) GetName() string {
@@ -1745,7 +2073,7 @@ type ArtifactPlan struct {
 
 func (x *ArtifactPlan) Reset() {
 	*x = ArtifactPlan{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[30]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1757,7 +2085,7 @@ func (x *ArtifactPlan) String() string {
 func (*ArtifactPlan) ProtoMessage() {}
 
 func (x *ArtifactPlan) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[30]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1770,7 +2098,7 @@ func (x *ArtifactPlan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactPlan.ProtoReflect.Descriptor instead.
 func (*ArtifactPlan) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{30}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ArtifactPlan) GetMultiFile() bool {
@@ -1813,7 +2141,7 @@ type ArtifactItem struct {
 
 func (x *ArtifactItem) Reset() {
 	*x = ArtifactItem{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[31]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1825,7 +2153,7 @@ func (x *ArtifactItem) String() string {
 func (*ArtifactItem) ProtoMessage() {}
 
 func (x *ArtifactItem) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[31]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1838,7 +2166,7 @@ func (x *ArtifactItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactItem.ProtoReflect.Descriptor instead.
 func (*ArtifactItem) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{31}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ArtifactItem) GetUri() string {
@@ -1869,17 +2197,150 @@ func (x *ArtifactItem) GetSizeBytes() int64 {
 	return 0
 }
 
-type StartModelDownloadRequest struct {
+type ResolveModelRequest struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Backend string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
+	// reference is a catalog reference or repository URL.
+	Reference string `protobuf:"bytes,2,opt,name=reference,proto3" json:"reference,omitempty"`
+	// variant_reference selects one artifact inside the repository the reference
+	// names, exactly as Variant.reference reports it. A catalog entry is a
+	// repository plus a file within it; sending only the filename leaves no host
+	// to fetch from, so both halves travel together.
+	VariantReference string `protobuf:"bytes,3,opt,name=variant_reference,json=variantReference,proto3" json:"variant_reference,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ResolveModelRequest) Reset() {
+	*x = ResolveModelRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveModelRequest) ProtoMessage() {}
+
+func (x *ResolveModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveModelRequest.ProtoReflect.Descriptor instead.
+func (*ResolveModelRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ResolveModelRequest) GetBackend() string {
+	if x != nil {
+		return x.Backend
+	}
+	return ""
+}
+
+func (x *ResolveModelRequest) GetReference() string {
+	if x != nil {
+		return x.Reference
+	}
+	return ""
+}
+
+func (x *ResolveModelRequest) GetVariantReference() string {
+	if x != nil {
+		return x.VariantReference
+	}
+	return ""
+}
+
+type ResolveModelResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Profile       string                 `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
-	Force         bool                   `protobuf:"varint,2,opt,name=force,proto3" json:"force,omitempty"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Model         *ResolvedModel         `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
+	Plan          *ArtifactPlan          `protobuf:"bytes,3,opt,name=plan,proto3" json:"plan,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
+func (x *ResolveModelResponse) Reset() {
+	*x = ResolveModelResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveModelResponse) ProtoMessage() {}
+
+func (x *ResolveModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveModelResponse.ProtoReflect.Descriptor instead.
+func (*ResolveModelResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *ResolveModelResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ResolveModelResponse) GetModel() *ResolvedModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+func (x *ResolveModelResponse) GetPlan() *ArtifactPlan {
+	if x != nil {
+		return x.Plan
+	}
+	return nil
+}
+
+type StartModelDownloadRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// profile downloads that profile's model. Leave it empty and set
+	// backend + reference to download a catalog entry before any profile exists,
+	// which is the order the catalog UI works in.
+	Profile   string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	Force     bool   `protobuf:"varint,2,opt,name=force,proto3" json:"force,omitempty"`
+	Backend   string `protobuf:"bytes,3,opt,name=backend,proto3" json:"backend,omitempty"`
+	Reference string `protobuf:"bytes,4,opt,name=reference,proto3" json:"reference,omitempty"`
+	// variant_reference selects one artifact inside the repository, as in
+	// ResolveModelRequest.
+	VariantReference string `protobuf:"bytes,5,opt,name=variant_reference,json=variantReference,proto3" json:"variant_reference,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
 func (x *StartModelDownloadRequest) Reset() {
 	*x = StartModelDownloadRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[32]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1891,7 +2352,7 @@ func (x *StartModelDownloadRequest) String() string {
 func (*StartModelDownloadRequest) ProtoMessage() {}
 
 func (x *StartModelDownloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[32]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1904,7 +2365,7 @@ func (x *StartModelDownloadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartModelDownloadRequest.ProtoReflect.Descriptor instead.
 func (*StartModelDownloadRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{32}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *StartModelDownloadRequest) GetProfile() string {
@@ -1921,6 +2382,27 @@ func (x *StartModelDownloadRequest) GetForce() bool {
 	return false
 }
 
+func (x *StartModelDownloadRequest) GetBackend() string {
+	if x != nil {
+		return x.Backend
+	}
+	return ""
+}
+
+func (x *StartModelDownloadRequest) GetReference() string {
+	if x != nil {
+		return x.Reference
+	}
+	return ""
+}
+
+func (x *StartModelDownloadRequest) GetVariantReference() string {
+	if x != nil {
+		return x.VariantReference
+	}
+	return ""
+}
+
 type StartModelDownloadResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
@@ -1931,7 +2413,7 @@ type StartModelDownloadResponse struct {
 
 func (x *StartModelDownloadResponse) Reset() {
 	*x = StartModelDownloadResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[33]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1943,7 +2425,7 @@ func (x *StartModelDownloadResponse) String() string {
 func (*StartModelDownloadResponse) ProtoMessage() {}
 
 func (x *StartModelDownloadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[33]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1956,7 +2438,7 @@ func (x *StartModelDownloadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartModelDownloadResponse.ProtoReflect.Descriptor instead.
 func (*StartModelDownloadResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{33}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *StartModelDownloadResponse) GetOk() bool {
@@ -1982,7 +2464,7 @@ type GetModelDownloadRequest struct {
 
 func (x *GetModelDownloadRequest) Reset() {
 	*x = GetModelDownloadRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[34]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1994,7 +2476,7 @@ func (x *GetModelDownloadRequest) String() string {
 func (*GetModelDownloadRequest) ProtoMessage() {}
 
 func (x *GetModelDownloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[34]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2007,7 +2489,7 @@ func (x *GetModelDownloadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetModelDownloadRequest.ProtoReflect.Descriptor instead.
 func (*GetModelDownloadRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{34}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *GetModelDownloadRequest) GetId() string {
@@ -2027,7 +2509,7 @@ type GetModelDownloadResponse struct {
 
 func (x *GetModelDownloadResponse) Reset() {
 	*x = GetModelDownloadResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[35]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2039,7 +2521,7 @@ func (x *GetModelDownloadResponse) String() string {
 func (*GetModelDownloadResponse) ProtoMessage() {}
 
 func (x *GetModelDownloadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[35]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2052,7 +2534,7 @@ func (x *GetModelDownloadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetModelDownloadResponse.ProtoReflect.Descriptor instead.
 func (*GetModelDownloadResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{35}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetModelDownloadResponse) GetOk() bool {
@@ -2078,7 +2560,7 @@ type CancelModelDownloadRequest struct {
 
 func (x *CancelModelDownloadRequest) Reset() {
 	*x = CancelModelDownloadRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[36]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2090,7 +2572,7 @@ func (x *CancelModelDownloadRequest) String() string {
 func (*CancelModelDownloadRequest) ProtoMessage() {}
 
 func (x *CancelModelDownloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[36]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2103,7 +2585,7 @@ func (x *CancelModelDownloadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelModelDownloadRequest.ProtoReflect.Descriptor instead.
 func (*CancelModelDownloadRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{36}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *CancelModelDownloadRequest) GetId() string {
@@ -2123,7 +2605,7 @@ type CancelModelDownloadResponse struct {
 
 func (x *CancelModelDownloadResponse) Reset() {
 	*x = CancelModelDownloadResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[37]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2135,7 +2617,7 @@ func (x *CancelModelDownloadResponse) String() string {
 func (*CancelModelDownloadResponse) ProtoMessage() {}
 
 func (x *CancelModelDownloadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[37]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2148,7 +2630,7 @@ func (x *CancelModelDownloadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelModelDownloadResponse.ProtoReflect.Descriptor instead.
 func (*CancelModelDownloadResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{37}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *CancelModelDownloadResponse) GetOk() bool {
@@ -2186,7 +2668,7 @@ type ModelDownload struct {
 
 func (x *ModelDownload) Reset() {
 	*x = ModelDownload{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[38]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2198,7 +2680,7 @@ func (x *ModelDownload) String() string {
 func (*ModelDownload) ProtoMessage() {}
 
 func (x *ModelDownload) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[38]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2211,7 +2693,7 @@ func (x *ModelDownload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelDownload.ProtoReflect.Descriptor instead.
 func (*ModelDownload) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{38}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ModelDownload) GetId() string {
@@ -2313,7 +2795,7 @@ type GetSignalsRequest struct {
 
 func (x *GetSignalsRequest) Reset() {
 	*x = GetSignalsRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[39]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2325,7 +2807,7 @@ func (x *GetSignalsRequest) String() string {
 func (*GetSignalsRequest) ProtoMessage() {}
 
 func (x *GetSignalsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[39]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2338,7 +2820,7 @@ func (x *GetSignalsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSignalsRequest.ProtoReflect.Descriptor instead.
 func (*GetSignalsRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{39}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{44}
 }
 
 type GetSignalsResponse struct {
@@ -2351,7 +2833,7 @@ type GetSignalsResponse struct {
 
 func (x *GetSignalsResponse) Reset() {
 	*x = GetSignalsResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[40]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2363,7 +2845,7 @@ func (x *GetSignalsResponse) String() string {
 func (*GetSignalsResponse) ProtoMessage() {}
 
 func (x *GetSignalsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[40]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2376,7 +2858,7 @@ func (x *GetSignalsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSignalsResponse.ProtoReflect.Descriptor instead.
 func (*GetSignalsResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{40}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *GetSignalsResponse) GetOk() bool {
@@ -2401,13 +2883,21 @@ type Signals struct {
 	LogicalCpuCores      int32                  `protobuf:"varint,4,opt,name=logical_cpu_cores,json=logicalCpuCores,proto3" json:"logical_cpu_cores,omitempty"`
 	CpuUsedPercent       float64                `protobuf:"fixed64,5,opt,name=cpu_used_percent,json=cpuUsedPercent,proto3" json:"cpu_used_percent,omitempty"`
 	Warnings             []string               `protobuf:"bytes,6,rep,name=warnings,proto3" json:"warnings,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	Accelerators         []*Accelerator         `protobuf:"bytes,7,rep,name=accelerators,proto3" json:"accelerators,omitempty"`
+	Disks                []*Disk                `protobuf:"bytes,8,rep,name=disks,proto3" json:"disks,omitempty"`
+	UsedMemoryBytes      uint64                 `protobuf:"varint,9,opt,name=used_memory_bytes,json=usedMemoryBytes,proto3" json:"used_memory_bytes,omitempty"`
+	UsedMemoryPercent    float64                `protobuf:"fixed64,10,opt,name=used_memory_percent,json=usedMemoryPercent,proto3" json:"used_memory_percent,omitempty"`
+	Host                 *HostInfo              `protobuf:"bytes,11,opt,name=host,proto3" json:"host,omitempty"`
+	// runtime carries per-process resource use. The collector has produced this
+	// since Phase 2; the message previously dropped it on the floor.
+	Runtime       []*RuntimeProcess `protobuf:"bytes,12,rep,name=runtime,proto3" json:"runtime,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Signals) Reset() {
 	*x = Signals{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[41]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2419,7 +2909,7 @@ func (x *Signals) String() string {
 func (*Signals) ProtoMessage() {}
 
 func (x *Signals) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[41]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2432,7 +2922,7 @@ func (x *Signals) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Signals.ProtoReflect.Descriptor instead.
 func (*Signals) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{41}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *Signals) GetCapturedAt() string {
@@ -2477,6 +2967,386 @@ func (x *Signals) GetWarnings() []string {
 	return nil
 }
 
+func (x *Signals) GetAccelerators() []*Accelerator {
+	if x != nil {
+		return x.Accelerators
+	}
+	return nil
+}
+
+func (x *Signals) GetDisks() []*Disk {
+	if x != nil {
+		return x.Disks
+	}
+	return nil
+}
+
+func (x *Signals) GetUsedMemoryBytes() uint64 {
+	if x != nil {
+		return x.UsedMemoryBytes
+	}
+	return 0
+}
+
+func (x *Signals) GetUsedMemoryPercent() float64 {
+	if x != nil {
+		return x.UsedMemoryPercent
+	}
+	return 0
+}
+
+func (x *Signals) GetHost() *HostInfo {
+	if x != nil {
+		return x.Host
+	}
+	return nil
+}
+
+func (x *Signals) GetRuntime() []*RuntimeProcess {
+	if x != nil {
+		return x.Runtime
+	}
+	return nil
+}
+
+type HostInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Hostname      string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Os            string                 `protobuf:"bytes,2,opt,name=os,proto3" json:"os,omitempty"`
+	Platform      string                 `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HostInfo) Reset() {
+	*x = HostInfo{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HostInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HostInfo) ProtoMessage() {}
+
+func (x *HostInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HostInfo.ProtoReflect.Descriptor instead.
+func (*HostInfo) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *HostInfo) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *HostInfo) GetOs() string {
+	if x != nil {
+		return x.Os
+	}
+	return ""
+}
+
+func (x *HostInfo) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+type RuntimeProcess struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Pid           int32                  `protobuf:"varint,2,opt,name=pid,proto3" json:"pid,omitempty"`
+	RssBytes      uint64                 `protobuf:"varint,3,opt,name=rss_bytes,json=rssBytes,proto3" json:"rss_bytes,omitempty"`
+	CpuPercent    float64                `protobuf:"fixed64,4,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"`
+	Command       string                 `protobuf:"bytes,5,opt,name=command,proto3" json:"command,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RuntimeProcess) Reset() {
+	*x = RuntimeProcess{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimeProcess) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimeProcess) ProtoMessage() {}
+
+func (x *RuntimeProcess) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimeProcess.ProtoReflect.Descriptor instead.
+func (*RuntimeProcess) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *RuntimeProcess) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RuntimeProcess) GetPid() int32 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *RuntimeProcess) GetRssBytes() uint64 {
+	if x != nil {
+		return x.RssBytes
+	}
+	return 0
+}
+
+func (x *RuntimeProcess) GetCpuPercent() float64 {
+	if x != nil {
+		return x.CpuPercent
+	}
+	return 0
+}
+
+func (x *RuntimeProcess) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+// Accelerator is one GPU-class compute device. unified_memory distinguishes the
+// two memory models a host can have: a unified device (Apple Metal) shares
+// system RAM, so its byte fields mirror system memory, while a discrete device
+// reports its own dedicated VRAM. One message serves both.
+type Accelerator struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Name             string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	UnifiedMemory    bool                   `protobuf:"varint,2,opt,name=unified_memory,json=unifiedMemory,proto3" json:"unified_memory,omitempty"`
+	TotalMemoryBytes uint64                 `protobuf:"varint,3,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
+	UsedMemoryBytes  uint64                 `protobuf:"varint,4,opt,name=used_memory_bytes,json=usedMemoryBytes,proto3" json:"used_memory_bytes,omitempty"`
+	// The fields below are optional and often unset: utilisation needs a vendor
+	// tool (NVML, Metal counters), and Apple Silicon does not report GPU
+	// temperature without elevated privileges. Clients must treat has_* as the
+	// signal to render, not a zero value, which is indistinguishable from idle.
+	UtilizationPercent float64 `protobuf:"fixed64,5,opt,name=utilization_percent,json=utilizationPercent,proto3" json:"utilization_percent,omitempty"`
+	HasUtilization     bool    `protobuf:"varint,6,opt,name=has_utilization,json=hasUtilization,proto3" json:"has_utilization,omitempty"`
+	TemperatureCelsius float64 `protobuf:"fixed64,7,opt,name=temperature_celsius,json=temperatureCelsius,proto3" json:"temperature_celsius,omitempty"`
+	HasTemperature     bool    `protobuf:"varint,8,opt,name=has_temperature,json=hasTemperature,proto3" json:"has_temperature,omitempty"`
+	// source names what produced this reading, so an implausible number can be
+	// traced to its collector.
+	Source        string `protobuf:"bytes,9,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Accelerator) Reset() {
+	*x = Accelerator{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Accelerator) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Accelerator) ProtoMessage() {}
+
+func (x *Accelerator) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Accelerator.ProtoReflect.Descriptor instead.
+func (*Accelerator) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *Accelerator) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Accelerator) GetUnifiedMemory() bool {
+	if x != nil {
+		return x.UnifiedMemory
+	}
+	return false
+}
+
+func (x *Accelerator) GetTotalMemoryBytes() uint64 {
+	if x != nil {
+		return x.TotalMemoryBytes
+	}
+	return 0
+}
+
+func (x *Accelerator) GetUsedMemoryBytes() uint64 {
+	if x != nil {
+		return x.UsedMemoryBytes
+	}
+	return 0
+}
+
+func (x *Accelerator) GetUtilizationPercent() float64 {
+	if x != nil {
+		return x.UtilizationPercent
+	}
+	return 0
+}
+
+func (x *Accelerator) GetHasUtilization() bool {
+	if x != nil {
+		return x.HasUtilization
+	}
+	return false
+}
+
+func (x *Accelerator) GetTemperatureCelsius() float64 {
+	if x != nil {
+		return x.TemperatureCelsius
+	}
+	return 0
+}
+
+func (x *Accelerator) GetHasTemperature() bool {
+	if x != nil {
+		return x.HasTemperature
+	}
+	return false
+}
+
+func (x *Accelerator) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+type Disk struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Label         string                 `protobuf:"bytes,1,opt,name=label,proto3" json:"label,omitempty"`
+	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	TotalBytes    uint64                 `protobuf:"varint,3,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
+	UsedBytes     uint64                 `protobuf:"varint,4,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
+	UsedPercent   float64                `protobuf:"fixed64,5,opt,name=used_percent,json=usedPercent,proto3" json:"used_percent,omitempty"`
+	FreeBytes     uint64                 `protobuf:"varint,6,opt,name=free_bytes,json=freeBytes,proto3" json:"free_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Disk) Reset() {
+	*x = Disk{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Disk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Disk) ProtoMessage() {}
+
+func (x *Disk) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Disk.ProtoReflect.Descriptor instead.
+func (*Disk) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *Disk) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *Disk) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *Disk) GetTotalBytes() uint64 {
+	if x != nil {
+		return x.TotalBytes
+	}
+	return 0
+}
+
+func (x *Disk) GetUsedBytes() uint64 {
+	if x != nil {
+		return x.UsedBytes
+	}
+	return 0
+}
+
+func (x *Disk) GetUsedPercent() float64 {
+	if x != nil {
+		return x.UsedPercent
+	}
+	return 0
+}
+
+func (x *Disk) GetFreeBytes() uint64 {
+	if x != nil {
+		return x.FreeBytes
+	}
+	return 0
+}
+
 type ListEventsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -2485,7 +3355,7 @@ type ListEventsRequest struct {
 
 func (x *ListEventsRequest) Reset() {
 	*x = ListEventsRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[42]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2497,7 +3367,7 @@ func (x *ListEventsRequest) String() string {
 func (*ListEventsRequest) ProtoMessage() {}
 
 func (x *ListEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[42]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2510,7 +3380,7 @@ func (x *ListEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEventsRequest.ProtoReflect.Descriptor instead.
 func (*ListEventsRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{42}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{51}
 }
 
 type ListEventsResponse struct {
@@ -2523,7 +3393,7 @@ type ListEventsResponse struct {
 
 func (x *ListEventsResponse) Reset() {
 	*x = ListEventsResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[43]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2535,7 +3405,7 @@ func (x *ListEventsResponse) String() string {
 func (*ListEventsResponse) ProtoMessage() {}
 
 func (x *ListEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[43]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2548,7 +3418,7 @@ func (x *ListEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEventsResponse.ProtoReflect.Descriptor instead.
 func (*ListEventsResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{43}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ListEventsResponse) GetOk() bool {
@@ -2573,7 +3443,7 @@ type WatchEventsRequest struct {
 
 func (x *WatchEventsRequest) Reset() {
 	*x = WatchEventsRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[44]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2585,7 +3455,7 @@ func (x *WatchEventsRequest) String() string {
 func (*WatchEventsRequest) ProtoMessage() {}
 
 func (x *WatchEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[44]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2598,7 +3468,7 @@ func (x *WatchEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchEventsRequest.ProtoReflect.Descriptor instead.
 func (*WatchEventsRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{44}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{53}
 }
 
 type WatchEventsResponse struct {
@@ -2610,7 +3480,7 @@ type WatchEventsResponse struct {
 
 func (x *WatchEventsResponse) Reset() {
 	*x = WatchEventsResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[45]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2622,7 +3492,7 @@ func (x *WatchEventsResponse) String() string {
 func (*WatchEventsResponse) ProtoMessage() {}
 
 func (x *WatchEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[45]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2635,7 +3505,7 @@ func (x *WatchEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchEventsResponse.ProtoReflect.Descriptor instead.
 func (*WatchEventsResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{45}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *WatchEventsResponse) GetEvent() *Event {
@@ -2659,7 +3529,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[46]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2671,7 +3541,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[46]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2684,7 +3554,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{46}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *Event) GetId() string {
@@ -2730,17 +3600,21 @@ func (x *Event) GetDuration() string {
 }
 
 type ListModelCatalogRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Backend       string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
-	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Backend string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
+	Query   string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	Limit   int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	// sort orders results server-side: "downloads", "likes", "modified", "fit".
+	Sort string `protobuf:"bytes,4,opt,name=sort,proto3" json:"sort,omitempty"`
+	// min_fit drops models whose best variant does not reach this fit level.
+	MinFit        FitLevel `protobuf:"varint,5,opt,name=min_fit,json=minFit,proto3,enum=inferencerig.control.v1.FitLevel" json:"min_fit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListModelCatalogRequest) Reset() {
 	*x = ListModelCatalogRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[47]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2752,7 +3626,7 @@ func (x *ListModelCatalogRequest) String() string {
 func (*ListModelCatalogRequest) ProtoMessage() {}
 
 func (x *ListModelCatalogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[47]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2765,7 +3639,7 @@ func (x *ListModelCatalogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelCatalogRequest.ProtoReflect.Descriptor instead.
 func (*ListModelCatalogRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{47}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *ListModelCatalogRequest) GetBackend() string {
@@ -2789,19 +3663,39 @@ func (x *ListModelCatalogRequest) GetLimit() int32 {
 	return 0
 }
 
+func (x *ListModelCatalogRequest) GetSort() string {
+	if x != nil {
+		return x.Sort
+	}
+	return ""
+}
+
+func (x *ListModelCatalogRequest) GetMinFit() FitLevel {
+	if x != nil {
+		return x.MinFit
+	}
+	return FitLevel_FIT_LEVEL_UNSPECIFIED
+}
+
 type ListModelCatalogResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	Models        []*CatalogModel        `protobuf:"bytes,2,rep,name=models,proto3" json:"models,omitempty"`
-	CacheHit      bool                   `protobuf:"varint,3,opt,name=cache_hit,json=cacheHit,proto3" json:"cache_hit,omitempty"`
-	Stale         bool                   `protobuf:"varint,4,opt,name=stale,proto3" json:"stale,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Ok       bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Models   []*CatalogModel        `protobuf:"bytes,2,rep,name=models,proto3" json:"models,omitempty"`
+	CacheHit bool                   `protobuf:"varint,3,opt,name=cache_hit,json=cacheHit,proto3" json:"cache_hit,omitempty"`
+	Stale    bool                   `protobuf:"varint,4,opt,name=stale,proto3" json:"stale,omitempty"`
+	// machine is the host the fit estimates were computed against, so a client
+	// can explain a verdict instead of just showing a colour.
+	Machine *MachineProfile    `protobuf:"bytes,5,opt,name=machine,proto3" json:"machine,omitempty"`
+	Cache   *CatalogCacheState `protobuf:"bytes,6,opt,name=cache,proto3" json:"cache,omitempty"`
+	// errors carries per-source failures from a partially successful refresh.
+	Errors        []string `protobuf:"bytes,7,rep,name=errors,proto3" json:"errors,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListModelCatalogResponse) Reset() {
 	*x = ListModelCatalogResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[48]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2813,7 +3707,7 @@ func (x *ListModelCatalogResponse) String() string {
 func (*ListModelCatalogResponse) ProtoMessage() {}
 
 func (x *ListModelCatalogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[48]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2826,7 +3720,7 @@ func (x *ListModelCatalogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelCatalogResponse.ProtoReflect.Descriptor instead.
 func (*ListModelCatalogResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{48}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *ListModelCatalogResponse) GetOk() bool {
@@ -2857,22 +3751,198 @@ func (x *ListModelCatalogResponse) GetStale() bool {
 	return false
 }
 
-type CatalogModel struct {
+func (x *ListModelCatalogResponse) GetMachine() *MachineProfile {
+	if x != nil {
+		return x.Machine
+	}
+	return nil
+}
+
+func (x *ListModelCatalogResponse) GetCache() *CatalogCacheState {
+	if x != nil {
+		return x.Cache
+	}
+	return nil
+}
+
+func (x *ListModelCatalogResponse) GetErrors() []string {
+	if x != nil {
+		return x.Errors
+	}
+	return nil
+}
+
+type MachineProfile struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	TotalMemoryBytes       uint64                 `protobuf:"varint,1,opt,name=total_memory_bytes,json=totalMemoryBytes,proto3" json:"total_memory_bytes,omitempty"`
+	AvailableMemoryBytes   uint64                 `protobuf:"varint,2,opt,name=available_memory_bytes,json=availableMemoryBytes,proto3" json:"available_memory_bytes,omitempty"`
+	AcceleratorName        string                 `protobuf:"bytes,3,opt,name=accelerator_name,json=acceleratorName,proto3" json:"accelerator_name,omitempty"`
+	UnifiedMemory          bool                   `protobuf:"varint,4,opt,name=unified_memory,json=unifiedMemory,proto3" json:"unified_memory,omitempty"`
+	AcceleratorMemoryBytes uint64                 `protobuf:"varint,5,opt,name=accelerator_memory_bytes,json=acceleratorMemoryBytes,proto3" json:"accelerator_memory_bytes,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *MachineProfile) Reset() {
+	*x = MachineProfile{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MachineProfile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MachineProfile) ProtoMessage() {}
+
+func (x *MachineProfile) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MachineProfile.ProtoReflect.Descriptor instead.
+func (*MachineProfile) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *MachineProfile) GetTotalMemoryBytes() uint64 {
+	if x != nil {
+		return x.TotalMemoryBytes
+	}
+	return 0
+}
+
+func (x *MachineProfile) GetAvailableMemoryBytes() uint64 {
+	if x != nil {
+		return x.AvailableMemoryBytes
+	}
+	return 0
+}
+
+func (x *MachineProfile) GetAcceleratorName() string {
+	if x != nil {
+		return x.AcceleratorName
+	}
+	return ""
+}
+
+func (x *MachineProfile) GetUnifiedMemory() bool {
+	if x != nil {
+		return x.UnifiedMemory
+	}
+	return false
+}
+
+func (x *MachineProfile) GetAcceleratorMemoryBytes() uint64 {
+	if x != nil {
+		return x.AcceleratorMemoryBytes
+	}
+	return 0
+}
+
+type CatalogCacheState struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	Downloads     int64                  `protobuf:"varint,3,opt,name=downloads,proto3" json:"downloads,omitempty"`
-	Likes         int64                  `protobuf:"varint,4,opt,name=likes,proto3" json:"likes,omitempty"`
-	LastModified  string                 `protobuf:"bytes,5,opt,name=last_modified,json=lastModified,proto3" json:"last_modified,omitempty"`
-	Tags          []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
-	Variants      []*ModelVariant        `protobuf:"bytes,7,rep,name=variants,proto3" json:"variants,omitempty"`
+	Hit           bool                   `protobuf:"varint,1,opt,name=hit,proto3" json:"hit,omitempty"`
+	Stale         bool                   `protobuf:"varint,2,opt,name=stale,proto3" json:"stale,omitempty"`
+	Refreshing    bool                   `protobuf:"varint,3,opt,name=refreshing,proto3" json:"refreshing,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	TtlSeconds    int64                  `protobuf:"varint,5,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CatalogCacheState) Reset() {
+	*x = CatalogCacheState{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CatalogCacheState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CatalogCacheState) ProtoMessage() {}
+
+func (x *CatalogCacheState) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CatalogCacheState.ProtoReflect.Descriptor instead.
+func (*CatalogCacheState) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *CatalogCacheState) GetHit() bool {
+	if x != nil {
+		return x.Hit
+	}
+	return false
+}
+
+func (x *CatalogCacheState) GetStale() bool {
+	if x != nil {
+		return x.Stale
+	}
+	return false
+}
+
+func (x *CatalogCacheState) GetRefreshing() bool {
+	if x != nil {
+		return x.Refreshing
+	}
+	return false
+}
+
+func (x *CatalogCacheState) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+func (x *CatalogCacheState) GetTtlSeconds() int64 {
+	if x != nil {
+		return x.TtlSeconds
+	}
+	return 0
+}
+
+type CatalogModel struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Id           string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Url          string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Downloads    int64                  `protobuf:"varint,3,opt,name=downloads,proto3" json:"downloads,omitempty"`
+	Likes        int64                  `protobuf:"varint,4,opt,name=likes,proto3" json:"likes,omitempty"`
+	LastModified string                 `protobuf:"bytes,5,opt,name=last_modified,json=lastModified,proto3" json:"last_modified,omitempty"`
+	Tags         []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
+	Variants     []*ModelVariant        `protobuf:"bytes,7,rep,name=variants,proto3" json:"variants,omitempty"`
+	// best_variant is the largest variant that still fits the host, which is what
+	// a one-click download should use.
+	BestVariant   *ModelVariant `protobuf:"bytes,8,opt,name=best_variant,json=bestVariant,proto3" json:"best_variant,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CatalogModel) Reset() {
 	*x = CatalogModel{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[49]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2884,7 +3954,7 @@ func (x *CatalogModel) String() string {
 func (*CatalogModel) ProtoMessage() {}
 
 func (x *CatalogModel) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[49]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2897,7 +3967,7 @@ func (x *CatalogModel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CatalogModel.ProtoReflect.Descriptor instead.
 func (*CatalogModel) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{49}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *CatalogModel) GetId() string {
@@ -2949,19 +4019,31 @@ func (x *CatalogModel) GetVariants() []*ModelVariant {
 	return nil
 }
 
+func (x *CatalogModel) GetBestVariant() *ModelVariant {
+	if x != nil {
+		return x.BestVariant
+	}
+	return nil
+}
+
 type ModelVariant struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Reference     string                 `protobuf:"bytes,2,opt,name=reference,proto3" json:"reference,omitempty"`
-	SizeBytes     int64                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
-	MultiFile     bool                   `protobuf:"varint,4,opt,name=multi_file,json=multiFile,proto3" json:"multi_file,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Name      string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Reference string                 `protobuf:"bytes,2,opt,name=reference,proto3" json:"reference,omitempty"`
+	SizeBytes int64                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	MultiFile bool                   `protobuf:"varint,4,opt,name=multi_file,json=multiFile,proto3" json:"multi_file,omitempty"`
+	// quant is the backend's own quantisation label for this variant: a GGUF
+	// quant for llama.cpp, a bit width for MLX. Empty when the backend does not
+	// express one.
+	Quant         string       `protobuf:"bytes,5,opt,name=quant,proto3" json:"quant,omitempty"`
+	Fit           *FitEstimate `protobuf:"bytes,6,opt,name=fit,proto3" json:"fit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ModelVariant) Reset() {
 	*x = ModelVariant{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[50]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2973,7 +4055,7 @@ func (x *ModelVariant) String() string {
 func (*ModelVariant) ProtoMessage() {}
 
 func (x *ModelVariant) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[50]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2986,7 +4068,7 @@ func (x *ModelVariant) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelVariant.ProtoReflect.Descriptor instead.
 func (*ModelVariant) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{50}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *ModelVariant) GetName() string {
@@ -3017,6 +4099,210 @@ func (x *ModelVariant) GetMultiFile() bool {
 	return false
 }
 
+func (x *ModelVariant) GetQuant() string {
+	if x != nil {
+		return x.Quant
+	}
+	return ""
+}
+
+func (x *ModelVariant) GetFit() *FitEstimate {
+	if x != nil {
+		return x.Fit
+	}
+	return nil
+}
+
+type FitEstimate struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Level          FitLevel               `protobuf:"varint,1,opt,name=level,proto3,enum=inferencerig.control.v1.FitLevel" json:"level,omitempty"`
+	Reason         string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	RequiredBytes  int64                  `protobuf:"varint,3,opt,name=required_bytes,json=requiredBytes,proto3" json:"required_bytes,omitempty"`
+	AvailableBytes int64                  `protobuf:"varint,4,opt,name=available_bytes,json=availableBytes,proto3" json:"available_bytes,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *FitEstimate) Reset() {
+	*x = FitEstimate{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FitEstimate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FitEstimate) ProtoMessage() {}
+
+func (x *FitEstimate) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FitEstimate.ProtoReflect.Descriptor instead.
+func (*FitEstimate) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *FitEstimate) GetLevel() FitLevel {
+	if x != nil {
+		return x.Level
+	}
+	return FitLevel_FIT_LEVEL_UNSPECIFIED
+}
+
+func (x *FitEstimate) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *FitEstimate) GetRequiredBytes() int64 {
+	if x != nil {
+		return x.RequiredBytes
+	}
+	return 0
+}
+
+func (x *FitEstimate) GetAvailableBytes() int64 {
+	if x != nil {
+		return x.AvailableBytes
+	}
+	return 0
+}
+
+type EstimateFitRequest struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Backend string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
+	// profile estimates for an existing profile's model; size_bytes estimates for
+	// a candidate of a known size. Exactly one is expected.
+	Profile       string `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	SizeBytes     int64  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EstimateFitRequest) Reset() {
+	*x = EstimateFitRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EstimateFitRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EstimateFitRequest) ProtoMessage() {}
+
+func (x *EstimateFitRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EstimateFitRequest.ProtoReflect.Descriptor instead.
+func (*EstimateFitRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *EstimateFitRequest) GetBackend() string {
+	if x != nil {
+		return x.Backend
+	}
+	return ""
+}
+
+func (x *EstimateFitRequest) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *EstimateFitRequest) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+type EstimateFitResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Fit           *FitEstimate           `protobuf:"bytes,2,opt,name=fit,proto3" json:"fit,omitempty"`
+	Machine       *MachineProfile        `protobuf:"bytes,3,opt,name=machine,proto3" json:"machine,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EstimateFitResponse) Reset() {
+	*x = EstimateFitResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EstimateFitResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EstimateFitResponse) ProtoMessage() {}
+
+func (x *EstimateFitResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EstimateFitResponse.ProtoReflect.Descriptor instead.
+func (*EstimateFitResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *EstimateFitResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *EstimateFitResponse) GetFit() *FitEstimate {
+	if x != nil {
+		return x.Fit
+	}
+	return nil
+}
+
+func (x *EstimateFitResponse) GetMachine() *MachineProfile {
+	if x != nil {
+		return x.Machine
+	}
+	return nil
+}
+
 type WatchModelCatalogRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -3025,7 +4311,7 @@ type WatchModelCatalogRequest struct {
 
 func (x *WatchModelCatalogRequest) Reset() {
 	*x = WatchModelCatalogRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[51]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3037,7 +4323,7 @@ func (x *WatchModelCatalogRequest) String() string {
 func (*WatchModelCatalogRequest) ProtoMessage() {}
 
 func (x *WatchModelCatalogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[51]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3050,7 +4336,7 @@ func (x *WatchModelCatalogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchModelCatalogRequest.ProtoReflect.Descriptor instead.
 func (*WatchModelCatalogRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{51}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{65}
 }
 
 type WatchModelCatalogResponse struct {
@@ -3064,7 +4350,7 @@ type WatchModelCatalogResponse struct {
 
 func (x *WatchModelCatalogResponse) Reset() {
 	*x = WatchModelCatalogResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[52]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3076,7 +4362,7 @@ func (x *WatchModelCatalogResponse) String() string {
 func (*WatchModelCatalogResponse) ProtoMessage() {}
 
 func (x *WatchModelCatalogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[52]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3089,7 +4375,7 @@ func (x *WatchModelCatalogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchModelCatalogResponse.ProtoReflect.Descriptor instead.
 func (*WatchModelCatalogResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{52}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *WatchModelCatalogResponse) GetBackend() string {
@@ -3122,7 +4408,7 @@ type ListLocalModelsRequest struct {
 
 func (x *ListLocalModelsRequest) Reset() {
 	*x = ListLocalModelsRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[53]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3134,7 +4420,7 @@ func (x *ListLocalModelsRequest) String() string {
 func (*ListLocalModelsRequest) ProtoMessage() {}
 
 func (x *ListLocalModelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[53]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3147,7 +4433,7 @@ func (x *ListLocalModelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLocalModelsRequest.ProtoReflect.Descriptor instead.
 func (*ListLocalModelsRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{53}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *ListLocalModelsRequest) GetBackend() string {
@@ -3167,7 +4453,7 @@ type ListLocalModelsResponse struct {
 
 func (x *ListLocalModelsResponse) Reset() {
 	*x = ListLocalModelsResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[54]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3179,7 +4465,7 @@ func (x *ListLocalModelsResponse) String() string {
 func (*ListLocalModelsResponse) ProtoMessage() {}
 
 func (x *ListLocalModelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[54]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3192,7 +4478,7 @@ func (x *ListLocalModelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLocalModelsResponse.ProtoReflect.Descriptor instead.
 func (*ListLocalModelsResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{54}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ListLocalModelsResponse) GetOk() bool {
@@ -3210,18 +4496,22 @@ func (x *ListLocalModelsResponse) GetModels() []*LocalModel {
 }
 
 type LocalModel struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
-	Filename      string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
-	SizeBytes     int64                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
-	ModifiedAt    string                 `protobuf:"bytes,4,opt,name=modified_at,json=modifiedAt,proto3" json:"modified_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Path       string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Filename   string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
+	SizeBytes  int64                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	ModifiedAt string                 `protobuf:"bytes,4,opt,name=modified_at,json=modifiedAt,proto3" json:"modified_at,omitempty"`
+	// used_by_profiles names the profiles referencing this model. It is what
+	// separates a configured model from a stray download, and it is what makes
+	// deleting one an informed choice.
+	UsedByProfiles []string `protobuf:"bytes,5,rep,name=used_by_profiles,json=usedByProfiles,proto3" json:"used_by_profiles,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *LocalModel) Reset() {
 	*x = LocalModel{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[55]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3233,7 +4523,7 @@ func (x *LocalModel) String() string {
 func (*LocalModel) ProtoMessage() {}
 
 func (x *LocalModel) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[55]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3246,7 +4536,7 @@ func (x *LocalModel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocalModel.ProtoReflect.Descriptor instead.
 func (*LocalModel) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{55}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *LocalModel) GetPath() string {
@@ -3277,17 +4567,28 @@ func (x *LocalModel) GetModifiedAt() string {
 	return ""
 }
 
+func (x *LocalModel) GetUsedByProfiles() []string {
+	if x != nil {
+		return x.UsedByProfiles
+	}
+	return nil
+}
+
 type DeleteLocalModelRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Backend       string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
-	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Backend string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
+	Path    string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// cascade_profiles also removes the profiles that reference this model.
+	// Without it, deleting a model a profile depends on leaves that profile
+	// pointing at nothing.
+	CascadeProfiles bool `protobuf:"varint,3,opt,name=cascade_profiles,json=cascadeProfiles,proto3" json:"cascade_profiles,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DeleteLocalModelRequest) Reset() {
 	*x = DeleteLocalModelRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[56]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3299,7 +4600,7 @@ func (x *DeleteLocalModelRequest) String() string {
 func (*DeleteLocalModelRequest) ProtoMessage() {}
 
 func (x *DeleteLocalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[56]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3312,7 +4613,7 @@ func (x *DeleteLocalModelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteLocalModelRequest.ProtoReflect.Descriptor instead.
 func (*DeleteLocalModelRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{56}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *DeleteLocalModelRequest) GetBackend() string {
@@ -3329,6 +4630,13 @@ func (x *DeleteLocalModelRequest) GetPath() string {
 	return ""
 }
 
+func (x *DeleteLocalModelRequest) GetCascadeProfiles() bool {
+	if x != nil {
+		return x.CascadeProfiles
+	}
+	return false
+}
+
 type DeleteLocalModelResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
@@ -3338,7 +4646,7 @@ type DeleteLocalModelResponse struct {
 
 func (x *DeleteLocalModelResponse) Reset() {
 	*x = DeleteLocalModelResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[57]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3350,7 +4658,7 @@ func (x *DeleteLocalModelResponse) String() string {
 func (*DeleteLocalModelResponse) ProtoMessage() {}
 
 func (x *DeleteLocalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[57]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3363,7 +4671,7 @@ func (x *DeleteLocalModelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteLocalModelResponse.ProtoReflect.Descriptor instead.
 func (*DeleteLocalModelResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{57}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *DeleteLocalModelResponse) GetOk() bool {
@@ -3374,16 +4682,19 @@ func (x *DeleteLocalModelResponse) GetOk() bool {
 }
 
 type ApplyDownloadToProfileRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Profile       string                 `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
-	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Profile string                 `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	Id      string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	// preview computes the change without writing it, so the UI can show what
+	// applying a download would do to a profile before it does it.
+	Preview       bool `protobuf:"varint,3,opt,name=preview,proto3" json:"preview,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ApplyDownloadToProfileRequest) Reset() {
 	*x = ApplyDownloadToProfileRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[58]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3395,7 +4706,7 @@ func (x *ApplyDownloadToProfileRequest) String() string {
 func (*ApplyDownloadToProfileRequest) ProtoMessage() {}
 
 func (x *ApplyDownloadToProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[58]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3408,7 +4719,7 @@ func (x *ApplyDownloadToProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyDownloadToProfileRequest.ProtoReflect.Descriptor instead.
 func (*ApplyDownloadToProfileRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{58}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *ApplyDownloadToProfileRequest) GetProfile() string {
@@ -3425,17 +4736,26 @@ func (x *ApplyDownloadToProfileRequest) GetId() string {
 	return ""
 }
 
+func (x *ApplyDownloadToProfileRequest) GetPreview() bool {
+	if x != nil {
+		return x.Preview
+	}
+	return false
+}
+
 type ApplyDownloadToProfileResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	Profile       *Profile               `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Ok      bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Profile *Profile               `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	// preview_diff is set only when the request asked for a preview.
+	PreviewDiff   *TextDiff `protobuf:"bytes,3,opt,name=preview_diff,json=previewDiff,proto3" json:"preview_diff,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ApplyDownloadToProfileResponse) Reset() {
 	*x = ApplyDownloadToProfileResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[59]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3447,7 +4767,7 @@ func (x *ApplyDownloadToProfileResponse) String() string {
 func (*ApplyDownloadToProfileResponse) ProtoMessage() {}
 
 func (x *ApplyDownloadToProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[59]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3460,7 +4780,7 @@ func (x *ApplyDownloadToProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyDownloadToProfileResponse.ProtoReflect.Descriptor instead.
 func (*ApplyDownloadToProfileResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{59}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *ApplyDownloadToProfileResponse) GetOk() bool {
@@ -3477,6 +4797,65 @@ func (x *ApplyDownloadToProfileResponse) GetProfile() *Profile {
 	return nil
 }
 
+func (x *ApplyDownloadToProfileResponse) GetPreviewDiff() *TextDiff {
+	if x != nil {
+		return x.PreviewDiff
+	}
+	return nil
+}
+
+type TextDiff struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Original      string                 `protobuf:"bytes,1,opt,name=original,proto3" json:"original,omitempty"`
+	Updated       string                 `protobuf:"bytes,2,opt,name=updated,proto3" json:"updated,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TextDiff) Reset() {
+	*x = TextDiff{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TextDiff) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TextDiff) ProtoMessage() {}
+
+func (x *TextDiff) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TextDiff.ProtoReflect.Descriptor instead.
+func (*TextDiff) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *TextDiff) GetOriginal() string {
+	if x != nil {
+		return x.Original
+	}
+	return ""
+}
+
+func (x *TextDiff) GetUpdated() string {
+	if x != nil {
+		return x.Updated
+	}
+	return ""
+}
+
 type CleanupProfileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -3486,7 +4865,7 @@ type CleanupProfileRequest struct {
 
 func (x *CleanupProfileRequest) Reset() {
 	*x = CleanupProfileRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[60]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3498,7 +4877,7 @@ func (x *CleanupProfileRequest) String() string {
 func (*CleanupProfileRequest) ProtoMessage() {}
 
 func (x *CleanupProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[60]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3511,7 +4890,7 @@ func (x *CleanupProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CleanupProfileRequest.ProtoReflect.Descriptor instead.
 func (*CleanupProfileRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{60}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *CleanupProfileRequest) GetName() string {
@@ -3530,7 +4909,7 @@ type CleanupProfileResponse struct {
 
 func (x *CleanupProfileResponse) Reset() {
 	*x = CleanupProfileResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[61]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3542,7 +4921,7 @@ func (x *CleanupProfileResponse) String() string {
 func (*CleanupProfileResponse) ProtoMessage() {}
 
 func (x *CleanupProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[61]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3555,7 +4934,7 @@ func (x *CleanupProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CleanupProfileResponse.ProtoReflect.Descriptor instead.
 func (*CleanupProfileResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{61}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *CleanupProfileResponse) GetOk() bool {
@@ -3575,7 +4954,7 @@ type SetProfileAutostartRequest struct {
 
 func (x *SetProfileAutostartRequest) Reset() {
 	*x = SetProfileAutostartRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[62]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3587,7 +4966,7 @@ func (x *SetProfileAutostartRequest) String() string {
 func (*SetProfileAutostartRequest) ProtoMessage() {}
 
 func (x *SetProfileAutostartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[62]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3600,7 +4979,7 @@ func (x *SetProfileAutostartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetProfileAutostartRequest.ProtoReflect.Descriptor instead.
 func (*SetProfileAutostartRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{62}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *SetProfileAutostartRequest) GetName() string {
@@ -3626,7 +5005,7 @@ type SetProfileAutostartResponse struct {
 
 func (x *SetProfileAutostartResponse) Reset() {
 	*x = SetProfileAutostartResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[63]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3638,7 +5017,7 @@ func (x *SetProfileAutostartResponse) String() string {
 func (*SetProfileAutostartResponse) ProtoMessage() {}
 
 func (x *SetProfileAutostartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[63]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3651,7 +5030,7 @@ func (x *SetProfileAutostartResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetProfileAutostartResponse.ProtoReflect.Descriptor instead.
 func (*SetProfileAutostartResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{63}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *SetProfileAutostartResponse) GetOk() bool {
@@ -3670,7 +5049,7 @@ type SetStartupServicesRequest struct {
 
 func (x *SetStartupServicesRequest) Reset() {
 	*x = SetStartupServicesRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[64]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3682,7 +5061,7 @@ func (x *SetStartupServicesRequest) String() string {
 func (*SetStartupServicesRequest) ProtoMessage() {}
 
 func (x *SetStartupServicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[64]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3695,7 +5074,7 @@ func (x *SetStartupServicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStartupServicesRequest.ProtoReflect.Descriptor instead.
 func (*SetStartupServicesRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{64}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *SetStartupServicesRequest) GetServices() []string {
@@ -3714,7 +5093,7 @@ type SetStartupServicesResponse struct {
 
 func (x *SetStartupServicesResponse) Reset() {
 	*x = SetStartupServicesResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[65]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3726,7 +5105,7 @@ func (x *SetStartupServicesResponse) String() string {
 func (*SetStartupServicesResponse) ProtoMessage() {}
 
 func (x *SetStartupServicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[65]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3739,7 +5118,7 @@ func (x *SetStartupServicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetStartupServicesResponse.ProtoReflect.Descriptor instead.
 func (*SetStartupServicesResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{65}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *SetStartupServicesResponse) GetOk() bool {
@@ -3758,7 +5137,7 @@ type RestartRuntimeRequest struct {
 
 func (x *RestartRuntimeRequest) Reset() {
 	*x = RestartRuntimeRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[66]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3770,7 +5149,7 @@ func (x *RestartRuntimeRequest) String() string {
 func (*RestartRuntimeRequest) ProtoMessage() {}
 
 func (x *RestartRuntimeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[66]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3783,7 +5162,7 @@ func (x *RestartRuntimeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartRuntimeRequest.ProtoReflect.Descriptor instead.
 func (*RestartRuntimeRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{66}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *RestartRuntimeRequest) GetProfile() string {
@@ -3805,7 +5184,7 @@ type RestartRuntimeResponse struct {
 
 func (x *RestartRuntimeResponse) Reset() {
 	*x = RestartRuntimeResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[67]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3817,7 +5196,7 @@ func (x *RestartRuntimeResponse) String() string {
 func (*RestartRuntimeResponse) ProtoMessage() {}
 
 func (x *RestartRuntimeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[67]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3830,7 +5209,7 @@ func (x *RestartRuntimeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartRuntimeResponse.ProtoReflect.Descriptor instead.
 func (*RestartRuntimeResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{67}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *RestartRuntimeResponse) GetOk() bool {
@@ -3869,7 +5248,7 @@ type GetInfoRequest struct {
 
 func (x *GetInfoRequest) Reset() {
 	*x = GetInfoRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[68]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3881,7 +5260,7 @@ func (x *GetInfoRequest) String() string {
 func (*GetInfoRequest) ProtoMessage() {}
 
 func (x *GetInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[68]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3894,7 +5273,7 @@ func (x *GetInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetInfoRequest.ProtoReflect.Descriptor instead.
 func (*GetInfoRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{68}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{83}
 }
 
 type GetInfoResponse struct {
@@ -3912,7 +5291,7 @@ type GetInfoResponse struct {
 
 func (x *GetInfoResponse) Reset() {
 	*x = GetInfoResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[69]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3924,7 +5303,7 @@ func (x *GetInfoResponse) String() string {
 func (*GetInfoResponse) ProtoMessage() {}
 
 func (x *GetInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[69]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3937,7 +5316,7 @@ func (x *GetInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetInfoResponse.ProtoReflect.Descriptor instead.
 func (*GetInfoResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{69}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *GetInfoResponse) GetOk() bool {
@@ -4000,7 +5379,7 @@ type BuildInfo struct {
 
 func (x *BuildInfo) Reset() {
 	*x = BuildInfo{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[70]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4012,7 +5391,7 @@ func (x *BuildInfo) String() string {
 func (*BuildInfo) ProtoMessage() {}
 
 func (x *BuildInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[70]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4025,7 +5404,7 @@ func (x *BuildInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuildInfo.ProtoReflect.Descriptor instead.
 func (*BuildInfo) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{70}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *BuildInfo) GetVersion() string {
@@ -4049,6 +5428,669 @@ func (x *BuildInfo) GetCommitTime() string {
 	return ""
 }
 
+// Logs. service is a free-form service name ("control", "web", or a backend
+// runtime) rather than a closed enum, because which services exist depends on
+// which backends are installed.
+type GetLogsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	Lines         int32                  `protobuf:"varint,2,opt,name=lines,proto3" json:"lines,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetLogsRequest) Reset() {
+	*x = GetLogsRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetLogsRequest) ProtoMessage() {}
+
+func (x *GetLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetLogsRequest.ProtoReflect.Descriptor instead.
+func (*GetLogsRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *GetLogsRequest) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *GetLogsRequest) GetLines() int32 {
+	if x != nil {
+		return x.Lines
+	}
+	return 0
+}
+
+type GetLogsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Service       string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
+	Text          string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetLogsResponse) Reset() {
+	*x = GetLogsResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetLogsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetLogsResponse) ProtoMessage() {}
+
+func (x *GetLogsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetLogsResponse.ProtoReflect.Descriptor instead.
+func (*GetLogsResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *GetLogsResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *GetLogsResponse) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *GetLogsResponse) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+type WatchLogsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchLogsRequest) Reset() {
+	*x = WatchLogsRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchLogsRequest) ProtoMessage() {}
+
+func (x *WatchLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchLogsRequest.ProtoReflect.Descriptor instead.
+func (*WatchLogsRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *WatchLogsRequest) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+type WatchLogsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	Line          string                 `protobuf:"bytes,2,opt,name=line,proto3" json:"line,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchLogsResponse) Reset() {
+	*x = WatchLogsResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchLogsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchLogsResponse) ProtoMessage() {}
+
+func (x *WatchLogsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchLogsResponse.ProtoReflect.Descriptor instead.
+func (*WatchLogsResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *WatchLogsResponse) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *WatchLogsResponse) GetLine() string {
+	if x != nil {
+		return x.Line
+	}
+	return ""
+}
+
+type ListLogArchivesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListLogArchivesRequest) Reset() {
+	*x = ListLogArchivesRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListLogArchivesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLogArchivesRequest) ProtoMessage() {}
+
+func (x *ListLogArchivesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLogArchivesRequest.ProtoReflect.Descriptor instead.
+func (*ListLogArchivesRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{90}
+}
+
+type ListLogArchivesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Archives      []*LogArchive          `protobuf:"bytes,2,rep,name=archives,proto3" json:"archives,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListLogArchivesResponse) Reset() {
+	*x = ListLogArchivesResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListLogArchivesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLogArchivesResponse) ProtoMessage() {}
+
+func (x *ListLogArchivesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLogArchivesResponse.ProtoReflect.Descriptor instead.
+func (*ListLogArchivesResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *ListLogArchivesResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ListLogArchivesResponse) GetArchives() []*LogArchive {
+	if x != nil {
+		return x.Archives
+	}
+	return nil
+}
+
+type LogArchive struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Service       string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	ArchivedAt    string                 `protobuf:"bytes,4,opt,name=archived_at,json=archivedAt,proto3" json:"archived_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LogArchive) Reset() {
+	*x = LogArchive{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LogArchive) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LogArchive) ProtoMessage() {}
+
+func (x *LogArchive) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LogArchive.ProtoReflect.Descriptor instead.
+func (*LogArchive) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *LogArchive) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *LogArchive) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *LogArchive) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *LogArchive) GetArchivedAt() string {
+	if x != nil {
+		return x.ArchivedAt
+	}
+	return ""
+}
+
+type GetLogArchiveRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Lines         int32                  `protobuf:"varint,2,opt,name=lines,proto3" json:"lines,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetLogArchiveRequest) Reset() {
+	*x = GetLogArchiveRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetLogArchiveRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetLogArchiveRequest) ProtoMessage() {}
+
+func (x *GetLogArchiveRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetLogArchiveRequest.ProtoReflect.Descriptor instead.
+func (*GetLogArchiveRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *GetLogArchiveRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *GetLogArchiveRequest) GetLines() int32 {
+	if x != nil {
+		return x.Lines
+	}
+	return 0
+}
+
+type GetLogArchiveResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Service       string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
+	Text          string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetLogArchiveResponse) Reset() {
+	*x = GetLogArchiveResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetLogArchiveResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetLogArchiveResponse) ProtoMessage() {}
+
+func (x *GetLogArchiveResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetLogArchiveResponse.ProtoReflect.Descriptor instead.
+func (*GetLogArchiveResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *GetLogArchiveResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *GetLogArchiveResponse) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *GetLogArchiveResponse) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+type DeleteLogArchiveRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteLogArchiveRequest) Reset() {
+	*x = DeleteLogArchiveRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteLogArchiveRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteLogArchiveRequest) ProtoMessage() {}
+
+func (x *DeleteLogArchiveRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteLogArchiveRequest.ProtoReflect.Descriptor instead.
+func (*DeleteLogArchiveRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *DeleteLogArchiveRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type DeleteLogArchiveResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Deleted       int32                  `protobuf:"varint,2,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteLogArchiveResponse) Reset() {
+	*x = DeleteLogArchiveResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteLogArchiveResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteLogArchiveResponse) ProtoMessage() {}
+
+func (x *DeleteLogArchiveResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteLogArchiveResponse.ProtoReflect.Descriptor instead.
+func (*DeleteLogArchiveResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *DeleteLogArchiveResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *DeleteLogArchiveResponse) GetDeleted() int32 {
+	if x != nil {
+		return x.Deleted
+	}
+	return 0
+}
+
+type ClearLogArchivesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClearLogArchivesRequest) Reset() {
+	*x = ClearLogArchivesRequest{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[97]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClearLogArchivesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClearLogArchivesRequest) ProtoMessage() {}
+
+func (x *ClearLogArchivesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[97]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClearLogArchivesRequest.ProtoReflect.Descriptor instead.
+func (*ClearLogArchivesRequest) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{97}
+}
+
+type ClearLogArchivesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Deleted       int32                  `protobuf:"varint,2,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClearLogArchivesResponse) Reset() {
+	*x = ClearLogArchivesResponse{}
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[98]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClearLogArchivesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClearLogArchivesResponse) ProtoMessage() {}
+
+func (x *ClearLogArchivesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[98]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClearLogArchivesResponse.ProtoReflect.Descriptor instead.
+func (*ClearLogArchivesResponse) Descriptor() ([]byte, []int) {
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{98}
+}
+
+func (x *ClearLogArchivesResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ClearLogArchivesResponse) GetDeleted() int32 {
+	if x != nil {
+		return x.Deleted
+	}
+	return 0
+}
+
 type GetBackendParamsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Backend       string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
@@ -4058,7 +6100,7 @@ type GetBackendParamsRequest struct {
 
 func (x *GetBackendParamsRequest) Reset() {
 	*x = GetBackendParamsRequest{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[71]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4070,7 +6112,7 @@ func (x *GetBackendParamsRequest) String() string {
 func (*GetBackendParamsRequest) ProtoMessage() {}
 
 func (x *GetBackendParamsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[71]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4083,7 +6125,7 @@ func (x *GetBackendParamsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBackendParamsRequest.ProtoReflect.Descriptor instead.
 func (*GetBackendParamsRequest) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{71}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *GetBackendParamsRequest) GetBackend() string {
@@ -4103,7 +6145,7 @@ type GetBackendParamsResponse struct {
 
 func (x *GetBackendParamsResponse) Reset() {
 	*x = GetBackendParamsResponse{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[72]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4115,7 +6157,7 @@ func (x *GetBackendParamsResponse) String() string {
 func (*GetBackendParamsResponse) ProtoMessage() {}
 
 func (x *GetBackendParamsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[72]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4128,7 +6170,7 @@ func (x *GetBackendParamsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBackendParamsResponse.ProtoReflect.Descriptor instead.
 func (*GetBackendParamsResponse) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{72}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *GetBackendParamsResponse) GetOk() bool {
@@ -4145,18 +6187,26 @@ func (x *GetBackendParamsResponse) GetParams() []*BackendParameter {
 	return nil
 }
 
+// BackendParameter describes one settable profile parameter. The extra fields
+// beyond name/description/required are what let a client offer completion and
+// validation for any backend, replacing the hardcoded llama.cpp flag table the
+// llamarig UI shipped in its own source.
 type BackendParameter struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	Required      bool                   `protobuf:"varint,3,opt,name=required,proto3" json:"required,omitempty"`
+	Aliases       []string               `protobuf:"bytes,4,rep,name=aliases,proto3" json:"aliases,omitempty"`
+	ValueHint     string                 `protobuf:"bytes,5,opt,name=value_hint,json=valueHint,proto3" json:"value_hint,omitempty"`
+	DefaultValue  string                 `protobuf:"bytes,6,opt,name=default_value,json=defaultValue,proto3" json:"default_value,omitempty"`
+	Type          ParameterType          `protobuf:"varint,7,opt,name=type,proto3,enum=inferencerig.control.v1.ParameterType" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BackendParameter) Reset() {
 	*x = BackendParameter{}
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[73]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4168,7 +6218,7 @@ func (x *BackendParameter) String() string {
 func (*BackendParameter) ProtoMessage() {}
 
 func (x *BackendParameter) ProtoReflect() protoreflect.Message {
-	mi := &file_inferencerig_control_v1_control_proto_msgTypes[73]
+	mi := &file_inferencerig_control_v1_control_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4181,7 +6231,7 @@ func (x *BackendParameter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BackendParameter.ProtoReflect.Descriptor instead.
 func (*BackendParameter) Descriptor() ([]byte, []int) {
-	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{73}
+	return file_inferencerig_control_v1_control_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *BackendParameter) GetName() string {
@@ -4205,11 +6255,39 @@ func (x *BackendParameter) GetRequired() bool {
 	return false
 }
 
+func (x *BackendParameter) GetAliases() []string {
+	if x != nil {
+		return x.Aliases
+	}
+	return nil
+}
+
+func (x *BackendParameter) GetValueHint() string {
+	if x != nil {
+		return x.ValueHint
+	}
+	return ""
+}
+
+func (x *BackendParameter) GetDefaultValue() string {
+	if x != nil {
+		return x.DefaultValue
+	}
+	return ""
+}
+
+func (x *BackendParameter) GetType() ParameterType {
+	if x != nil {
+		return x.Type
+	}
+	return ParameterType_PARAMETER_TYPE_UNSPECIFIED
+}
+
 var File_inferencerig_control_v1_control_proto protoreflect.FileDescriptor
 
 const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\n" +
-	"%inferencerig/control/v1/control.proto\x12\x17inferencerig.control.v1\"\x0f\n" +
+	"%inferencerig/control/v1/control.proto\x12\x17inferencerig.control.v1\x1a\x1cgoogle/protobuf/struct.proto\"\x0f\n" +
 	"\rHealthRequest\":\n" +
 	"\x0eHealthResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
@@ -4234,12 +6312,13 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12<\n" +
 	"\bprofiles\x18\x02 \x03(\v2 .inferencerig.control.v1.ProfileR\bprofiles\"'\n" +
 	"\x11GetProfileRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"k\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\xa7\x01\n" +
 	"\x11PutProfileRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fprofile_yaml\x18\x02 \x01(\tR\vprofileYaml\x12\x1f\n" +
 	"\vcreate_only\x18\x03 \x01(\bR\n" +
-	"createOnly\"*\n" +
+	"createOnly\x12:\n" +
+	"\aprofile\x18\x04 \x01(\v2 .inferencerig.control.v1.ProfileR\aprofile\"*\n" +
 	"\x14DeleteProfileRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"`\n" +
 	"\x12GetProfileResponse\x12\x0e\n" +
@@ -4247,7 +6326,7 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\aprofile\x18\x02 \x01(\v2 .inferencerig.control.v1.ProfileR\aprofile\"`\n" +
 	"\x12PutProfileResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12:\n" +
-	"\aprofile\x18\x02 \x01(\v2 .inferencerig.control.v1.ProfileR\aprofile\"\xce\x01\n" +
+	"\aprofile\x18\x02 \x01(\v2 .inferencerig.control.v1.ProfileR\aprofile\"\x88\x02\n" +
 	"\aProfile\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\abackend\x18\x02 \x01(\tR\abackend\x12!\n" +
@@ -4255,7 +6334,9 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\fmodel_source\x18\x04 \x01(\tR\vmodelSource\x12'\n" +
 	"\x0fmodel_reference\x18\x05 \x01(\tR\x0emodelReference\x12\x12\n" +
 	"\x04host\x18\x06 \x01(\tR\x04host\x12\x12\n" +
-	"\x04port\x18\a \x01(\x05R\x04port\"'\n" +
+	"\x04port\x18\a \x01(\x05R\x04port\x128\n" +
+	"\vengine_args\x18\b \x01(\v2\x17.google.protobuf.StructR\n" +
+	"engineArgs\"'\n" +
 	"\x15DeleteProfileResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\"{\n" +
 	"\x15InstallBackendRequest\x12\x18\n" +
@@ -4268,7 +6349,15 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
 	"\x04path\x18\x03 \x01(\tR\x04path\x12\x18\n" +
 	"\achanged\x18\x04 \x01(\bR\achanged\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage\"/\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\":\n" +
+	"\x1eGetBackendInstallStatusRequest\x12\x18\n" +
+	"\abackend\x18\x01 \x01(\tR\abackend\"\x97\x01\n" +
+	"\x1fGetBackendInstallStatusResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x1c\n" +
+	"\tinstalled\x18\x02 \x01(\bR\tinstalled\x12\x18\n" +
+	"\amanaged\x18\x03 \x01(\bR\amanaged\x12\x18\n" +
+	"\aversion\x18\x04 \x01(\tR\aversion\x12\x12\n" +
+	"\x04path\x18\x05 \x01(\tR\x04path\"/\n" +
 	"\x13StartRuntimeRequest\x12\x18\n" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\"\xa6\x01\n" +
 	"\x14StartRuntimeResponse\x12\x0e\n" +
@@ -4282,10 +6371,15 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\x06result\x18\x02 \x01(\v2&.inferencerig.control.v1.CommandResultR\x06result\x12>\n" +
 	"\x06status\x18\x03 \x01(\v2&.inferencerig.control.v1.RuntimeStatusR\x06status\"3\n" +
 	"\x17GetRuntimeStatusRequest\x12\x18\n" +
-	"\aprofile\x18\x01 \x01(\tR\aprofile\"j\n" +
+	"\aprofile\x18\x01 \x01(\tR\aprofile\"\xb5\x01\n" +
 	"\x18GetRuntimeStatusResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12>\n" +
-	"\x06status\x18\x02 \x01(\v2&.inferencerig.control.v1.RuntimeStatusR\x06status\"\x95\x01\n" +
+	"\x06status\x18\x02 \x01(\v2&.inferencerig.control.v1.RuntimeStatusR\x06status\x12I\n" +
+	"\bprofiles\x18\x03 \x03(\v2-.inferencerig.control.v1.ProfileRuntimeStatusR\bprofiles\"\x84\x01\n" +
+	"\x14ProfileRuntimeStatus\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
+	"\abackend\x18\x02 \x01(\tR\abackend\x12>\n" +
+	"\x06status\x18\x03 \x01(\v2&.inferencerig.control.v1.RuntimeStatusR\x06status\"\x95\x01\n" +
 	"\rCommandResult\x12\x16\n" +
 	"\x06action\x18\x01 \x01(\tR\x06action\x12\x1b\n" +
 	"\texit_code\x18\x02 \x01(\x05R\bexitCode\x12\x16\n" +
@@ -4339,10 +6433,21 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\vtarget_path\x18\x03 \x01(\tR\n" +
 	"targetPath\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\x04 \x01(\x03R\tsizeBytes\"K\n" +
+	"size_bytes\x18\x04 \x01(\x03R\tsizeBytes\"z\n" +
+	"\x13ResolveModelRequest\x12\x18\n" +
+	"\abackend\x18\x01 \x01(\tR\abackend\x12\x1c\n" +
+	"\treference\x18\x02 \x01(\tR\treference\x12+\n" +
+	"\x11variant_reference\x18\x03 \x01(\tR\x10variantReference\"\x9f\x01\n" +
+	"\x14ResolveModelResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12<\n" +
+	"\x05model\x18\x02 \x01(\v2&.inferencerig.control.v1.ResolvedModelR\x05model\x129\n" +
+	"\x04plan\x18\x03 \x01(\v2%.inferencerig.control.v1.ArtifactPlanR\x04plan\"\xb0\x01\n" +
 	"\x19StartModelDownloadRequest\x12\x18\n" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\x12\x14\n" +
-	"\x05force\x18\x02 \x01(\bR\x05force\"p\n" +
+	"\x05force\x18\x02 \x01(\bR\x05force\x12\x18\n" +
+	"\abackend\x18\x03 \x01(\tR\abackend\x12\x1c\n" +
+	"\treference\x18\x04 \x01(\tR\treference\x12+\n" +
+	"\x11variant_reference\x18\x05 \x01(\tR\x10variantReference\"p\n" +
 	"\x1aStartModelDownloadResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12B\n" +
 	"\bdownload\x18\x02 \x01(\v2&.inferencerig.control.v1.ModelDownloadR\bdownload\")\n" +
@@ -4379,7 +6484,7 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\x11GetSignalsRequest\"`\n" +
 	"\x12GetSignalsResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12:\n" +
-	"\asignals\x18\x02 \x01(\v2 .inferencerig.control.v1.SignalsR\asignals\"\x80\x02\n" +
+	"\asignals\x18\x02 \x01(\v2 .inferencerig.control.v1.SignalsR\asignals\"\xd5\x04\n" +
 	"\aSignals\x12\x1f\n" +
 	"\vcaptured_at\x18\x01 \x01(\tR\n" +
 	"capturedAt\x12,\n" +
@@ -4387,7 +6492,45 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\x16available_memory_bytes\x18\x03 \x01(\x04R\x14availableMemoryBytes\x12*\n" +
 	"\x11logical_cpu_cores\x18\x04 \x01(\x05R\x0flogicalCpuCores\x12(\n" +
 	"\x10cpu_used_percent\x18\x05 \x01(\x01R\x0ecpuUsedPercent\x12\x1a\n" +
-	"\bwarnings\x18\x06 \x03(\tR\bwarnings\"\x13\n" +
+	"\bwarnings\x18\x06 \x03(\tR\bwarnings\x12H\n" +
+	"\faccelerators\x18\a \x03(\v2$.inferencerig.control.v1.AcceleratorR\faccelerators\x123\n" +
+	"\x05disks\x18\b \x03(\v2\x1d.inferencerig.control.v1.DiskR\x05disks\x12*\n" +
+	"\x11used_memory_bytes\x18\t \x01(\x04R\x0fusedMemoryBytes\x12.\n" +
+	"\x13used_memory_percent\x18\n" +
+	" \x01(\x01R\x11usedMemoryPercent\x125\n" +
+	"\x04host\x18\v \x01(\v2!.inferencerig.control.v1.HostInfoR\x04host\x12A\n" +
+	"\aruntime\x18\f \x03(\v2'.inferencerig.control.v1.RuntimeProcessR\aruntime\"R\n" +
+	"\bHostInfo\x12\x1a\n" +
+	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x0e\n" +
+	"\x02os\x18\x02 \x01(\tR\x02os\x12\x1a\n" +
+	"\bplatform\x18\x03 \x01(\tR\bplatform\"\x8e\x01\n" +
+	"\x0eRuntimeProcess\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
+	"\x03pid\x18\x02 \x01(\x05R\x03pid\x12\x1b\n" +
+	"\trss_bytes\x18\x03 \x01(\x04R\brssBytes\x12\x1f\n" +
+	"\vcpu_percent\x18\x04 \x01(\x01R\n" +
+	"cpuPercent\x12\x18\n" +
+	"\acommand\x18\x05 \x01(\tR\acommand\"\xee\x02\n" +
+	"\vAccelerator\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12%\n" +
+	"\x0eunified_memory\x18\x02 \x01(\bR\runifiedMemory\x12,\n" +
+	"\x12total_memory_bytes\x18\x03 \x01(\x04R\x10totalMemoryBytes\x12*\n" +
+	"\x11used_memory_bytes\x18\x04 \x01(\x04R\x0fusedMemoryBytes\x12/\n" +
+	"\x13utilization_percent\x18\x05 \x01(\x01R\x12utilizationPercent\x12'\n" +
+	"\x0fhas_utilization\x18\x06 \x01(\bR\x0ehasUtilization\x12/\n" +
+	"\x13temperature_celsius\x18\a \x01(\x01R\x12temperatureCelsius\x12'\n" +
+	"\x0fhas_temperature\x18\b \x01(\bR\x0ehasTemperature\x12\x16\n" +
+	"\x06source\x18\t \x01(\tR\x06source\"\xb2\x01\n" +
+	"\x04Disk\x12\x14\n" +
+	"\x05label\x18\x01 \x01(\tR\x05label\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1f\n" +
+	"\vtotal_bytes\x18\x03 \x01(\x04R\n" +
+	"totalBytes\x12\x1d\n" +
+	"\n" +
+	"used_bytes\x18\x04 \x01(\x04R\tusedBytes\x12!\n" +
+	"\fused_percent\x18\x05 \x01(\x01R\vusedPercent\x12\x1d\n" +
+	"\n" +
+	"free_bytes\x18\x06 \x01(\x04R\tfreeBytes\"\x13\n" +
 	"\x11ListEventsRequest\"\\\n" +
 	"\x12ListEventsResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x126\n" +
@@ -4402,16 +6545,37 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\asuccess\x18\x04 \x01(\bR\asuccess\x12\x1d\n" +
 	"\n" +
 	"error_kind\x18\x05 \x01(\tR\terrorKind\x12\x1a\n" +
-	"\bduration\x18\x06 \x01(\tR\bduration\"_\n" +
+	"\bduration\x18\x06 \x01(\tR\bduration\"\xaf\x01\n" +
 	"\x17ListModelCatalogRequest\x12\x18\n" +
 	"\abackend\x18\x01 \x01(\tR\abackend\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\x9c\x01\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x12\n" +
+	"\x04sort\x18\x04 \x01(\tR\x04sort\x12:\n" +
+	"\amin_fit\x18\x05 \x01(\x0e2!.inferencerig.control.v1.FitLevelR\x06minFit\"\xb9\x02\n" +
 	"\x18ListModelCatalogResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12=\n" +
 	"\x06models\x18\x02 \x03(\v2%.inferencerig.control.v1.CatalogModelR\x06models\x12\x1b\n" +
 	"\tcache_hit\x18\x03 \x01(\bR\bcacheHit\x12\x14\n" +
-	"\x05stale\x18\x04 \x01(\bR\x05stale\"\xe0\x01\n" +
+	"\x05stale\x18\x04 \x01(\bR\x05stale\x12A\n" +
+	"\amachine\x18\x05 \x01(\v2'.inferencerig.control.v1.MachineProfileR\amachine\x12@\n" +
+	"\x05cache\x18\x06 \x01(\v2*.inferencerig.control.v1.CatalogCacheStateR\x05cache\x12\x16\n" +
+	"\x06errors\x18\a \x03(\tR\x06errors\"\x80\x02\n" +
+	"\x0eMachineProfile\x12,\n" +
+	"\x12total_memory_bytes\x18\x01 \x01(\x04R\x10totalMemoryBytes\x124\n" +
+	"\x16available_memory_bytes\x18\x02 \x01(\x04R\x14availableMemoryBytes\x12)\n" +
+	"\x10accelerator_name\x18\x03 \x01(\tR\x0facceleratorName\x12%\n" +
+	"\x0eunified_memory\x18\x04 \x01(\bR\runifiedMemory\x128\n" +
+	"\x18accelerator_memory_bytes\x18\x05 \x01(\x04R\x16acceleratorMemoryBytes\"\x9b\x01\n" +
+	"\x11CatalogCacheState\x12\x10\n" +
+	"\x03hit\x18\x01 \x01(\bR\x03hit\x12\x14\n" +
+	"\x05stale\x18\x02 \x01(\bR\x05stale\x12\x1e\n" +
+	"\n" +
+	"refreshing\x18\x03 \x01(\bR\n" +
+	"refreshing\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x04 \x01(\tR\tupdatedAt\x12\x1f\n" +
+	"\vttl_seconds\x18\x05 \x01(\x03R\n" +
+	"ttlSeconds\"\xaa\x02\n" +
 	"\fCatalogModel\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x12\x1c\n" +
@@ -4419,14 +6583,31 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\x05likes\x18\x04 \x01(\x03R\x05likes\x12#\n" +
 	"\rlast_modified\x18\x05 \x01(\tR\flastModified\x12\x12\n" +
 	"\x04tags\x18\x06 \x03(\tR\x04tags\x12A\n" +
-	"\bvariants\x18\a \x03(\v2%.inferencerig.control.v1.ModelVariantR\bvariants\"~\n" +
+	"\bvariants\x18\a \x03(\v2%.inferencerig.control.v1.ModelVariantR\bvariants\x12H\n" +
+	"\fbest_variant\x18\b \x01(\v2%.inferencerig.control.v1.ModelVariantR\vbestVariant\"\xcc\x01\n" +
 	"\fModelVariant\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
 	"\treference\x18\x02 \x01(\tR\treference\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x1d\n" +
 	"\n" +
-	"multi_file\x18\x04 \x01(\bR\tmultiFile\"\x1a\n" +
+	"multi_file\x18\x04 \x01(\bR\tmultiFile\x12\x14\n" +
+	"\x05quant\x18\x05 \x01(\tR\x05quant\x126\n" +
+	"\x03fit\x18\x06 \x01(\v2$.inferencerig.control.v1.FitEstimateR\x03fit\"\xae\x01\n" +
+	"\vFitEstimate\x127\n" +
+	"\x05level\x18\x01 \x01(\x0e2!.inferencerig.control.v1.FitLevelR\x05level\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x12%\n" +
+	"\x0erequired_bytes\x18\x03 \x01(\x03R\rrequiredBytes\x12'\n" +
+	"\x0favailable_bytes\x18\x04 \x01(\x03R\x0eavailableBytes\"g\n" +
+	"\x12EstimateFitRequest\x12\x18\n" +
+	"\abackend\x18\x01 \x01(\tR\abackend\x12\x18\n" +
+	"\aprofile\x18\x02 \x01(\tR\aprofile\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\"\xa0\x01\n" +
+	"\x13EstimateFitResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x126\n" +
+	"\x03fit\x18\x02 \x01(\v2$.inferencerig.control.v1.FitEstimateR\x03fit\x12A\n" +
+	"\amachine\x18\x03 \x01(\v2'.inferencerig.control.v1.MachineProfileR\amachine\"\x1a\n" +
 	"\x18WatchModelCatalogRequest\"a\n" +
 	"\x19WatchModelCatalogResponse\x12\x18\n" +
 	"\abackend\x18\x01 \x01(\tR\abackend\x12\x14\n" +
@@ -4436,7 +6617,7 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\abackend\x18\x01 \x01(\tR\abackend\"f\n" +
 	"\x17ListLocalModelsResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12;\n" +
-	"\x06models\x18\x02 \x03(\v2#.inferencerig.control.v1.LocalModelR\x06models\"|\n" +
+	"\x06models\x18\x02 \x03(\v2#.inferencerig.control.v1.LocalModelR\x06models\"\xa6\x01\n" +
 	"\n" +
 	"LocalModel\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1a\n" +
@@ -4444,18 +6625,25 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\n" +
 	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x1f\n" +
 	"\vmodified_at\x18\x04 \x01(\tR\n" +
-	"modifiedAt\"G\n" +
+	"modifiedAt\x12(\n" +
+	"\x10used_by_profiles\x18\x05 \x03(\tR\x0eusedByProfiles\"r\n" +
 	"\x17DeleteLocalModelRequest\x12\x18\n" +
 	"\abackend\x18\x01 \x01(\tR\abackend\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\"*\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12)\n" +
+	"\x10cascade_profiles\x18\x03 \x01(\bR\x0fcascadeProfiles\"*\n" +
 	"\x18DeleteLocalModelResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"I\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"c\n" +
 	"\x1dApplyDownloadToProfileRequest\x12\x18\n" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\"l\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x18\n" +
+	"\apreview\x18\x03 \x01(\bR\apreview\"\xb2\x01\n" +
 	"\x1eApplyDownloadToProfileResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12:\n" +
-	"\aprofile\x18\x02 \x01(\v2 .inferencerig.control.v1.ProfileR\aprofile\"+\n" +
+	"\aprofile\x18\x02 \x01(\v2 .inferencerig.control.v1.ProfileR\aprofile\x12D\n" +
+	"\fpreview_diff\x18\x03 \x01(\v2!.inferencerig.control.v1.TextDiffR\vpreviewDiff\"@\n" +
+	"\bTextDiff\x12\x1a\n" +
+	"\boriginal\x18\x01 \x01(\tR\boriginal\x12\x18\n" +
+	"\aupdated\x18\x02 \x01(\tR\aupdated\"+\n" +
 	"\x15CleanupProfileRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"(\n" +
 	"\x16CleanupProfileResponse\x12\x0e\n" +
@@ -4489,16 +6677,73 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
 	"\x06commit\x18\x02 \x01(\tR\x06commit\x12\x1f\n" +
 	"\vcommit_time\x18\x03 \x01(\tR\n" +
-	"commitTime\"3\n" +
+	"commitTime\"@\n" +
+	"\x0eGetLogsRequest\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x14\n" +
+	"\x05lines\x18\x02 \x01(\x05R\x05lines\"O\n" +
+	"\x0fGetLogsResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
+	"\aservice\x18\x02 \x01(\tR\aservice\x12\x12\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\",\n" +
+	"\x10WatchLogsRequest\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\"A\n" +
+	"\x11WatchLogsResponse\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x12\n" +
+	"\x04line\x18\x02 \x01(\tR\x04line\"\x18\n" +
+	"\x16ListLogArchivesRequest\"j\n" +
+	"\x17ListLogArchivesResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12?\n" +
+	"\barchives\x18\x02 \x03(\v2#.inferencerig.control.v1.LogArchiveR\barchives\"v\n" +
+	"\n" +
+	"LogArchive\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aservice\x18\x02 \x01(\tR\aservice\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x1f\n" +
+	"\varchived_at\x18\x04 \x01(\tR\n" +
+	"archivedAt\"<\n" +
+	"\x14GetLogArchiveRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05lines\x18\x02 \x01(\x05R\x05lines\"U\n" +
+	"\x15GetLogArchiveResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
+	"\aservice\x18\x02 \x01(\tR\aservice\x12\x12\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\")\n" +
+	"\x17DeleteLogArchiveRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"D\n" +
+	"\x18DeleteLogArchiveResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
+	"\adeleted\x18\x02 \x01(\x05R\adeleted\"\x19\n" +
+	"\x17ClearLogArchivesRequest\"D\n" +
+	"\x18ClearLogArchivesResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
+	"\adeleted\x18\x02 \x01(\x05R\adeleted\"3\n" +
 	"\x17GetBackendParamsRequest\x12\x18\n" +
 	"\abackend\x18\x01 \x01(\tR\abackend\"m\n" +
 	"\x18GetBackendParamsResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12A\n" +
-	"\x06params\x18\x02 \x03(\v2).inferencerig.control.v1.BackendParameterR\x06params\"d\n" +
+	"\x06params\x18\x02 \x03(\v2).inferencerig.control.v1.BackendParameterR\x06params\"\xfe\x01\n" +
 	"\x10BackendParameter\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1a\n" +
-	"\brequired\x18\x03 \x01(\bR\brequired2\xaf\x19\n" +
+	"\brequired\x18\x03 \x01(\bR\brequired\x12\x18\n" +
+	"\aaliases\x18\x04 \x03(\tR\aaliases\x12\x1d\n" +
+	"\n" +
+	"value_hint\x18\x05 \x01(\tR\tvalueHint\x12#\n" +
+	"\rdefault_value\x18\x06 \x01(\tR\fdefaultValue\x12:\n" +
+	"\x04type\x18\a \x01(\x0e2&.inferencerig.control.v1.ParameterTypeR\x04type*\x81\x01\n" +
+	"\bFitLevel\x12\x19\n" +
+	"\x15FIT_LEVEL_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11FIT_LEVEL_UNKNOWN\x10\x01\x12\x12\n" +
+	"\x0eFIT_LEVEL_FITS\x10\x02\x12\x16\n" +
+	"\x12FIT_LEVEL_MARGINAL\x10\x03\x12\x17\n" +
+	"\x13FIT_LEVEL_TOO_LARGE\x10\x04*\x94\x01\n" +
+	"\rParameterType\x12\x1e\n" +
+	"\x1aPARAMETER_TYPE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15PARAMETER_TYPE_STRING\x10\x01\x12\x16\n" +
+	"\x12PARAMETER_TYPE_INT\x10\x02\x12\x17\n" +
+	"\x13PARAMETER_TYPE_BOOL\x10\x03\x12\x17\n" +
+	"\x13PARAMETER_TYPE_LIST\x10\x042\xb1!\n" +
 	"\x0eControlService\x12Y\n" +
 	"\x06Health\x12&.inferencerig.control.v1.HealthRequest\x1a'.inferencerig.control.v1.HealthResponse\x12k\n" +
 	"\fListBackends\x12,.inferencerig.control.v1.ListBackendsRequest\x1a-.inferencerig.control.v1.ListBackendsResponse\x12k\n" +
@@ -4508,11 +6753,13 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\n" +
 	"PutProfile\x12*.inferencerig.control.v1.PutProfileRequest\x1a+.inferencerig.control.v1.PutProfileResponse\x12n\n" +
 	"\rDeleteProfile\x12-.inferencerig.control.v1.DeleteProfileRequest\x1a..inferencerig.control.v1.DeleteProfileResponse\x12q\n" +
-	"\x0eInstallBackend\x12..inferencerig.control.v1.InstallBackendRequest\x1a/.inferencerig.control.v1.InstallBackendResponse\x12k\n" +
+	"\x0eInstallBackend\x12..inferencerig.control.v1.InstallBackendRequest\x1a/.inferencerig.control.v1.InstallBackendResponse\x12\x8c\x01\n" +
+	"\x17GetBackendInstallStatus\x127.inferencerig.control.v1.GetBackendInstallStatusRequest\x1a8.inferencerig.control.v1.GetBackendInstallStatusResponse\x12k\n" +
 	"\fStartRuntime\x12,.inferencerig.control.v1.StartRuntimeRequest\x1a-.inferencerig.control.v1.StartRuntimeResponse\x12h\n" +
 	"\vStopRuntime\x12+.inferencerig.control.v1.StopRuntimeRequest\x1a,.inferencerig.control.v1.StopRuntimeResponse\x12w\n" +
 	"\x10GetRuntimeStatus\x120.inferencerig.control.v1.GetRuntimeStatusRequest\x1a1.inferencerig.control.v1.GetRuntimeStatusResponse\x12\x80\x01\n" +
-	"\x13ResolveProfileModel\x123.inferencerig.control.v1.ResolveProfileModelRequest\x1a4.inferencerig.control.v1.ResolveProfileModelResponse\x12}\n" +
+	"\x13ResolveProfileModel\x123.inferencerig.control.v1.ResolveProfileModelRequest\x1a4.inferencerig.control.v1.ResolveProfileModelResponse\x12k\n" +
+	"\fResolveModel\x12,.inferencerig.control.v1.ResolveModelRequest\x1a-.inferencerig.control.v1.ResolveModelResponse\x12}\n" +
 	"\x12StartModelDownload\x122.inferencerig.control.v1.StartModelDownloadRequest\x1a3.inferencerig.control.v1.StartModelDownloadResponse\x12w\n" +
 	"\x10GetModelDownload\x120.inferencerig.control.v1.GetModelDownloadRequest\x1a1.inferencerig.control.v1.GetModelDownloadResponse\x12\x80\x01\n" +
 	"\x13CancelModelDownload\x123.inferencerig.control.v1.CancelModelDownloadRequest\x1a4.inferencerig.control.v1.CancelModelDownloadResponse\x12e\n" +
@@ -4531,7 +6778,14 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\x12SetStartupServices\x122.inferencerig.control.v1.SetStartupServicesRequest\x1a3.inferencerig.control.v1.SetStartupServicesResponse\x12q\n" +
 	"\x0eRestartRuntime\x12..inferencerig.control.v1.RestartRuntimeRequest\x1a/.inferencerig.control.v1.RestartRuntimeResponse\x12\\\n" +
 	"\aGetInfo\x12'.inferencerig.control.v1.GetInfoRequest\x1a(.inferencerig.control.v1.GetInfoResponse\x12w\n" +
-	"\x10GetBackendParams\x120.inferencerig.control.v1.GetBackendParamsRequest\x1a1.inferencerig.control.v1.GetBackendParamsResponseB(Z&inferencerig/core/rpc/gen/v1;controlv1b\x06proto3"
+	"\x10GetBackendParams\x120.inferencerig.control.v1.GetBackendParamsRequest\x1a1.inferencerig.control.v1.GetBackendParamsResponse\x12h\n" +
+	"\vEstimateFit\x12+.inferencerig.control.v1.EstimateFitRequest\x1a,.inferencerig.control.v1.EstimateFitResponse\x12\\\n" +
+	"\aGetLogs\x12'.inferencerig.control.v1.GetLogsRequest\x1a(.inferencerig.control.v1.GetLogsResponse\x12d\n" +
+	"\tWatchLogs\x12).inferencerig.control.v1.WatchLogsRequest\x1a*.inferencerig.control.v1.WatchLogsResponse0\x01\x12t\n" +
+	"\x0fListLogArchives\x12/.inferencerig.control.v1.ListLogArchivesRequest\x1a0.inferencerig.control.v1.ListLogArchivesResponse\x12n\n" +
+	"\rGetLogArchive\x12-.inferencerig.control.v1.GetLogArchiveRequest\x1a..inferencerig.control.v1.GetLogArchiveResponse\x12w\n" +
+	"\x10DeleteLogArchive\x120.inferencerig.control.v1.DeleteLogArchiveRequest\x1a1.inferencerig.control.v1.DeleteLogArchiveResponse\x12w\n" +
+	"\x10ClearLogArchives\x120.inferencerig.control.v1.ClearLogArchivesRequest\x1a1.inferencerig.control.v1.ClearLogArchivesResponseB(Z&inferencerig/core/rpc/gen/v1;controlv1b\x06proto3"
 
 var (
 	file_inferencerig_control_v1_control_proto_rawDescOnce sync.Once
@@ -4545,175 +6799,246 @@ func file_inferencerig_control_v1_control_proto_rawDescGZIP() []byte {
 	return file_inferencerig_control_v1_control_proto_rawDescData
 }
 
-var file_inferencerig_control_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 74)
+var file_inferencerig_control_v1_control_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_inferencerig_control_v1_control_proto_msgTypes = make([]protoimpl.MessageInfo, 102)
 var file_inferencerig_control_v1_control_proto_goTypes = []any{
-	(*HealthRequest)(nil),                  // 0: inferencerig.control.v1.HealthRequest
-	(*HealthResponse)(nil),                 // 1: inferencerig.control.v1.HealthResponse
-	(*ListBackendsRequest)(nil),            // 2: inferencerig.control.v1.ListBackendsRequest
-	(*ListBackendsResponse)(nil),           // 3: inferencerig.control.v1.ListBackendsResponse
-	(*BackendInfo)(nil),                    // 4: inferencerig.control.v1.BackendInfo
-	(*BackendCapabilities)(nil),            // 5: inferencerig.control.v1.BackendCapabilities
-	(*ListProfilesRequest)(nil),            // 6: inferencerig.control.v1.ListProfilesRequest
-	(*ListProfilesResponse)(nil),           // 7: inferencerig.control.v1.ListProfilesResponse
-	(*GetProfileRequest)(nil),              // 8: inferencerig.control.v1.GetProfileRequest
-	(*PutProfileRequest)(nil),              // 9: inferencerig.control.v1.PutProfileRequest
-	(*DeleteProfileRequest)(nil),           // 10: inferencerig.control.v1.DeleteProfileRequest
-	(*GetProfileResponse)(nil),             // 11: inferencerig.control.v1.GetProfileResponse
-	(*PutProfileResponse)(nil),             // 12: inferencerig.control.v1.PutProfileResponse
-	(*Profile)(nil),                        // 13: inferencerig.control.v1.Profile
-	(*DeleteProfileResponse)(nil),          // 14: inferencerig.control.v1.DeleteProfileResponse
-	(*InstallBackendRequest)(nil),          // 15: inferencerig.control.v1.InstallBackendRequest
-	(*InstallBackendResponse)(nil),         // 16: inferencerig.control.v1.InstallBackendResponse
-	(*StartRuntimeRequest)(nil),            // 17: inferencerig.control.v1.StartRuntimeRequest
-	(*StartRuntimeResponse)(nil),           // 18: inferencerig.control.v1.StartRuntimeResponse
-	(*StopRuntimeRequest)(nil),             // 19: inferencerig.control.v1.StopRuntimeRequest
-	(*StopRuntimeResponse)(nil),            // 20: inferencerig.control.v1.StopRuntimeResponse
-	(*GetRuntimeStatusRequest)(nil),        // 21: inferencerig.control.v1.GetRuntimeStatusRequest
-	(*GetRuntimeStatusResponse)(nil),       // 22: inferencerig.control.v1.GetRuntimeStatusResponse
-	(*CommandResult)(nil),                  // 23: inferencerig.control.v1.CommandResult
-	(*RuntimeStatus)(nil),                  // 24: inferencerig.control.v1.RuntimeStatus
-	(*ProcessStatus)(nil),                  // 25: inferencerig.control.v1.ProcessStatus
-	(*ResolveProfileModelRequest)(nil),     // 26: inferencerig.control.v1.ResolveProfileModelRequest
-	(*ResolveProfileModelResponse)(nil),    // 27: inferencerig.control.v1.ResolveProfileModelResponse
-	(*ResolvedModel)(nil),                  // 28: inferencerig.control.v1.ResolvedModel
-	(*Artifact)(nil),                       // 29: inferencerig.control.v1.Artifact
-	(*ArtifactPlan)(nil),                   // 30: inferencerig.control.v1.ArtifactPlan
-	(*ArtifactItem)(nil),                   // 31: inferencerig.control.v1.ArtifactItem
-	(*StartModelDownloadRequest)(nil),      // 32: inferencerig.control.v1.StartModelDownloadRequest
-	(*StartModelDownloadResponse)(nil),     // 33: inferencerig.control.v1.StartModelDownloadResponse
-	(*GetModelDownloadRequest)(nil),        // 34: inferencerig.control.v1.GetModelDownloadRequest
-	(*GetModelDownloadResponse)(nil),       // 35: inferencerig.control.v1.GetModelDownloadResponse
-	(*CancelModelDownloadRequest)(nil),     // 36: inferencerig.control.v1.CancelModelDownloadRequest
-	(*CancelModelDownloadResponse)(nil),    // 37: inferencerig.control.v1.CancelModelDownloadResponse
-	(*ModelDownload)(nil),                  // 38: inferencerig.control.v1.ModelDownload
-	(*GetSignalsRequest)(nil),              // 39: inferencerig.control.v1.GetSignalsRequest
-	(*GetSignalsResponse)(nil),             // 40: inferencerig.control.v1.GetSignalsResponse
-	(*Signals)(nil),                        // 41: inferencerig.control.v1.Signals
-	(*ListEventsRequest)(nil),              // 42: inferencerig.control.v1.ListEventsRequest
-	(*ListEventsResponse)(nil),             // 43: inferencerig.control.v1.ListEventsResponse
-	(*WatchEventsRequest)(nil),             // 44: inferencerig.control.v1.WatchEventsRequest
-	(*WatchEventsResponse)(nil),            // 45: inferencerig.control.v1.WatchEventsResponse
-	(*Event)(nil),                          // 46: inferencerig.control.v1.Event
-	(*ListModelCatalogRequest)(nil),        // 47: inferencerig.control.v1.ListModelCatalogRequest
-	(*ListModelCatalogResponse)(nil),       // 48: inferencerig.control.v1.ListModelCatalogResponse
-	(*CatalogModel)(nil),                   // 49: inferencerig.control.v1.CatalogModel
-	(*ModelVariant)(nil),                   // 50: inferencerig.control.v1.ModelVariant
-	(*WatchModelCatalogRequest)(nil),       // 51: inferencerig.control.v1.WatchModelCatalogRequest
-	(*WatchModelCatalogResponse)(nil),      // 52: inferencerig.control.v1.WatchModelCatalogResponse
-	(*ListLocalModelsRequest)(nil),         // 53: inferencerig.control.v1.ListLocalModelsRequest
-	(*ListLocalModelsResponse)(nil),        // 54: inferencerig.control.v1.ListLocalModelsResponse
-	(*LocalModel)(nil),                     // 55: inferencerig.control.v1.LocalModel
-	(*DeleteLocalModelRequest)(nil),        // 56: inferencerig.control.v1.DeleteLocalModelRequest
-	(*DeleteLocalModelResponse)(nil),       // 57: inferencerig.control.v1.DeleteLocalModelResponse
-	(*ApplyDownloadToProfileRequest)(nil),  // 58: inferencerig.control.v1.ApplyDownloadToProfileRequest
-	(*ApplyDownloadToProfileResponse)(nil), // 59: inferencerig.control.v1.ApplyDownloadToProfileResponse
-	(*CleanupProfileRequest)(nil),          // 60: inferencerig.control.v1.CleanupProfileRequest
-	(*CleanupProfileResponse)(nil),         // 61: inferencerig.control.v1.CleanupProfileResponse
-	(*SetProfileAutostartRequest)(nil),     // 62: inferencerig.control.v1.SetProfileAutostartRequest
-	(*SetProfileAutostartResponse)(nil),    // 63: inferencerig.control.v1.SetProfileAutostartResponse
-	(*SetStartupServicesRequest)(nil),      // 64: inferencerig.control.v1.SetStartupServicesRequest
-	(*SetStartupServicesResponse)(nil),     // 65: inferencerig.control.v1.SetStartupServicesResponse
-	(*RestartRuntimeRequest)(nil),          // 66: inferencerig.control.v1.RestartRuntimeRequest
-	(*RestartRuntimeResponse)(nil),         // 67: inferencerig.control.v1.RestartRuntimeResponse
-	(*GetInfoRequest)(nil),                 // 68: inferencerig.control.v1.GetInfoRequest
-	(*GetInfoResponse)(nil),                // 69: inferencerig.control.v1.GetInfoResponse
-	(*BuildInfo)(nil),                      // 70: inferencerig.control.v1.BuildInfo
-	(*GetBackendParamsRequest)(nil),        // 71: inferencerig.control.v1.GetBackendParamsRequest
-	(*GetBackendParamsResponse)(nil),       // 72: inferencerig.control.v1.GetBackendParamsResponse
-	(*BackendParameter)(nil),               // 73: inferencerig.control.v1.BackendParameter
+	(FitLevel)(0),                           // 0: inferencerig.control.v1.FitLevel
+	(ParameterType)(0),                      // 1: inferencerig.control.v1.ParameterType
+	(*HealthRequest)(nil),                   // 2: inferencerig.control.v1.HealthRequest
+	(*HealthResponse)(nil),                  // 3: inferencerig.control.v1.HealthResponse
+	(*ListBackendsRequest)(nil),             // 4: inferencerig.control.v1.ListBackendsRequest
+	(*ListBackendsResponse)(nil),            // 5: inferencerig.control.v1.ListBackendsResponse
+	(*BackendInfo)(nil),                     // 6: inferencerig.control.v1.BackendInfo
+	(*BackendCapabilities)(nil),             // 7: inferencerig.control.v1.BackendCapabilities
+	(*ListProfilesRequest)(nil),             // 8: inferencerig.control.v1.ListProfilesRequest
+	(*ListProfilesResponse)(nil),            // 9: inferencerig.control.v1.ListProfilesResponse
+	(*GetProfileRequest)(nil),               // 10: inferencerig.control.v1.GetProfileRequest
+	(*PutProfileRequest)(nil),               // 11: inferencerig.control.v1.PutProfileRequest
+	(*DeleteProfileRequest)(nil),            // 12: inferencerig.control.v1.DeleteProfileRequest
+	(*GetProfileResponse)(nil),              // 13: inferencerig.control.v1.GetProfileResponse
+	(*PutProfileResponse)(nil),              // 14: inferencerig.control.v1.PutProfileResponse
+	(*Profile)(nil),                         // 15: inferencerig.control.v1.Profile
+	(*DeleteProfileResponse)(nil),           // 16: inferencerig.control.v1.DeleteProfileResponse
+	(*InstallBackendRequest)(nil),           // 17: inferencerig.control.v1.InstallBackendRequest
+	(*InstallBackendResponse)(nil),          // 18: inferencerig.control.v1.InstallBackendResponse
+	(*GetBackendInstallStatusRequest)(nil),  // 19: inferencerig.control.v1.GetBackendInstallStatusRequest
+	(*GetBackendInstallStatusResponse)(nil), // 20: inferencerig.control.v1.GetBackendInstallStatusResponse
+	(*StartRuntimeRequest)(nil),             // 21: inferencerig.control.v1.StartRuntimeRequest
+	(*StartRuntimeResponse)(nil),            // 22: inferencerig.control.v1.StartRuntimeResponse
+	(*StopRuntimeRequest)(nil),              // 23: inferencerig.control.v1.StopRuntimeRequest
+	(*StopRuntimeResponse)(nil),             // 24: inferencerig.control.v1.StopRuntimeResponse
+	(*GetRuntimeStatusRequest)(nil),         // 25: inferencerig.control.v1.GetRuntimeStatusRequest
+	(*GetRuntimeStatusResponse)(nil),        // 26: inferencerig.control.v1.GetRuntimeStatusResponse
+	(*ProfileRuntimeStatus)(nil),            // 27: inferencerig.control.v1.ProfileRuntimeStatus
+	(*CommandResult)(nil),                   // 28: inferencerig.control.v1.CommandResult
+	(*RuntimeStatus)(nil),                   // 29: inferencerig.control.v1.RuntimeStatus
+	(*ProcessStatus)(nil),                   // 30: inferencerig.control.v1.ProcessStatus
+	(*ResolveProfileModelRequest)(nil),      // 31: inferencerig.control.v1.ResolveProfileModelRequest
+	(*ResolveProfileModelResponse)(nil),     // 32: inferencerig.control.v1.ResolveProfileModelResponse
+	(*ResolvedModel)(nil),                   // 33: inferencerig.control.v1.ResolvedModel
+	(*Artifact)(nil),                        // 34: inferencerig.control.v1.Artifact
+	(*ArtifactPlan)(nil),                    // 35: inferencerig.control.v1.ArtifactPlan
+	(*ArtifactItem)(nil),                    // 36: inferencerig.control.v1.ArtifactItem
+	(*ResolveModelRequest)(nil),             // 37: inferencerig.control.v1.ResolveModelRequest
+	(*ResolveModelResponse)(nil),            // 38: inferencerig.control.v1.ResolveModelResponse
+	(*StartModelDownloadRequest)(nil),       // 39: inferencerig.control.v1.StartModelDownloadRequest
+	(*StartModelDownloadResponse)(nil),      // 40: inferencerig.control.v1.StartModelDownloadResponse
+	(*GetModelDownloadRequest)(nil),         // 41: inferencerig.control.v1.GetModelDownloadRequest
+	(*GetModelDownloadResponse)(nil),        // 42: inferencerig.control.v1.GetModelDownloadResponse
+	(*CancelModelDownloadRequest)(nil),      // 43: inferencerig.control.v1.CancelModelDownloadRequest
+	(*CancelModelDownloadResponse)(nil),     // 44: inferencerig.control.v1.CancelModelDownloadResponse
+	(*ModelDownload)(nil),                   // 45: inferencerig.control.v1.ModelDownload
+	(*GetSignalsRequest)(nil),               // 46: inferencerig.control.v1.GetSignalsRequest
+	(*GetSignalsResponse)(nil),              // 47: inferencerig.control.v1.GetSignalsResponse
+	(*Signals)(nil),                         // 48: inferencerig.control.v1.Signals
+	(*HostInfo)(nil),                        // 49: inferencerig.control.v1.HostInfo
+	(*RuntimeProcess)(nil),                  // 50: inferencerig.control.v1.RuntimeProcess
+	(*Accelerator)(nil),                     // 51: inferencerig.control.v1.Accelerator
+	(*Disk)(nil),                            // 52: inferencerig.control.v1.Disk
+	(*ListEventsRequest)(nil),               // 53: inferencerig.control.v1.ListEventsRequest
+	(*ListEventsResponse)(nil),              // 54: inferencerig.control.v1.ListEventsResponse
+	(*WatchEventsRequest)(nil),              // 55: inferencerig.control.v1.WatchEventsRequest
+	(*WatchEventsResponse)(nil),             // 56: inferencerig.control.v1.WatchEventsResponse
+	(*Event)(nil),                           // 57: inferencerig.control.v1.Event
+	(*ListModelCatalogRequest)(nil),         // 58: inferencerig.control.v1.ListModelCatalogRequest
+	(*ListModelCatalogResponse)(nil),        // 59: inferencerig.control.v1.ListModelCatalogResponse
+	(*MachineProfile)(nil),                  // 60: inferencerig.control.v1.MachineProfile
+	(*CatalogCacheState)(nil),               // 61: inferencerig.control.v1.CatalogCacheState
+	(*CatalogModel)(nil),                    // 62: inferencerig.control.v1.CatalogModel
+	(*ModelVariant)(nil),                    // 63: inferencerig.control.v1.ModelVariant
+	(*FitEstimate)(nil),                     // 64: inferencerig.control.v1.FitEstimate
+	(*EstimateFitRequest)(nil),              // 65: inferencerig.control.v1.EstimateFitRequest
+	(*EstimateFitResponse)(nil),             // 66: inferencerig.control.v1.EstimateFitResponse
+	(*WatchModelCatalogRequest)(nil),        // 67: inferencerig.control.v1.WatchModelCatalogRequest
+	(*WatchModelCatalogResponse)(nil),       // 68: inferencerig.control.v1.WatchModelCatalogResponse
+	(*ListLocalModelsRequest)(nil),          // 69: inferencerig.control.v1.ListLocalModelsRequest
+	(*ListLocalModelsResponse)(nil),         // 70: inferencerig.control.v1.ListLocalModelsResponse
+	(*LocalModel)(nil),                      // 71: inferencerig.control.v1.LocalModel
+	(*DeleteLocalModelRequest)(nil),         // 72: inferencerig.control.v1.DeleteLocalModelRequest
+	(*DeleteLocalModelResponse)(nil),        // 73: inferencerig.control.v1.DeleteLocalModelResponse
+	(*ApplyDownloadToProfileRequest)(nil),   // 74: inferencerig.control.v1.ApplyDownloadToProfileRequest
+	(*ApplyDownloadToProfileResponse)(nil),  // 75: inferencerig.control.v1.ApplyDownloadToProfileResponse
+	(*TextDiff)(nil),                        // 76: inferencerig.control.v1.TextDiff
+	(*CleanupProfileRequest)(nil),           // 77: inferencerig.control.v1.CleanupProfileRequest
+	(*CleanupProfileResponse)(nil),          // 78: inferencerig.control.v1.CleanupProfileResponse
+	(*SetProfileAutostartRequest)(nil),      // 79: inferencerig.control.v1.SetProfileAutostartRequest
+	(*SetProfileAutostartResponse)(nil),     // 80: inferencerig.control.v1.SetProfileAutostartResponse
+	(*SetStartupServicesRequest)(nil),       // 81: inferencerig.control.v1.SetStartupServicesRequest
+	(*SetStartupServicesResponse)(nil),      // 82: inferencerig.control.v1.SetStartupServicesResponse
+	(*RestartRuntimeRequest)(nil),           // 83: inferencerig.control.v1.RestartRuntimeRequest
+	(*RestartRuntimeResponse)(nil),          // 84: inferencerig.control.v1.RestartRuntimeResponse
+	(*GetInfoRequest)(nil),                  // 85: inferencerig.control.v1.GetInfoRequest
+	(*GetInfoResponse)(nil),                 // 86: inferencerig.control.v1.GetInfoResponse
+	(*BuildInfo)(nil),                       // 87: inferencerig.control.v1.BuildInfo
+	(*GetLogsRequest)(nil),                  // 88: inferencerig.control.v1.GetLogsRequest
+	(*GetLogsResponse)(nil),                 // 89: inferencerig.control.v1.GetLogsResponse
+	(*WatchLogsRequest)(nil),                // 90: inferencerig.control.v1.WatchLogsRequest
+	(*WatchLogsResponse)(nil),               // 91: inferencerig.control.v1.WatchLogsResponse
+	(*ListLogArchivesRequest)(nil),          // 92: inferencerig.control.v1.ListLogArchivesRequest
+	(*ListLogArchivesResponse)(nil),         // 93: inferencerig.control.v1.ListLogArchivesResponse
+	(*LogArchive)(nil),                      // 94: inferencerig.control.v1.LogArchive
+	(*GetLogArchiveRequest)(nil),            // 95: inferencerig.control.v1.GetLogArchiveRequest
+	(*GetLogArchiveResponse)(nil),           // 96: inferencerig.control.v1.GetLogArchiveResponse
+	(*DeleteLogArchiveRequest)(nil),         // 97: inferencerig.control.v1.DeleteLogArchiveRequest
+	(*DeleteLogArchiveResponse)(nil),        // 98: inferencerig.control.v1.DeleteLogArchiveResponse
+	(*ClearLogArchivesRequest)(nil),         // 99: inferencerig.control.v1.ClearLogArchivesRequest
+	(*ClearLogArchivesResponse)(nil),        // 100: inferencerig.control.v1.ClearLogArchivesResponse
+	(*GetBackendParamsRequest)(nil),         // 101: inferencerig.control.v1.GetBackendParamsRequest
+	(*GetBackendParamsResponse)(nil),        // 102: inferencerig.control.v1.GetBackendParamsResponse
+	(*BackendParameter)(nil),                // 103: inferencerig.control.v1.BackendParameter
+	(*structpb.Struct)(nil),                 // 104: google.protobuf.Struct
 }
 var file_inferencerig_control_v1_control_proto_depIdxs = []int32{
-	4,  // 0: inferencerig.control.v1.ListBackendsResponse.backends:type_name -> inferencerig.control.v1.BackendInfo
-	5,  // 1: inferencerig.control.v1.BackendInfo.capabilities:type_name -> inferencerig.control.v1.BackendCapabilities
-	13, // 2: inferencerig.control.v1.ListProfilesResponse.profiles:type_name -> inferencerig.control.v1.Profile
-	13, // 3: inferencerig.control.v1.GetProfileResponse.profile:type_name -> inferencerig.control.v1.Profile
-	13, // 4: inferencerig.control.v1.PutProfileResponse.profile:type_name -> inferencerig.control.v1.Profile
-	23, // 5: inferencerig.control.v1.StartRuntimeResponse.result:type_name -> inferencerig.control.v1.CommandResult
-	24, // 6: inferencerig.control.v1.StartRuntimeResponse.status:type_name -> inferencerig.control.v1.RuntimeStatus
-	23, // 7: inferencerig.control.v1.StopRuntimeResponse.result:type_name -> inferencerig.control.v1.CommandResult
-	24, // 8: inferencerig.control.v1.StopRuntimeResponse.status:type_name -> inferencerig.control.v1.RuntimeStatus
-	24, // 9: inferencerig.control.v1.GetRuntimeStatusResponse.status:type_name -> inferencerig.control.v1.RuntimeStatus
-	25, // 10: inferencerig.control.v1.RuntimeStatus.processes:type_name -> inferencerig.control.v1.ProcessStatus
-	28, // 11: inferencerig.control.v1.ResolveProfileModelResponse.model:type_name -> inferencerig.control.v1.ResolvedModel
-	30, // 12: inferencerig.control.v1.ResolveProfileModelResponse.plan:type_name -> inferencerig.control.v1.ArtifactPlan
-	29, // 13: inferencerig.control.v1.ResolvedModel.artifacts:type_name -> inferencerig.control.v1.Artifact
-	31, // 14: inferencerig.control.v1.ArtifactPlan.items:type_name -> inferencerig.control.v1.ArtifactItem
-	38, // 15: inferencerig.control.v1.StartModelDownloadResponse.download:type_name -> inferencerig.control.v1.ModelDownload
-	38, // 16: inferencerig.control.v1.GetModelDownloadResponse.download:type_name -> inferencerig.control.v1.ModelDownload
-	38, // 17: inferencerig.control.v1.CancelModelDownloadResponse.download:type_name -> inferencerig.control.v1.ModelDownload
-	41, // 18: inferencerig.control.v1.GetSignalsResponse.signals:type_name -> inferencerig.control.v1.Signals
-	46, // 19: inferencerig.control.v1.ListEventsResponse.events:type_name -> inferencerig.control.v1.Event
-	46, // 20: inferencerig.control.v1.WatchEventsResponse.event:type_name -> inferencerig.control.v1.Event
-	49, // 21: inferencerig.control.v1.ListModelCatalogResponse.models:type_name -> inferencerig.control.v1.CatalogModel
-	50, // 22: inferencerig.control.v1.CatalogModel.variants:type_name -> inferencerig.control.v1.ModelVariant
-	55, // 23: inferencerig.control.v1.ListLocalModelsResponse.models:type_name -> inferencerig.control.v1.LocalModel
-	13, // 24: inferencerig.control.v1.ApplyDownloadToProfileResponse.profile:type_name -> inferencerig.control.v1.Profile
-	23, // 25: inferencerig.control.v1.RestartRuntimeResponse.stopped:type_name -> inferencerig.control.v1.CommandResult
-	23, // 26: inferencerig.control.v1.RestartRuntimeResponse.started:type_name -> inferencerig.control.v1.CommandResult
-	24, // 27: inferencerig.control.v1.RestartRuntimeResponse.status:type_name -> inferencerig.control.v1.RuntimeStatus
-	70, // 28: inferencerig.control.v1.GetInfoResponse.build:type_name -> inferencerig.control.v1.BuildInfo
-	73, // 29: inferencerig.control.v1.GetBackendParamsResponse.params:type_name -> inferencerig.control.v1.BackendParameter
-	0,  // 30: inferencerig.control.v1.ControlService.Health:input_type -> inferencerig.control.v1.HealthRequest
-	2,  // 31: inferencerig.control.v1.ControlService.ListBackends:input_type -> inferencerig.control.v1.ListBackendsRequest
-	6,  // 32: inferencerig.control.v1.ControlService.ListProfiles:input_type -> inferencerig.control.v1.ListProfilesRequest
-	8,  // 33: inferencerig.control.v1.ControlService.GetProfile:input_type -> inferencerig.control.v1.GetProfileRequest
-	9,  // 34: inferencerig.control.v1.ControlService.PutProfile:input_type -> inferencerig.control.v1.PutProfileRequest
-	10, // 35: inferencerig.control.v1.ControlService.DeleteProfile:input_type -> inferencerig.control.v1.DeleteProfileRequest
-	15, // 36: inferencerig.control.v1.ControlService.InstallBackend:input_type -> inferencerig.control.v1.InstallBackendRequest
-	17, // 37: inferencerig.control.v1.ControlService.StartRuntime:input_type -> inferencerig.control.v1.StartRuntimeRequest
-	19, // 38: inferencerig.control.v1.ControlService.StopRuntime:input_type -> inferencerig.control.v1.StopRuntimeRequest
-	21, // 39: inferencerig.control.v1.ControlService.GetRuntimeStatus:input_type -> inferencerig.control.v1.GetRuntimeStatusRequest
-	26, // 40: inferencerig.control.v1.ControlService.ResolveProfileModel:input_type -> inferencerig.control.v1.ResolveProfileModelRequest
-	32, // 41: inferencerig.control.v1.ControlService.StartModelDownload:input_type -> inferencerig.control.v1.StartModelDownloadRequest
-	34, // 42: inferencerig.control.v1.ControlService.GetModelDownload:input_type -> inferencerig.control.v1.GetModelDownloadRequest
-	36, // 43: inferencerig.control.v1.ControlService.CancelModelDownload:input_type -> inferencerig.control.v1.CancelModelDownloadRequest
-	39, // 44: inferencerig.control.v1.ControlService.GetSignals:input_type -> inferencerig.control.v1.GetSignalsRequest
-	42, // 45: inferencerig.control.v1.ControlService.ListEvents:input_type -> inferencerig.control.v1.ListEventsRequest
-	44, // 46: inferencerig.control.v1.ControlService.WatchEvents:input_type -> inferencerig.control.v1.WatchEventsRequest
-	47, // 47: inferencerig.control.v1.ControlService.ListModelCatalog:input_type -> inferencerig.control.v1.ListModelCatalogRequest
-	51, // 48: inferencerig.control.v1.ControlService.WatchModelCatalog:input_type -> inferencerig.control.v1.WatchModelCatalogRequest
-	53, // 49: inferencerig.control.v1.ControlService.ListLocalModels:input_type -> inferencerig.control.v1.ListLocalModelsRequest
-	56, // 50: inferencerig.control.v1.ControlService.DeleteLocalModel:input_type -> inferencerig.control.v1.DeleteLocalModelRequest
-	58, // 51: inferencerig.control.v1.ControlService.ApplyDownloadToProfile:input_type -> inferencerig.control.v1.ApplyDownloadToProfileRequest
-	60, // 52: inferencerig.control.v1.ControlService.CleanupProfile:input_type -> inferencerig.control.v1.CleanupProfileRequest
-	62, // 53: inferencerig.control.v1.ControlService.SetProfileAutostart:input_type -> inferencerig.control.v1.SetProfileAutostartRequest
-	64, // 54: inferencerig.control.v1.ControlService.SetStartupServices:input_type -> inferencerig.control.v1.SetStartupServicesRequest
-	66, // 55: inferencerig.control.v1.ControlService.RestartRuntime:input_type -> inferencerig.control.v1.RestartRuntimeRequest
-	68, // 56: inferencerig.control.v1.ControlService.GetInfo:input_type -> inferencerig.control.v1.GetInfoRequest
-	71, // 57: inferencerig.control.v1.ControlService.GetBackendParams:input_type -> inferencerig.control.v1.GetBackendParamsRequest
-	1,  // 58: inferencerig.control.v1.ControlService.Health:output_type -> inferencerig.control.v1.HealthResponse
-	3,  // 59: inferencerig.control.v1.ControlService.ListBackends:output_type -> inferencerig.control.v1.ListBackendsResponse
-	7,  // 60: inferencerig.control.v1.ControlService.ListProfiles:output_type -> inferencerig.control.v1.ListProfilesResponse
-	11, // 61: inferencerig.control.v1.ControlService.GetProfile:output_type -> inferencerig.control.v1.GetProfileResponse
-	12, // 62: inferencerig.control.v1.ControlService.PutProfile:output_type -> inferencerig.control.v1.PutProfileResponse
-	14, // 63: inferencerig.control.v1.ControlService.DeleteProfile:output_type -> inferencerig.control.v1.DeleteProfileResponse
-	16, // 64: inferencerig.control.v1.ControlService.InstallBackend:output_type -> inferencerig.control.v1.InstallBackendResponse
-	18, // 65: inferencerig.control.v1.ControlService.StartRuntime:output_type -> inferencerig.control.v1.StartRuntimeResponse
-	20, // 66: inferencerig.control.v1.ControlService.StopRuntime:output_type -> inferencerig.control.v1.StopRuntimeResponse
-	22, // 67: inferencerig.control.v1.ControlService.GetRuntimeStatus:output_type -> inferencerig.control.v1.GetRuntimeStatusResponse
-	27, // 68: inferencerig.control.v1.ControlService.ResolveProfileModel:output_type -> inferencerig.control.v1.ResolveProfileModelResponse
-	33, // 69: inferencerig.control.v1.ControlService.StartModelDownload:output_type -> inferencerig.control.v1.StartModelDownloadResponse
-	35, // 70: inferencerig.control.v1.ControlService.GetModelDownload:output_type -> inferencerig.control.v1.GetModelDownloadResponse
-	37, // 71: inferencerig.control.v1.ControlService.CancelModelDownload:output_type -> inferencerig.control.v1.CancelModelDownloadResponse
-	40, // 72: inferencerig.control.v1.ControlService.GetSignals:output_type -> inferencerig.control.v1.GetSignalsResponse
-	43, // 73: inferencerig.control.v1.ControlService.ListEvents:output_type -> inferencerig.control.v1.ListEventsResponse
-	45, // 74: inferencerig.control.v1.ControlService.WatchEvents:output_type -> inferencerig.control.v1.WatchEventsResponse
-	48, // 75: inferencerig.control.v1.ControlService.ListModelCatalog:output_type -> inferencerig.control.v1.ListModelCatalogResponse
-	52, // 76: inferencerig.control.v1.ControlService.WatchModelCatalog:output_type -> inferencerig.control.v1.WatchModelCatalogResponse
-	54, // 77: inferencerig.control.v1.ControlService.ListLocalModels:output_type -> inferencerig.control.v1.ListLocalModelsResponse
-	57, // 78: inferencerig.control.v1.ControlService.DeleteLocalModel:output_type -> inferencerig.control.v1.DeleteLocalModelResponse
-	59, // 79: inferencerig.control.v1.ControlService.ApplyDownloadToProfile:output_type -> inferencerig.control.v1.ApplyDownloadToProfileResponse
-	61, // 80: inferencerig.control.v1.ControlService.CleanupProfile:output_type -> inferencerig.control.v1.CleanupProfileResponse
-	63, // 81: inferencerig.control.v1.ControlService.SetProfileAutostart:output_type -> inferencerig.control.v1.SetProfileAutostartResponse
-	65, // 82: inferencerig.control.v1.ControlService.SetStartupServices:output_type -> inferencerig.control.v1.SetStartupServicesResponse
-	67, // 83: inferencerig.control.v1.ControlService.RestartRuntime:output_type -> inferencerig.control.v1.RestartRuntimeResponse
-	69, // 84: inferencerig.control.v1.ControlService.GetInfo:output_type -> inferencerig.control.v1.GetInfoResponse
-	72, // 85: inferencerig.control.v1.ControlService.GetBackendParams:output_type -> inferencerig.control.v1.GetBackendParamsResponse
-	58, // [58:86] is the sub-list for method output_type
-	30, // [30:58] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	6,   // 0: inferencerig.control.v1.ListBackendsResponse.backends:type_name -> inferencerig.control.v1.BackendInfo
+	7,   // 1: inferencerig.control.v1.BackendInfo.capabilities:type_name -> inferencerig.control.v1.BackendCapabilities
+	15,  // 2: inferencerig.control.v1.ListProfilesResponse.profiles:type_name -> inferencerig.control.v1.Profile
+	15,  // 3: inferencerig.control.v1.PutProfileRequest.profile:type_name -> inferencerig.control.v1.Profile
+	15,  // 4: inferencerig.control.v1.GetProfileResponse.profile:type_name -> inferencerig.control.v1.Profile
+	15,  // 5: inferencerig.control.v1.PutProfileResponse.profile:type_name -> inferencerig.control.v1.Profile
+	104, // 6: inferencerig.control.v1.Profile.engine_args:type_name -> google.protobuf.Struct
+	28,  // 7: inferencerig.control.v1.StartRuntimeResponse.result:type_name -> inferencerig.control.v1.CommandResult
+	29,  // 8: inferencerig.control.v1.StartRuntimeResponse.status:type_name -> inferencerig.control.v1.RuntimeStatus
+	28,  // 9: inferencerig.control.v1.StopRuntimeResponse.result:type_name -> inferencerig.control.v1.CommandResult
+	29,  // 10: inferencerig.control.v1.StopRuntimeResponse.status:type_name -> inferencerig.control.v1.RuntimeStatus
+	29,  // 11: inferencerig.control.v1.GetRuntimeStatusResponse.status:type_name -> inferencerig.control.v1.RuntimeStatus
+	27,  // 12: inferencerig.control.v1.GetRuntimeStatusResponse.profiles:type_name -> inferencerig.control.v1.ProfileRuntimeStatus
+	29,  // 13: inferencerig.control.v1.ProfileRuntimeStatus.status:type_name -> inferencerig.control.v1.RuntimeStatus
+	30,  // 14: inferencerig.control.v1.RuntimeStatus.processes:type_name -> inferencerig.control.v1.ProcessStatus
+	33,  // 15: inferencerig.control.v1.ResolveProfileModelResponse.model:type_name -> inferencerig.control.v1.ResolvedModel
+	35,  // 16: inferencerig.control.v1.ResolveProfileModelResponse.plan:type_name -> inferencerig.control.v1.ArtifactPlan
+	34,  // 17: inferencerig.control.v1.ResolvedModel.artifacts:type_name -> inferencerig.control.v1.Artifact
+	36,  // 18: inferencerig.control.v1.ArtifactPlan.items:type_name -> inferencerig.control.v1.ArtifactItem
+	33,  // 19: inferencerig.control.v1.ResolveModelResponse.model:type_name -> inferencerig.control.v1.ResolvedModel
+	35,  // 20: inferencerig.control.v1.ResolveModelResponse.plan:type_name -> inferencerig.control.v1.ArtifactPlan
+	45,  // 21: inferencerig.control.v1.StartModelDownloadResponse.download:type_name -> inferencerig.control.v1.ModelDownload
+	45,  // 22: inferencerig.control.v1.GetModelDownloadResponse.download:type_name -> inferencerig.control.v1.ModelDownload
+	45,  // 23: inferencerig.control.v1.CancelModelDownloadResponse.download:type_name -> inferencerig.control.v1.ModelDownload
+	48,  // 24: inferencerig.control.v1.GetSignalsResponse.signals:type_name -> inferencerig.control.v1.Signals
+	51,  // 25: inferencerig.control.v1.Signals.accelerators:type_name -> inferencerig.control.v1.Accelerator
+	52,  // 26: inferencerig.control.v1.Signals.disks:type_name -> inferencerig.control.v1.Disk
+	49,  // 27: inferencerig.control.v1.Signals.host:type_name -> inferencerig.control.v1.HostInfo
+	50,  // 28: inferencerig.control.v1.Signals.runtime:type_name -> inferencerig.control.v1.RuntimeProcess
+	57,  // 29: inferencerig.control.v1.ListEventsResponse.events:type_name -> inferencerig.control.v1.Event
+	57,  // 30: inferencerig.control.v1.WatchEventsResponse.event:type_name -> inferencerig.control.v1.Event
+	0,   // 31: inferencerig.control.v1.ListModelCatalogRequest.min_fit:type_name -> inferencerig.control.v1.FitLevel
+	62,  // 32: inferencerig.control.v1.ListModelCatalogResponse.models:type_name -> inferencerig.control.v1.CatalogModel
+	60,  // 33: inferencerig.control.v1.ListModelCatalogResponse.machine:type_name -> inferencerig.control.v1.MachineProfile
+	61,  // 34: inferencerig.control.v1.ListModelCatalogResponse.cache:type_name -> inferencerig.control.v1.CatalogCacheState
+	63,  // 35: inferencerig.control.v1.CatalogModel.variants:type_name -> inferencerig.control.v1.ModelVariant
+	63,  // 36: inferencerig.control.v1.CatalogModel.best_variant:type_name -> inferencerig.control.v1.ModelVariant
+	64,  // 37: inferencerig.control.v1.ModelVariant.fit:type_name -> inferencerig.control.v1.FitEstimate
+	0,   // 38: inferencerig.control.v1.FitEstimate.level:type_name -> inferencerig.control.v1.FitLevel
+	64,  // 39: inferencerig.control.v1.EstimateFitResponse.fit:type_name -> inferencerig.control.v1.FitEstimate
+	60,  // 40: inferencerig.control.v1.EstimateFitResponse.machine:type_name -> inferencerig.control.v1.MachineProfile
+	71,  // 41: inferencerig.control.v1.ListLocalModelsResponse.models:type_name -> inferencerig.control.v1.LocalModel
+	15,  // 42: inferencerig.control.v1.ApplyDownloadToProfileResponse.profile:type_name -> inferencerig.control.v1.Profile
+	76,  // 43: inferencerig.control.v1.ApplyDownloadToProfileResponse.preview_diff:type_name -> inferencerig.control.v1.TextDiff
+	28,  // 44: inferencerig.control.v1.RestartRuntimeResponse.stopped:type_name -> inferencerig.control.v1.CommandResult
+	28,  // 45: inferencerig.control.v1.RestartRuntimeResponse.started:type_name -> inferencerig.control.v1.CommandResult
+	29,  // 46: inferencerig.control.v1.RestartRuntimeResponse.status:type_name -> inferencerig.control.v1.RuntimeStatus
+	87,  // 47: inferencerig.control.v1.GetInfoResponse.build:type_name -> inferencerig.control.v1.BuildInfo
+	94,  // 48: inferencerig.control.v1.ListLogArchivesResponse.archives:type_name -> inferencerig.control.v1.LogArchive
+	103, // 49: inferencerig.control.v1.GetBackendParamsResponse.params:type_name -> inferencerig.control.v1.BackendParameter
+	1,   // 50: inferencerig.control.v1.BackendParameter.type:type_name -> inferencerig.control.v1.ParameterType
+	2,   // 51: inferencerig.control.v1.ControlService.Health:input_type -> inferencerig.control.v1.HealthRequest
+	4,   // 52: inferencerig.control.v1.ControlService.ListBackends:input_type -> inferencerig.control.v1.ListBackendsRequest
+	8,   // 53: inferencerig.control.v1.ControlService.ListProfiles:input_type -> inferencerig.control.v1.ListProfilesRequest
+	10,  // 54: inferencerig.control.v1.ControlService.GetProfile:input_type -> inferencerig.control.v1.GetProfileRequest
+	11,  // 55: inferencerig.control.v1.ControlService.PutProfile:input_type -> inferencerig.control.v1.PutProfileRequest
+	12,  // 56: inferencerig.control.v1.ControlService.DeleteProfile:input_type -> inferencerig.control.v1.DeleteProfileRequest
+	17,  // 57: inferencerig.control.v1.ControlService.InstallBackend:input_type -> inferencerig.control.v1.InstallBackendRequest
+	19,  // 58: inferencerig.control.v1.ControlService.GetBackendInstallStatus:input_type -> inferencerig.control.v1.GetBackendInstallStatusRequest
+	21,  // 59: inferencerig.control.v1.ControlService.StartRuntime:input_type -> inferencerig.control.v1.StartRuntimeRequest
+	23,  // 60: inferencerig.control.v1.ControlService.StopRuntime:input_type -> inferencerig.control.v1.StopRuntimeRequest
+	25,  // 61: inferencerig.control.v1.ControlService.GetRuntimeStatus:input_type -> inferencerig.control.v1.GetRuntimeStatusRequest
+	31,  // 62: inferencerig.control.v1.ControlService.ResolveProfileModel:input_type -> inferencerig.control.v1.ResolveProfileModelRequest
+	37,  // 63: inferencerig.control.v1.ControlService.ResolveModel:input_type -> inferencerig.control.v1.ResolveModelRequest
+	39,  // 64: inferencerig.control.v1.ControlService.StartModelDownload:input_type -> inferencerig.control.v1.StartModelDownloadRequest
+	41,  // 65: inferencerig.control.v1.ControlService.GetModelDownload:input_type -> inferencerig.control.v1.GetModelDownloadRequest
+	43,  // 66: inferencerig.control.v1.ControlService.CancelModelDownload:input_type -> inferencerig.control.v1.CancelModelDownloadRequest
+	46,  // 67: inferencerig.control.v1.ControlService.GetSignals:input_type -> inferencerig.control.v1.GetSignalsRequest
+	53,  // 68: inferencerig.control.v1.ControlService.ListEvents:input_type -> inferencerig.control.v1.ListEventsRequest
+	55,  // 69: inferencerig.control.v1.ControlService.WatchEvents:input_type -> inferencerig.control.v1.WatchEventsRequest
+	58,  // 70: inferencerig.control.v1.ControlService.ListModelCatalog:input_type -> inferencerig.control.v1.ListModelCatalogRequest
+	67,  // 71: inferencerig.control.v1.ControlService.WatchModelCatalog:input_type -> inferencerig.control.v1.WatchModelCatalogRequest
+	69,  // 72: inferencerig.control.v1.ControlService.ListLocalModels:input_type -> inferencerig.control.v1.ListLocalModelsRequest
+	72,  // 73: inferencerig.control.v1.ControlService.DeleteLocalModel:input_type -> inferencerig.control.v1.DeleteLocalModelRequest
+	74,  // 74: inferencerig.control.v1.ControlService.ApplyDownloadToProfile:input_type -> inferencerig.control.v1.ApplyDownloadToProfileRequest
+	77,  // 75: inferencerig.control.v1.ControlService.CleanupProfile:input_type -> inferencerig.control.v1.CleanupProfileRequest
+	79,  // 76: inferencerig.control.v1.ControlService.SetProfileAutostart:input_type -> inferencerig.control.v1.SetProfileAutostartRequest
+	81,  // 77: inferencerig.control.v1.ControlService.SetStartupServices:input_type -> inferencerig.control.v1.SetStartupServicesRequest
+	83,  // 78: inferencerig.control.v1.ControlService.RestartRuntime:input_type -> inferencerig.control.v1.RestartRuntimeRequest
+	85,  // 79: inferencerig.control.v1.ControlService.GetInfo:input_type -> inferencerig.control.v1.GetInfoRequest
+	101, // 80: inferencerig.control.v1.ControlService.GetBackendParams:input_type -> inferencerig.control.v1.GetBackendParamsRequest
+	65,  // 81: inferencerig.control.v1.ControlService.EstimateFit:input_type -> inferencerig.control.v1.EstimateFitRequest
+	88,  // 82: inferencerig.control.v1.ControlService.GetLogs:input_type -> inferencerig.control.v1.GetLogsRequest
+	90,  // 83: inferencerig.control.v1.ControlService.WatchLogs:input_type -> inferencerig.control.v1.WatchLogsRequest
+	92,  // 84: inferencerig.control.v1.ControlService.ListLogArchives:input_type -> inferencerig.control.v1.ListLogArchivesRequest
+	95,  // 85: inferencerig.control.v1.ControlService.GetLogArchive:input_type -> inferencerig.control.v1.GetLogArchiveRequest
+	97,  // 86: inferencerig.control.v1.ControlService.DeleteLogArchive:input_type -> inferencerig.control.v1.DeleteLogArchiveRequest
+	99,  // 87: inferencerig.control.v1.ControlService.ClearLogArchives:input_type -> inferencerig.control.v1.ClearLogArchivesRequest
+	3,   // 88: inferencerig.control.v1.ControlService.Health:output_type -> inferencerig.control.v1.HealthResponse
+	5,   // 89: inferencerig.control.v1.ControlService.ListBackends:output_type -> inferencerig.control.v1.ListBackendsResponse
+	9,   // 90: inferencerig.control.v1.ControlService.ListProfiles:output_type -> inferencerig.control.v1.ListProfilesResponse
+	13,  // 91: inferencerig.control.v1.ControlService.GetProfile:output_type -> inferencerig.control.v1.GetProfileResponse
+	14,  // 92: inferencerig.control.v1.ControlService.PutProfile:output_type -> inferencerig.control.v1.PutProfileResponse
+	16,  // 93: inferencerig.control.v1.ControlService.DeleteProfile:output_type -> inferencerig.control.v1.DeleteProfileResponse
+	18,  // 94: inferencerig.control.v1.ControlService.InstallBackend:output_type -> inferencerig.control.v1.InstallBackendResponse
+	20,  // 95: inferencerig.control.v1.ControlService.GetBackendInstallStatus:output_type -> inferencerig.control.v1.GetBackendInstallStatusResponse
+	22,  // 96: inferencerig.control.v1.ControlService.StartRuntime:output_type -> inferencerig.control.v1.StartRuntimeResponse
+	24,  // 97: inferencerig.control.v1.ControlService.StopRuntime:output_type -> inferencerig.control.v1.StopRuntimeResponse
+	26,  // 98: inferencerig.control.v1.ControlService.GetRuntimeStatus:output_type -> inferencerig.control.v1.GetRuntimeStatusResponse
+	32,  // 99: inferencerig.control.v1.ControlService.ResolveProfileModel:output_type -> inferencerig.control.v1.ResolveProfileModelResponse
+	38,  // 100: inferencerig.control.v1.ControlService.ResolveModel:output_type -> inferencerig.control.v1.ResolveModelResponse
+	40,  // 101: inferencerig.control.v1.ControlService.StartModelDownload:output_type -> inferencerig.control.v1.StartModelDownloadResponse
+	42,  // 102: inferencerig.control.v1.ControlService.GetModelDownload:output_type -> inferencerig.control.v1.GetModelDownloadResponse
+	44,  // 103: inferencerig.control.v1.ControlService.CancelModelDownload:output_type -> inferencerig.control.v1.CancelModelDownloadResponse
+	47,  // 104: inferencerig.control.v1.ControlService.GetSignals:output_type -> inferencerig.control.v1.GetSignalsResponse
+	54,  // 105: inferencerig.control.v1.ControlService.ListEvents:output_type -> inferencerig.control.v1.ListEventsResponse
+	56,  // 106: inferencerig.control.v1.ControlService.WatchEvents:output_type -> inferencerig.control.v1.WatchEventsResponse
+	59,  // 107: inferencerig.control.v1.ControlService.ListModelCatalog:output_type -> inferencerig.control.v1.ListModelCatalogResponse
+	68,  // 108: inferencerig.control.v1.ControlService.WatchModelCatalog:output_type -> inferencerig.control.v1.WatchModelCatalogResponse
+	70,  // 109: inferencerig.control.v1.ControlService.ListLocalModels:output_type -> inferencerig.control.v1.ListLocalModelsResponse
+	73,  // 110: inferencerig.control.v1.ControlService.DeleteLocalModel:output_type -> inferencerig.control.v1.DeleteLocalModelResponse
+	75,  // 111: inferencerig.control.v1.ControlService.ApplyDownloadToProfile:output_type -> inferencerig.control.v1.ApplyDownloadToProfileResponse
+	78,  // 112: inferencerig.control.v1.ControlService.CleanupProfile:output_type -> inferencerig.control.v1.CleanupProfileResponse
+	80,  // 113: inferencerig.control.v1.ControlService.SetProfileAutostart:output_type -> inferencerig.control.v1.SetProfileAutostartResponse
+	82,  // 114: inferencerig.control.v1.ControlService.SetStartupServices:output_type -> inferencerig.control.v1.SetStartupServicesResponse
+	84,  // 115: inferencerig.control.v1.ControlService.RestartRuntime:output_type -> inferencerig.control.v1.RestartRuntimeResponse
+	86,  // 116: inferencerig.control.v1.ControlService.GetInfo:output_type -> inferencerig.control.v1.GetInfoResponse
+	102, // 117: inferencerig.control.v1.ControlService.GetBackendParams:output_type -> inferencerig.control.v1.GetBackendParamsResponse
+	66,  // 118: inferencerig.control.v1.ControlService.EstimateFit:output_type -> inferencerig.control.v1.EstimateFitResponse
+	89,  // 119: inferencerig.control.v1.ControlService.GetLogs:output_type -> inferencerig.control.v1.GetLogsResponse
+	91,  // 120: inferencerig.control.v1.ControlService.WatchLogs:output_type -> inferencerig.control.v1.WatchLogsResponse
+	93,  // 121: inferencerig.control.v1.ControlService.ListLogArchives:output_type -> inferencerig.control.v1.ListLogArchivesResponse
+	96,  // 122: inferencerig.control.v1.ControlService.GetLogArchive:output_type -> inferencerig.control.v1.GetLogArchiveResponse
+	98,  // 123: inferencerig.control.v1.ControlService.DeleteLogArchive:output_type -> inferencerig.control.v1.DeleteLogArchiveResponse
+	100, // 124: inferencerig.control.v1.ControlService.ClearLogArchives:output_type -> inferencerig.control.v1.ClearLogArchivesResponse
+	88,  // [88:125] is the sub-list for method output_type
+	51,  // [51:88] is the sub-list for method input_type
+	51,  // [51:51] is the sub-list for extension type_name
+	51,  // [51:51] is the sub-list for extension extendee
+	0,   // [0:51] is the sub-list for field type_name
 }
 
 func init() { file_inferencerig_control_v1_control_proto_init() }
@@ -4726,13 +7051,14 @@ func file_inferencerig_control_v1_control_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_inferencerig_control_v1_control_proto_rawDesc), len(file_inferencerig_control_v1_control_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   74,
+			NumEnums:      2,
+			NumMessages:   102,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_inferencerig_control_v1_control_proto_goTypes,
 		DependencyIndexes: file_inferencerig_control_v1_control_proto_depIdxs,
+		EnumInfos:         file_inferencerig_control_v1_control_proto_enumTypes,
 		MessageInfos:      file_inferencerig_control_v1_control_proto_msgTypes,
 	}.Build()
 	File_inferencerig_control_v1_control_proto = out.File

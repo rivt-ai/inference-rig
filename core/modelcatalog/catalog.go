@@ -169,6 +169,9 @@ func (c *Client) fetch(ctx context.Context, req SearchRequest, policy CatalogPol
 	query.Set("sort", "downloads")
 	query.Set("direction", "-1")
 	query.Set("limit", strconv.Itoa(req.Limit))
+	if filter := policy.SearchFilter(); filter != "" {
+		query.Set("filter", filter)
+	}
 	if req.Query != "" {
 		query.Set("search", req.Query)
 	}
