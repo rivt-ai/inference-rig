@@ -66,6 +66,7 @@ func TestEveryCommandCallsCanonicalRPC(t *testing.T) {
 		{[]string{"model", "apply", "demo", "dl"}, controlv1connect.ControlServiceApplyDownloadToProfileProcedure},
 		{[]string{"model", "rm", "test", "/models/model"}, controlv1connect.ControlServiceDeleteLocalModelProcedure},
 		{[]string{"backend", "list"}, controlv1connect.ControlServiceListBackendsProcedure},
+		{[]string{"backend", "status", "test"}, controlv1connect.ControlServiceGetBackendInstallStatusProcedure},
 		{[]string{"backend", "install", "test"}, controlv1connect.ControlServiceInstallBackendProcedure},
 		{[]string{"backend", "params", "test"}, controlv1connect.ControlServiceGetBackendParamsProcedure},
 		{[]string{"runtime", "status", "demo"}, controlv1connect.ControlServiceGetRuntimeStatusProcedure},

@@ -141,8 +141,7 @@ func (m *Manager) ListLocalModels(ctx context.Context, backendName string) ([]mo
 }
 
 func (m *Manager) DeleteLocalModel(ctx context.Context, backendName, path string) (err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "model.delete", start, err) }()
+	defer m.recording(ctx, "model.delete", &err)()
 	if path == "" {
 		return Errorf(ErrorInvalidInput, "local model path is required")
 	}
@@ -196,8 +195,7 @@ func (m *Manager) GetProfile(ctx context.Context, name string) (profiles.Profile
 
 // PutProfile creates or replaces a canonical YAML profile.
 func (m *Manager) PutProfile(ctx context.Context, name, yaml string, createOnly bool) (doc profiles.ProfileDocument, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "profile.put", start, err) }()
+	defer m.recording(ctx, "profile.put", &err)()
 	// Defers run LIFO, so this mapping is applied before the audit record above
 	// observes err — matching the previous behavior of mapping at every return,
 	// without a path that can forget to.
@@ -220,8 +218,7 @@ func (m *Manager) PutProfile(ctx context.Context, name, yaml string, createOnly 
 
 // DeleteProfile stops its backend runtime before deleting the profile.
 func (m *Manager) DeleteProfile(ctx context.Context, name string) (result profiles.DeleteResult, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "profile.delete", start, err) }()
+	defer m.recording(ctx, "profile.delete", &err)()
 	if _, stopErr := m.StopRuntime(ctx, name); stopErr != nil && Kind(stopErr) != ErrorNotFound {
 		return result, stopErr
 	}
@@ -231,8 +228,7 @@ func (m *Manager) DeleteProfile(ctx context.Context, name string) (result profil
 
 // InstallBackend runs a backend's managed installer.
 func (m *Manager) InstallBackend(ctx context.Context, name string, opts backends.InstallOptions) (result backends.InstallResult, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "backend.install", start, err) }()
+	defer m.recording(ctx, "backend.install", &err)()
 	backend, err := m.Backend(name)
 	if err != nil {
 		return result, err
@@ -244,12 +240,24 @@ func (m *Manager) InstallBackend(ctx context.Context, name string, opts backends
 	return result, err
 }
 
+// BackendInstallStatus reports whether a backend has a usable engine.
+func (m *Manager) BackendInstallStatus(ctx context.Context, name string) (backends.InstallStatus, error) {
+	backend, err := m.Backend(name)
+	if err != nil {
+		return backends.InstallStatus{}, err
+	}
+	status, err := backend.InstallStatus(ctx)
+	if err != nil {
+		return backends.InstallStatus{}, CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return status, nil
+}
+
 // StartRuntime materializes all relevant profiles and starts the selected
 // backend through the shared supervisor. One runtime slot per backend also
 // implements single-active-profile switching without engine-name branches.
 func (m *Manager) StartRuntime(ctx context.Context, name string) (result coreruntime.CommandResult, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "runtime.start", start, err) }()
+	defer m.recording(ctx, "runtime.start", &err)()
 	doc, backend, err := m.profileBackend(ctx, name)
 	if err != nil {
 		return result, err
@@ -284,8 +292,7 @@ func (m *Manager) StartRuntime(ctx context.Context, name string) (result corerun
 
 // StopRuntime stops the backend slot selected by profile.
 func (m *Manager) StopRuntime(ctx context.Context, name string) (result coreruntime.CommandResult, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "runtime.stop", start, err) }()
+	defer m.recording(ctx, "runtime.stop", &err)()
 	_, backend, err := m.profileBackend(ctx, name)
 	if err != nil {
 		return result, err
@@ -354,8 +361,7 @@ func (m *Manager) ResolveProfileModel(ctx context.Context, name string) (backend
 
 // StartDownload resolves a profile then submits its neutral plan.
 func (m *Manager) StartDownload(ctx context.Context, name string, force bool) (job modeldownload.Job, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "download.start", start, err) }()
+	defer m.recording(ctx, "download.start", &err)()
 	if m.downloads == nil {
 		return job, Errorf(ErrorInvalidInput, "downloads are not configured")
 	}
@@ -461,6 +467,13 @@ func writeMaterialization(materialization backends.Materialization) error {
 		}
 	}
 	return nil
+}
+
+// audit starts the clock and returns the deferred recorder, so a caller cannot
+// register the audit without also timing it. Use as: defer m.audit(...)().
+func (m *Manager) recording(ctx context.Context, action string, err *error) func() {
+	start := time.Now()
+	return func() { m.record(ctx, action, start, *err) }
 }
 
 func (m *Manager) record(ctx context.Context, action string, start time.Time, err error) {

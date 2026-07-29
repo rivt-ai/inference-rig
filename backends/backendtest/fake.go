@@ -103,8 +103,11 @@ func (f *Fake) Plan(r backends.ResolvedModel) (backends.ArtifactPlan, error) {
 }
 
 // Fit compares a fixed model size to the host's discrete VRAM (or RAM).
-func (f *Fake) Fit(_ profiles.Profile, host backends.HostResources) (backends.FitEstimate, error) {
-	const required int64 = 2 << 30
+func (f *Fake) Fit(_ profiles.Profile, sizeBytes int64, host backends.HostResources) (backends.FitEstimate, error) {
+	required := sizeBytes
+	if required <= 0 {
+		required = 2 << 30
+	}
 	capacity := host.AvailableRAMBytes
 	if host.HasGPU {
 		capacity = host.VRAMBytes
@@ -140,6 +143,18 @@ func (f *Fake) Install(_ context.Context, opts backends.InstallOptions) (backend
 	}, nil
 }
 
+func (f *Fake) InstallStatus(context.Context) (backends.InstallStatus, error) {
+	if !f.installed {
+		return backends.InstallStatus{}, nil
+	}
+	return backends.InstallStatus{
+		Installed: true,
+		Managed:   true,
+		Version:   "1.0.0",
+		Path:      "/opt/fake/1.0.0",
+	}, nil
+}
+
 // Capabilities advertises a single-file, discrete-VRAM, managed-install backend.
 func (f *Fake) Capabilities() backends.Capabilities {
 	return backends.Capabilities{
@@ -152,6 +167,8 @@ func (f *Fake) Capabilities() backends.Capabilities {
 func (f *Fake) CatalogPolicy() modelcatalog.CatalogPolicy { return fakeCatalogPolicy{} }
 
 type fakeCatalogPolicy struct{}
+
+func (fakeCatalogPolicy) SearchFilter() string { return "" }
 
 func (fakeCatalogPolicy) Variants(_ modelcatalog.Source, files []modelcatalog.RemoteFile) ([]modelcatalog.Variant, error) {
 	if len(files) == 0 {

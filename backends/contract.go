@@ -44,12 +44,17 @@ type Backend interface {
 	// single-file and multi-file artifacts alike.
 	Plan(r ResolvedModel) (ArtifactPlan, error)
 
-	// Fit estimates whether the model fits the given host resources; it works
-	// for both discrete-VRAM and unified-memory hosts.
-	Fit(p profiles.Profile, host HostResources) (FitEstimate, error)
+	// Fit estimates whether a model of sizeBytes fits the given host resources;
+	// it works for both discrete-VRAM and unified-memory hosts. A non-positive
+	// sizeBytes yields an "unknown" verdict, which is all a profile alone can
+	// support: a profile names a model but does not know how large it is.
+	Fit(p profiles.Profile, sizeBytes int64, host HostResources) (FitEstimate, error)
 
 	// Install installs or upgrades the managed engine and reports what happened.
 	Install(ctx context.Context, opts InstallOptions) (InstallResult, error)
+
+	// InstallStatus reports whether the engine is currently usable.
+	InstallStatus(ctx context.Context) (InstallStatus, error)
 
 	// Capabilities advertises what this backend supports for capability gating.
 	Capabilities() Capabilities

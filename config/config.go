@@ -56,6 +56,11 @@ type Config struct {
 type SecurityConfig struct {
 	AuthTokenEnv       string `yaml:"auth_token_env" json:"auth_token_env"`
 	DisableOriginCheck bool   `yaml:"disable_origin_check" json:"disable_origin_check"`
+	// DisableAuth drops the bearer-token guard entirely so a single-user local
+	// install can drive the gateway without pasting a token. It is only honored
+	// for a loopback ListenAddr; Load rejects the combination with a bind that
+	// reaches the network, because that would publish every mutating RPC.
+	DisableAuth bool `yaml:"disable_auth" json:"disable_auth"`
 }
 
 // Default returns the configuration used when no file is present.
@@ -106,6 +111,9 @@ func Parse(data []byte) (Config, error) {
 	if err := ValidateStartupServices(cfg.StartupServices); err != nil {
 		return Config{}, err
 	}
+	if err := cfg.ValidateSecurity(); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -124,6 +132,16 @@ func ValidateStartupServices(services []string) error {
 		if name != StartupServiceControl && name != StartupServiceWeb {
 			return fmt.Errorf("unknown startup service %q (want %q or %q)", name, StartupServiceControl, StartupServiceWeb)
 		}
+	}
+	return nil
+}
+
+// ValidateSecurity rejects security settings that contradict the bind address.
+// Disabling auth is a local-only convenience, so pairing it with a bind that
+// reaches the network is a configuration error rather than a warning.
+func (c *Config) ValidateSecurity() error {
+	if c.Security.DisableAuth && c.AllowsNonLoopback() {
+		return fmt.Errorf("security.disable_auth requires a loopback listen_addr, got %q", c.ListenAddr)
 	}
 	return nil
 }
