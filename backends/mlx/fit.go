@@ -6,9 +6,9 @@ import (
 	"inferencerig/core/profiles"
 )
 
-// Fit returns an unknown estimate until artifact size is known.
-func (b *Backend) Fit(_ profiles.Profile, host backends.HostResources) (backends.FitEstimate, error) {
-	return FitBySize(0, host), nil
+// Fit estimates unified-memory fit for a model of sizeBytes.
+func (b *Backend) Fit(_ profiles.Profile, sizeBytes int64, host backends.HostResources) (backends.FitEstimate, error) {
+	return FitBySize(sizeBytes, host), nil
 }
 
 // FitBySize estimates unified-memory fit for a known snapshot size.

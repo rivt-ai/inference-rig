@@ -78,17 +78,32 @@ func (b *Backend) Plan(r backends.ResolvedModel) (backends.ArtifactPlan, error) 
 		})
 		plan.TotalBytes += a.SizeBytes
 	}
+	if len(plan.Items) == 1 {
+		plan.TargetRoot = plan.Items[0].TargetPath
+	}
 	return plan, nil
 }
 
 // parseHuggingFaceRepo reports the canonical repo base URL for a Hugging Face
 // model source. Ported from llamarig core/modelcatalog/url.go.
+// parseHuggingFaceRepo accepts both the full repository URL and the bare
+// "owner/repo" id. The catalog reports the bare form, so rejecting it left a
+// catalog pick resolving to a fetch URI with no host at all.
 func parseHuggingFaceRepo(rawURL string) (string, bool) {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil || parsed.Scheme != "https" || parsed.Host != hfHost {
+	raw := strings.TrimSpace(rawURL)
+	parsed, err := url.Parse(raw)
+	if err != nil {
 		return "", false
 	}
-	parts := strings.Split(strings.Trim(parsed.EscapedPath(), "/"), "/")
+	path := parsed.EscapedPath()
+	switch {
+	case parsed.Scheme == "https" && parsed.Host == hfHost:
+	case parsed.Scheme == "" && parsed.Host == "":
+		path = raw
+	default:
+		return "", false
+	}
+	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) != 2 {
 		return "", false
 	}
