@@ -36,6 +36,17 @@ func TestInstallIdempotentAndActiveExecutable(t *testing.T) {
 	}
 }
 
+func TestInstallStatusFindsHostExecutable(t *testing.T) {
+	executable := filepath.Join(t.TempDir(), defaultExecutable)
+	if err := os.WriteFile(executable, []byte("#!/bin/sh\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	status, err := New(Options{Executable: executable, EngineRoot: t.TempDir()}).InstallStatus(context.Background())
+	if err != nil || !status.Installed || status.Managed || status.Path != executable {
+		t.Fatalf("status = %#v, err = %v", status, err)
+	}
+}
+
 func TestInstallUpgradeAndRetention(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "engine")
 	b := New(Options{EngineRoot: root, Fetcher: stubFetcher{version: "b1"}})
