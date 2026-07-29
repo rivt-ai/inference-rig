@@ -71,6 +71,27 @@ func TestSetStartupServicesAddsMissingKeyAndValidates(t *testing.T) {
 	}
 }
 
+func TestSetProfileAutostartIsIdempotent(t *testing.T) {
+	path := writeConfig(t, "listen_addr: 127.0.0.1:7000\n")
+	store := NewFileStore(path, DefaultLimitBytes)
+	for range 2 {
+		if _, err := store.SetProfileAutostart(context.Background(), "demo", true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg, err := store.Read(context.Background())
+	if err != nil || len(cfg.AutostartProfiles) != 1 || cfg.AutostartProfiles[0] != "demo" {
+		t.Fatalf("config = %#v, err = %v", cfg, err)
+	}
+	if _, err := store.SetProfileAutostart(context.Background(), "demo", false); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _ = store.Read(context.Background())
+	if len(cfg.AutostartProfiles) != 0 {
+		t.Fatalf("autostart profiles = %#v", cfg.AutostartProfiles)
+	}
+}
+
 func writeConfig(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()

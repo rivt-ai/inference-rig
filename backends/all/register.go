@@ -7,10 +7,15 @@ import (
 	"inferencerig/backends/mlx"
 )
 
+// Options supplies neutral settings shared by every built-in backend.
+type Options struct {
+	ModelStorageDir string
+}
+
 // Register adds every built-in backend to registry.
-func Register(registry *backends.Registry) error {
-	if err := llamacpp.Register(registry); err != nil {
+func Register(registry *backends.Registry, options Options) error {
+	if err := registry.Register(llamacpp.New(llamacpp.Options{ModelStorageDir: options.ModelStorageDir})); err != nil {
 		return err
 	}
-	return mlx.Register(registry)
+	return registry.Register(mlx.New(mlx.Options{ModelStorageDir: options.ModelStorageDir}))
 }
