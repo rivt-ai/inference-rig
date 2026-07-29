@@ -1,0 +1,17 @@
+# Web client codegen for webui/.
+#
+# Only protoc-gen-es is listed. Connect-ES v2 dropped the separate
+# protoc-gen-connect-es plugin: since @bufbuild/protoc-gen-es v2 emits the
+# service descriptor (ControlService) into control_pb.ts, `createClient` from
+# @connectrpc/connect builds a fully typed Connect client from it directly.
+# The standalone @connectrpc/protoc-gen-connect-es package is frozen at 1.7.0
+# and peer-pins @connectrpc/connect@1.7.0 + protoc-gen-es@^1.10.0, so adding it
+# would force the whole web stack back to the v1 runtime.
+version: v2
+
+plugins:
+  - local: webui/node_modules/.bin/protoc-gen-es
+    out: webui/web/src/lib/gen
+    opt:
+      - target=ts
+      - import_extension=none

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Ported and neutralized from llamarig core/modelcatalog/fit_test.go: the
+// Ported and neutralized from an upstream catalog fit test: the
 // discrete capacity math is engine-agnostic here (the capacity axis is a label).
 func TestEstimateFitWithinCapacity(t *testing.T) {
 	const gib = int64(1024 * 1024 * 1024)

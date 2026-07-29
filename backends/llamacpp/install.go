@@ -2,11 +2,11 @@ package llamacpp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,7 +14,6 @@ import (
 
 	"inferencerig/backends"
 	"inferencerig/config"
-	"inferencerig/platform/filedoc"
 )
 
 // Accel is a llama.cpp compute backend (accelerator) selection.
@@ -103,7 +102,7 @@ func (i *installer) activeExecutable() (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	st, err := readInstallState(root)
+	st, err := backends.ReadInstallState[installState](root)
 	if err != nil || st.Active == nil || st.Active.Executable == "" {
 		return "", false
 	}
@@ -120,6 +119,38 @@ func (b *Backend) Install(ctx context.Context, opts backends.InstallOptions) (ba
 	return b.installer.install(ctx, opts)
 }
 
+// InstallStatus reports a valid managed binary first, then falls back to the
+// configured host executable.
+func (b *Backend) InstallStatus(context.Context) (backends.InstallStatus, error) {
+	root, err := b.installer.resolveRoot()
+	if err != nil {
+		return backends.InstallStatus{}, err
+	}
+	state, err := backends.ReadInstallState[installState](root)
+	if err != nil {
+		return backends.InstallStatus{}, err
+	}
+	if state.Active != nil && usableExecutable(state.Active.Executable) {
+		return backends.InstallStatus{
+			Installed: true, Managed: true,
+			Version: state.Active.Version, Path: state.Active.Executable,
+		}, nil
+	}
+	path, err := exec.LookPath(b.opts.Executable)
+	if err != nil {
+		return backends.InstallStatus{}, nil
+	}
+	return backends.InstallStatus{Installed: true, Path: path}, nil
+}
+
+func usableExecutable(path string) bool {
+	if path == "" {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
 func (i *installer) install(ctx context.Context, opts backends.InstallOptions) (backends.InstallResult, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -130,7 +161,7 @@ func (i *installer) install(ctx context.Context, opts backends.InstallOptions) (
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return backends.InstallResult{}, fmt.Errorf("create engine root: %w", err)
 	}
-	current, err := readInstallState(root)
+	current, err := backends.ReadInstallState[installState](root)
 	if err != nil {
 		return backends.InstallResult{}, err
 	}
@@ -169,7 +200,7 @@ func (i *installer) provision(ctx context.Context, root string, current installS
 		return backends.InstallResult{}, err
 	}
 	i.retire(root, current)
-	if err := writeInstallState(root, installState{Active: next, Previous: current.Active}); err != nil {
+	if err := backends.WriteInstallState(root, installState{Active: next, Previous: current.Active}); err != nil {
 		return backends.InstallResult{}, err
 	}
 	return backends.InstallResult{
@@ -214,30 +245,6 @@ func (i *installer) retire(root string, current installState) {
 		_ = os.RemoveAll(old.Directory)
 		_ = os.Remove(filepath.Dir(old.Directory))
 	}
-}
-
-func readInstallState(root string) (installState, error) {
-	data, err := os.ReadFile(filepath.Join(root, "state.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		return installState{}, nil
-	}
-	if err != nil {
-		return installState{}, err
-	}
-	var st installState
-	if err := json.Unmarshal(data, &st); err != nil {
-		return installState{}, fmt.Errorf("read install state: %w", err)
-	}
-	return st, nil
-}
-
-func writeInstallState(root string, st installState) error {
-	data, err := json.MarshalIndent(st, "", "  ")
-	if err != nil {
-		return err
-	}
-	_, err = filedoc.WriteFile(filepath.Join(root, "state.json"), string(data)+"\n", filedoc.WriteOptions{Perm: 0o600})
-	return err
 }
 
 // managedPath reports whether candidate is safely under root.

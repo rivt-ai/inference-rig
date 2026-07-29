@@ -1,8 +1,7 @@
 # Agent Rules
 
 InferenceRig is a neutral control plane merged from two upstream references
-(llamarig, mlxrig). Read `docs/HANDOVER.md` first — it carries the full merge
-spec, the locked decisions, and the current position in the stacked-PR build.
+(llamarig, mlxrig).
 
 ## Neutrality (non-negotiable)
 
