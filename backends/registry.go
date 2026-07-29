@@ -1,8 +1,10 @@
-// Package backends holds the backend registry and, from Phase 5, the backend
-// contracts (runtime control, profile validation/materialization, model
-// resolution, fit, install). Engine-specific implementations live in
-// subpackages (backends/llamacpp, backends/mlx) and register themselves here;
-// the neutral core depends only on the interfaces in this package.
+// Package backends holds the backend registry and the backend contracts
+// (profile validation, materialization, launch specification, model resolution,
+// artifact planning, fit estimation, install, capability discovery). The
+// Backend interface itself is defined in contract.go. Engine-specific
+// implementations live in subpackages (backends/llamacpp, backends/mlx) and
+// register themselves here; the neutral core depends only on the interfaces in
+// this package.
 package backends
 
 import (
@@ -10,13 +12,6 @@ import (
 	"slices"
 	"sync"
 )
-
-// Backend is the minimal identity a registered inference backend exposes.
-// Phase 5 widens this into the full backend contract; the bootstrap registry
-// is intentionally empty.
-type Backend interface {
-	Name() string
-}
 
 // Registry is a concurrency-safe set of backends keyed by name.
 type Registry struct {

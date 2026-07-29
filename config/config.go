@@ -49,12 +49,18 @@ type Config struct {
 	CatalogCacheTTL     time.Duration  `yaml:"catalog_cache_ttl" json:"catalog_cache_ttl"`
 	LogArchiveRetention time.Duration  `yaml:"log_archive_retention" json:"log_archive_retention"`
 	StartupServices     []string       `yaml:"startup_services" json:"startup_services,omitempty"`
+	AutostartProfiles   []string       `yaml:"autostart_profiles" json:"autostart_profiles,omitempty"`
 	Security            SecurityConfig `yaml:"security" json:"security"`
 }
 
 type SecurityConfig struct {
 	AuthTokenEnv       string `yaml:"auth_token_env" json:"auth_token_env"`
 	DisableOriginCheck bool   `yaml:"disable_origin_check" json:"disable_origin_check"`
+	// DisableAuth drops the bearer-token guard entirely so a single-user local
+	// install can drive the gateway without pasting a token. It is only honored
+	// for a loopback ListenAddr; Load rejects the combination with a bind that
+	// reaches the network, because that would publish every mutating RPC.
+	DisableAuth bool `yaml:"disable_auth" json:"disable_auth"`
 }
 
 // Default returns the configuration used when no file is present.
@@ -105,6 +111,9 @@ func Parse(data []byte) (Config, error) {
 	if err := ValidateStartupServices(cfg.StartupServices); err != nil {
 		return Config{}, err
 	}
+	if err := cfg.ValidateSecurity(); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -123,6 +132,16 @@ func ValidateStartupServices(services []string) error {
 		if name != StartupServiceControl && name != StartupServiceWeb {
 			return fmt.Errorf("unknown startup service %q (want %q or %q)", name, StartupServiceControl, StartupServiceWeb)
 		}
+	}
+	return nil
+}
+
+// ValidateSecurity rejects security settings that contradict the bind address.
+// Disabling auth is a local-only convenience, so pairing it with a bind that
+// reaches the network is a configuration error rather than a warning.
+func (c *Config) ValidateSecurity() error {
+	if c.Security.DisableAuth && c.AllowsNonLoopback() {
+		return fmt.Errorf("security.disable_auth requires a loopback listen_addr, got %q", c.ListenAddr)
 	}
 	return nil
 }
@@ -186,6 +205,52 @@ func DefaultModelStorageDir() (string, error) { return homePath("models") }
 func DefaultCatalogCacheDir() (string, error) { return homePath("cache", "hf-catalog") }
 
 func ProfilesDir() (string, error) { return homePath("profiles") }
+
+// GeneratedDir returns the directory holding a backend's generated (non
+// user-owned) runtime files: ${home}/generated/<backend>. The backend name is
+// a caller-supplied registry key; config carries no engine knowledge and only
+// rejects a name that is not a single safe path element.
+func GeneratedDir(backend string) (string, error) {
+	if backend == "" {
+		return "", fmt.Errorf("backend name is required")
+	}
+	if backend == "." || backend == ".." || strings.ContainsAny(backend, `/\`) {
+		return "", fmt.Errorf("invalid backend name %q", backend)
+	}
+	return homePath("generated", backend)
+}
+
+// Paths are the resolved InferenceRig locations. Every individual resolver
+// fails only when the home directory cannot be resolved, so callers needing
+// several of them get one error instead of repeating the same check per path.
+type Paths struct {
+	Home          string
+	Config        string
+	Profiles      string
+	CatalogCache  string
+	ModelStorage  string
+	ControlSocket string
+}
+
+// ResolvePaths resolves every standard location in one step.
+func ResolvePaths() (Paths, error) {
+	home, err := Home()
+	if err != nil {
+		return Paths{}, err
+	}
+	configPath, err := ConfigPath()
+	if err != nil {
+		return Paths{}, err
+	}
+	return Paths{
+		Home:          home,
+		Config:        configPath,
+		Profiles:      filepath.Join(home, "profiles"),
+		CatalogCache:  filepath.Join(home, "cache", "hf-catalog"),
+		ModelStorage:  filepath.Join(home, "models"),
+		ControlSocket: filepath.Join(home, "run", "control.sock"),
+	}, nil
+}
 
 // ControlSocketPath returns the Unix socket the control daemon listens on and
 // that CLI/TUI clients dial.
