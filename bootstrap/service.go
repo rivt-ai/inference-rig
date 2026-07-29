@@ -13,6 +13,7 @@ import (
 	"inferencerig/backends"
 	"inferencerig/backends/all"
 	"inferencerig/config"
+	"inferencerig/core/configstore"
 	"inferencerig/core/control"
 	"inferencerig/core/modelcatalog"
 	"inferencerig/core/modeldownload"
@@ -25,6 +26,68 @@ import (
 
 const shutdownTimeout = 5 * time.Second
 
+// hostResourceProber is the optional backend facet reporting accelerator
+// hardware: llamacpp probes discrete VRAM, mlx reports Apple unified memory.
+// Backends that do not implement it contribute no accelerator rows.
+type hostResourceProber interface {
+	HostResources(context.Context) (backends.HostResources, []string)
+}
+
+// telemetry builds the host signals collector, wiring the disks worth watching
+// and the accelerator probe assembled from registered backend policy.
+func telemetry(registry *backends.Registry, modelStorageDir string) *signals.GopsutilCollector {
+	collector := signals.NewGopsutilCollector(nil, diskTargets(modelStorageDir))
+	collector.Accelerators = acceleratorProbe(registry)
+	return collector
+}
+
+// diskTargets watches the root filesystem plus model storage when it exists.
+// A not-yet-created storage dir is skipped so a fresh install reports no
+// spurious disk warning.
+func diskTargets(modelStorageDir string) []signals.DiskTarget {
+	targets := []signals.DiskTarget{{Label: "root", Path: "/"}}
+	if modelStorageDir == "" {
+		return targets
+	}
+	if _, err := os.Stat(modelStorageDir); err != nil {
+		return targets
+	}
+	return append(targets, signals.DiskTarget{Label: "model_storage", Path: modelStorageDir})
+}
+
+// acceleratorProbe asks every registered backend implementing the host-resource
+// facet what accelerator it sees, translating both memory models into the one
+// neutral telemetry shape. Unified devices leave their byte fields to the
+// collector, which resolves them against system RAM.
+func acceleratorProbe(registry *backends.Registry) func(context.Context) ([]signals.AcceleratorStats, []string) {
+	return func(ctx context.Context) ([]signals.AcceleratorStats, []string) {
+		stats := []signals.AcceleratorStats{}
+		warnings := []string{}
+		for _, name := range registry.Names() {
+			backend, ok := registry.Lookup(name)
+			if !ok {
+				continue
+			}
+			prober, ok := backend.(hostResourceProber)
+			if !ok {
+				continue
+			}
+			host, hostWarnings := prober.HostResources(ctx)
+			warnings = append(warnings, hostWarnings...)
+			if !host.HasGPU && !host.UnifiedMemory {
+				continue
+			}
+			stats = append(stats, signals.AcceleratorStats{
+				Name:          host.AcceleratorName,
+				UnifiedMemory: host.UnifiedMemory,
+				TotalBytes:    uint64(max(host.VRAMBytes, 0)),
+				UsedBytes:     uint64(max(host.VRAMUsedBytes, 0)),
+			})
+		}
+		return stats, warnings
+	}
+}
+
 // Service owns the canonical control daemon and its dependencies.
 type Service struct {
 	Manager *control.Manager
@@ -35,25 +98,35 @@ type Service struct {
 
 // NewService assembles all built-in backends behind the neutral control plane.
 func NewService() (*Service, error) {
+	cfg := config.Default()
+	if loaded, err := config.Load(); err == nil {
+		cfg = loaded
+	}
+	modelStorageDir := cfg.ModelStorageDir
+	if modelStorageDir == "" {
+		var err error
+		modelStorageDir, err = config.DefaultModelStorageDir()
+		if err != nil {
+			return nil, err
+		}
+	}
+	modelStorageDir = config.ExpandHome(modelStorageDir)
 	registry := backends.NewRegistry()
-	if err := all.Register(registry); err != nil {
+	if err := all.Register(registry, all.Options{ModelStorageDir: modelStorageDir}); err != nil {
 		return nil, err
 	}
-	profileRoot, err := config.ProfilesDir()
+	paths, err := config.ResolvePaths()
 	if err != nil {
 		return nil, err
 	}
-	store := profiles.NewFileStore(profileRoot, 0, registry.BackendLookup())
-	cacheDir, err := config.DefaultCatalogCacheDir()
-	if err != nil {
-		return nil, err
-	}
+	store := profiles.NewFileStore(paths.Profiles, 0, registry.BackendLookup())
 	manager := control.NewManager(control.Dependencies{
 		Registry: registry, Profiles: store,
 		Downloads: modeldownload.New(modeldownload.Options{}),
-		Signals:   signals.NewGopsutilCollector(nil, nil),
+		Signals:   telemetry(registry, modelStorageDir),
 		Audit:     audit.NewSink(slog.Default()),
-		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: cacheDir, CacheTTL: time.Hour}),
+		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: paths.CatalogCache, CacheTTL: time.Hour}),
+		Config:    configstore.NewFileStore(paths.Config, 0),
 	})
 	path, handler := rpc.ControlHandler(rpc.NewControlService(manager))
 	server, err := rpc.NewServer(path, handler)

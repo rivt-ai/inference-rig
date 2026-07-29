@@ -2,10 +2,15 @@ package rpc
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"net/http"
+	"sort"
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/structpb"
+	"gopkg.in/yaml.v3"
 
 	"inferencerig/backends"
 	"inferencerig/core/control"
@@ -16,6 +21,7 @@ import (
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 	coreruntime "inferencerig/core/runtime"
 	"inferencerig/core/signals"
+	"inferencerig/internal/buildinfo"
 )
 
 const ServiceName = "inferencerig-control"
@@ -78,10 +84,23 @@ func (s *ControlService) GetProfile(ctx context.Context, req *controlv1.GetProfi
 }
 
 func (s *ControlService) PutProfile(ctx context.Context, req *controlv1.PutProfileRequest) (*controlv1.PutProfileResponse, error) {
-	if req.GetName() == "" || req.GetProfileYaml() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name and YAML are required"))
+	if req.GetName() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name is required"))
 	}
-	doc, err := s.manager.PutProfile(ctx, req.GetName(), req.GetProfileYaml(), req.GetCreateOnly())
+	// A structured profile is rendered here rather than by the caller, so an
+	// editor never needs a YAML implementation that could disagree with ours.
+	profileYAML := req.GetProfileYaml()
+	if profileYAML == "" && req.GetProfile() != nil {
+		rendered, err := renderProfileYAML(req.GetName(), req.GetProfile())
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		profileYAML = rendered
+	}
+	if profileYAML == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile YAML or structured profile is required"))
+	}
+	doc, err := s.manager.PutProfile(ctx, req.GetName(), profileYAML, req.GetCreateOnly())
 	if err != nil {
 		return nil, rpcError(err)
 	}
@@ -114,6 +133,20 @@ func (s *ControlService) InstallBackend(ctx context.Context, req *controlv1.Inst
 	}, nil
 }
 
+func (s *ControlService) GetBackendInstallStatus(ctx context.Context, req *controlv1.GetBackendInstallStatusRequest) (*controlv1.GetBackendInstallStatusResponse, error) {
+	if req.GetBackend() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	}
+	status, err := s.manager.BackendInstallStatus(ctx, req.GetBackend())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.GetBackendInstallStatusResponse{
+		Ok: true, Installed: status.Installed, Managed: status.Managed,
+		Version: status.Version, Path: status.Path,
+	}, nil
+}
+
 func (s *ControlService) StartRuntime(ctx context.Context, req *controlv1.StartRuntimeRequest) (*controlv1.StartRuntimeResponse, error) {
 	result, status, err := s.runtimeAction(ctx, req.GetProfile(), s.manager.StartRuntime)
 	return &controlv1.StartRuntimeResponse{Ok: err == nil, Result: result, Status: status}, err
@@ -125,14 +158,40 @@ func (s *ControlService) StopRuntime(ctx context.Context, req *controlv1.StopRun
 }
 
 func (s *ControlService) GetRuntimeStatus(ctx context.Context, req *controlv1.GetRuntimeStatusRequest) (*controlv1.GetRuntimeStatusResponse, error) {
-	if req.GetProfile() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile is required"))
+	if req.GetProfile() != "" {
+		status, err := s.manager.RuntimeStatus(ctx, req.GetProfile())
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		return &controlv1.GetRuntimeStatusResponse{Ok: true, Status: statusProto(status)}, nil
 	}
-	status, err := s.manager.RuntimeStatus(ctx, req.GetProfile())
+	// No profile named: report them all, so a dashboard polling every few
+	// seconds makes one call instead of one per profile.
+	docs, err := s.manager.ListProfileDocuments(ctx)
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	return &controlv1.GetRuntimeStatusResponse{Ok: true, Status: statusProto(status)}, nil
+	all := make([]*controlv1.ProfileRuntimeStatus, 0, len(docs))
+	aggregate := &controlv1.RuntimeStatus{
+		State:     string(coreruntime.Stopped),
+		CheckedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	for _, doc := range docs {
+		status, statusErr := s.manager.RuntimeStatus(ctx, doc.Name)
+		if statusErr != nil {
+			// One unreadable profile must not blank the whole dashboard.
+			continue
+		}
+		message := statusProto(status)
+		all = append(all, &controlv1.ProfileRuntimeStatus{
+			Name: doc.Name, Backend: doc.Effective.Backend, Status: message,
+		})
+		aggregate.Processes = append(aggregate.Processes, message.GetProcesses()...)
+		if status.State == coreruntime.Running {
+			aggregate.State = string(coreruntime.Running)
+		}
+	}
+	return &controlv1.GetRuntimeStatusResponse{Ok: true, Status: aggregate, Profiles: all}, nil
 }
 
 func (s *ControlService) ResolveProfileModel(ctx context.Context, req *controlv1.ResolveProfileModelRequest) (*controlv1.ResolveProfileModelResponse, error) {
@@ -149,14 +208,32 @@ func (s *ControlService) ResolveProfileModel(ctx context.Context, req *controlv1
 }
 
 func (s *ControlService) StartModelDownload(ctx context.Context, req *controlv1.StartModelDownloadRequest) (*controlv1.StartModelDownloadResponse, error) {
+	// Either form is valid: a profile downloads that profile's model, while
+	// backend + reference downloads a catalog entry before any profile exists.
 	if req.GetProfile() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile is required"))
+		job, err := s.manager.StartCatalogDownload(
+			ctx, req.GetBackend(), req.GetReference(), req.GetVariantReference(), req.GetForce(),
+		)
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		return &controlv1.StartModelDownloadResponse{Ok: true, Download: downloadProto(job)}, nil
 	}
 	job, err := s.manager.StartDownload(ctx, req.GetProfile(), req.GetForce())
 	if err != nil {
 		return nil, rpcError(err)
 	}
 	return &controlv1.StartModelDownloadResponse{Ok: true, Download: downloadProto(job)}, nil
+}
+
+func (s *ControlService) ResolveModel(ctx context.Context, req *controlv1.ResolveModelRequest) (*controlv1.ResolveModelResponse, error) {
+	resolved, plan, err := s.manager.ResolveModel(ctx, req.GetBackend(), req.GetReference(), req.GetVariantReference())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.ResolveModelResponse{
+		Ok: true, Model: resolvedProto(resolved), Plan: planProto(plan),
+	}, nil
 }
 
 func (s *ControlService) GetModelDownload(ctx context.Context, req *controlv1.GetModelDownloadRequest) (*controlv1.GetModelDownloadResponse, error) {
@@ -231,13 +308,155 @@ func (s *ControlService) ListModelCatalog(ctx context.Context, req *controlv1.Li
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	// Fit is computed here rather than in the catalog because it depends on the
+	// host and on the backend's memory model, neither of which the catalog
+	// knows. A host we cannot read yields "unknown" verdicts, not an error.
+	backend, err := s.manager.Backend(req.GetBackend())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	host, err := s.manager.HostResources(ctx, req.GetBackend())
+	if err != nil {
+		return nil, rpcError(err)
+	}
 	models := make([]*controlv1.CatalogModel, 0, len(result.Models))
 	for _, model := range result.Models {
-		models = append(models, catalogModelProto(model))
+		message := catalogModelProto(model)
+		for _, variant := range message.GetVariants() {
+			estimate, fitErr := backend.Fit(profiles.Profile{}, variant.GetSizeBytes(), host)
+			if fitErr != nil {
+				continue
+			}
+			variant.Fit = fitProto(estimate)
+		}
+		message.BestVariant = bestVariant(message.GetVariants())
+		models = append(models, message)
 	}
+	models = filterByFit(models, req.GetMinFit())
+	sortCatalog(models, req.GetSort())
 	return &controlv1.ListModelCatalogResponse{
 		Ok: true, Models: models, CacheHit: result.CacheHit, Stale: result.Stale,
+		Machine: machineProto(host),
+		Cache: &controlv1.CatalogCacheState{
+			Hit: result.CacheHit, Stale: result.Stale,
+		},
 	}, nil
+}
+
+func (s *ControlService) EstimateFit(ctx context.Context, req *controlv1.EstimateFitRequest) (*controlv1.EstimateFitResponse, error) {
+	estimate, host, err := s.manager.EstimateFit(ctx, req.GetBackend(), req.GetProfile(), req.GetSizeBytes())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.EstimateFitResponse{
+		Ok: true, Fit: fitProto(estimate), Machine: machineProto(host),
+	}, nil
+}
+
+func fitProto(estimate backends.FitEstimate) *controlv1.FitEstimate {
+	return &controlv1.FitEstimate{
+		Level:          fitLevelProto(estimate.Level),
+		Reason:         estimate.Reason,
+		RequiredBytes:  estimate.RequiredBytes,
+		AvailableBytes: estimate.AvailableBytes,
+	}
+}
+
+func fitLevelProto(level backends.FitLevel) controlv1.FitLevel {
+	switch level {
+	case backends.FitFits:
+		return controlv1.FitLevel_FIT_LEVEL_FITS
+	case backends.FitMarginal:
+		return controlv1.FitLevel_FIT_LEVEL_MARGINAL
+	case backends.FitTooLarge:
+		return controlv1.FitLevel_FIT_LEVEL_TOO_LARGE
+	case backends.FitUnknown:
+		return controlv1.FitLevel_FIT_LEVEL_UNKNOWN
+	default:
+		return controlv1.FitLevel_FIT_LEVEL_UNSPECIFIED
+	}
+}
+
+func machineProto(host backends.HostResources) *controlv1.MachineProfile {
+	return &controlv1.MachineProfile{
+		TotalMemoryBytes:       uint64(max(host.TotalRAMBytes, 0)),
+		AvailableMemoryBytes:   uint64(max(host.AvailableRAMBytes, 0)),
+		AcceleratorName:        host.AcceleratorName,
+		UnifiedMemory:          host.UnifiedMemory,
+		AcceleratorMemoryBytes: uint64(max(host.VRAMBytes, 0)),
+	}
+}
+
+// fitRank orders verdicts from best to worst so "at least marginal" is a
+// comparison rather than a set membership test.
+func fitRank(level controlv1.FitLevel) int {
+	switch level {
+	case controlv1.FitLevel_FIT_LEVEL_FITS:
+		return 3
+	case controlv1.FitLevel_FIT_LEVEL_MARGINAL:
+		return 2
+	case controlv1.FitLevel_FIT_LEVEL_TOO_LARGE:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// bestVariant is the largest variant that still fits, since quality tracks size
+// within a repository. It falls back to the largest variant overall when
+// nothing fits, so a caller always has something to show.
+func bestVariant(variants []*controlv1.ModelVariant) *controlv1.ModelVariant {
+	var best, largest *controlv1.ModelVariant
+	for _, variant := range variants {
+		if largest == nil || variant.GetSizeBytes() > largest.GetSizeBytes() {
+			largest = variant
+		}
+		if fitRank(variant.GetFit().GetLevel()) < fitRank(controlv1.FitLevel_FIT_LEVEL_MARGINAL) {
+			continue
+		}
+		if best == nil || variant.GetSizeBytes() > best.GetSizeBytes() {
+			best = variant
+		}
+	}
+	if best != nil {
+		return best
+	}
+	return largest
+}
+
+func filterByFit(models []*controlv1.CatalogModel, minimum controlv1.FitLevel) []*controlv1.CatalogModel {
+	if minimum == controlv1.FitLevel_FIT_LEVEL_UNSPECIFIED {
+		return models
+	}
+	kept := make([]*controlv1.CatalogModel, 0, len(models))
+	for _, model := range models {
+		if fitRank(model.GetBestVariant().GetFit().GetLevel()) >= fitRank(minimum) {
+			kept = append(kept, model)
+		}
+	}
+	return kept
+}
+
+func sortCatalog(models []*controlv1.CatalogModel, order string) {
+	switch order {
+	case "downloads":
+		sort.SliceStable(models, func(i, j int) bool {
+			return models[i].GetDownloads() > models[j].GetDownloads()
+		})
+	case "likes":
+		sort.SliceStable(models, func(i, j int) bool {
+			return models[i].GetLikes() > models[j].GetLikes()
+		})
+	case "modified":
+		sort.SliceStable(models, func(i, j int) bool {
+			return models[i].GetLastModified() > models[j].GetLastModified()
+		})
+	case "fit":
+		sort.SliceStable(models, func(i, j int) bool {
+			return fitRank(models[i].GetBestVariant().GetFit().GetLevel()) >
+				fitRank(models[j].GetBestVariant().GetFit().GetLevel())
+		})
+	}
 }
 
 func (s *ControlService) WatchModelCatalog(ctx context.Context, _ *controlv1.WatchModelCatalogRequest, stream *connect.ServerStream[controlv1.WatchModelCatalogResponse]) error {
@@ -273,9 +492,13 @@ func (s *ControlService) ListLocalModels(ctx context.Context, req *controlv1.Lis
 	}
 	models := make([]*controlv1.LocalModel, 0, len(items))
 	for _, item := range items {
+		using, usedErr := s.manager.ProfilesUsingModel(ctx, item.Path)
+		if usedErr != nil {
+			return nil, rpcError(usedErr)
+		}
 		models = append(models, &controlv1.LocalModel{
 			Path: item.Path, Filename: item.Filename, SizeBytes: item.SizeBytes,
-			ModifiedAt: item.ModifiedAt.Format(time.RFC3339),
+			ModifiedAt: item.ModifiedAt.Format(time.RFC3339), UsedByProfiles: using,
 		})
 	}
 	return &controlv1.ListLocalModelsResponse{Ok: true, Models: models}, nil
@@ -285,10 +508,126 @@ func (s *ControlService) DeleteLocalModel(ctx context.Context, req *controlv1.De
 	if req.GetBackend() == "" || req.GetPath() == "" {
 		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend and path are required"))
 	}
-	if err := s.manager.DeleteLocalModel(ctx, req.GetBackend(), req.GetPath()); err != nil {
+	if _, err := s.manager.DeleteLocalModelCascade(
+		ctx, req.GetBackend(), req.GetPath(), req.GetCascadeProfiles(),
+	); err != nil {
 		return nil, rpcError(err)
 	}
 	return &controlv1.DeleteLocalModelResponse{Ok: true}, nil
+}
+
+func (s *ControlService) ApplyDownloadToProfile(ctx context.Context, req *controlv1.ApplyDownloadToProfileRequest) (*controlv1.ApplyDownloadToProfileResponse, error) {
+	if req.GetProfile() == "" || req.GetId() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile and download ID are required"))
+	}
+	if req.GetPreview() {
+		original, updated, err := s.manager.PreviewDownloadApply(ctx, req.GetProfile(), req.GetId())
+		if err != nil {
+			return nil, rpcError(err)
+		}
+		return &controlv1.ApplyDownloadToProfileResponse{
+			Ok: true, PreviewDiff: &controlv1.TextDiff{Original: original, Updated: updated},
+		}, nil
+	}
+	doc, err := s.manager.ApplyDownloadToProfile(ctx, req.GetProfile(), req.GetId())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.ApplyDownloadToProfileResponse{Ok: true, Profile: profileProto(doc)}, nil
+}
+
+func (s *ControlService) CleanupProfile(ctx context.Context, req *controlv1.CleanupProfileRequest) (*controlv1.CleanupProfileResponse, error) {
+	if req.GetName() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name is required"))
+	}
+	if err := s.manager.CleanupProfile(ctx, req.GetName()); err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.CleanupProfileResponse{Ok: true}, nil
+}
+
+func (s *ControlService) SetProfileAutostart(ctx context.Context, req *controlv1.SetProfileAutostartRequest) (*controlv1.SetProfileAutostartResponse, error) {
+	if req.GetName() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name is required"))
+	}
+	if _, err := s.manager.SetProfileAutostart(ctx, req.GetName(), req.GetEnabled()); err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.SetProfileAutostartResponse{Ok: true}, nil
+}
+
+func (s *ControlService) SetStartupServices(ctx context.Context, req *controlv1.SetStartupServicesRequest) (*controlv1.SetStartupServicesResponse, error) {
+	if _, err := s.manager.SetStartupServices(ctx, req.GetServices()); err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.SetStartupServicesResponse{Ok: true}, nil
+}
+
+func (s *ControlService) RestartRuntime(ctx context.Context, req *controlv1.RestartRuntimeRequest) (*controlv1.RestartRuntimeResponse, error) {
+	if req.GetProfile() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile is required"))
+	}
+	result, err := s.manager.RestartRuntime(ctx, req.GetProfile())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	status, err := s.manager.RuntimeStatus(ctx, req.GetProfile())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.RestartRuntimeResponse{
+		Ok: true, Stopped: commandResultProto(result.Stopped),
+		Started: commandResultProto(result.Started), Status: statusProto(status),
+	}, nil
+}
+
+func (s *ControlService) GetInfo(ctx context.Context, _ *controlv1.GetInfoRequest) (*controlv1.GetInfoResponse, error) {
+	info, err := s.manager.GetInfo(ctx)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.GetInfoResponse{
+		Ok: true, Profiles: int32(info.Profiles), Backends: int32(info.Backends),
+		RunningProfiles: info.RunningProfiles, AutostartProfiles: info.AutostartProfiles,
+		StartupServices: info.StartupServices,
+		Build: &controlv1.BuildInfo{
+			Version: buildinfo.Version, Commit: buildinfo.Commit, CommitTime: buildinfo.CommitTime,
+		},
+	}, nil
+}
+
+func (s *ControlService) GetBackendParams(ctx context.Context, req *controlv1.GetBackendParamsRequest) (*controlv1.GetBackendParamsResponse, error) {
+	if req.GetBackend() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	}
+	items, err := s.manager.GetBackendParams(ctx, req.GetBackend())
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	params := make([]*controlv1.BackendParameter, 0, len(items))
+	for _, item := range items {
+		params = append(params, &controlv1.BackendParameter{
+			Name: item.Name, Description: item.Description, Required: item.Required,
+			Aliases: item.Aliases, ValueHint: item.ValueHint,
+			DefaultValue: item.DefaultValue, Type: parameterTypeProto(item.Type),
+		})
+	}
+	return &controlv1.GetBackendParamsResponse{Ok: true, Params: params}, nil
+}
+
+func parameterTypeProto(kind backends.ParameterType) controlv1.ParameterType {
+	switch kind {
+	case backends.ParameterString:
+		return controlv1.ParameterType_PARAMETER_TYPE_STRING
+	case backends.ParameterInt:
+		return controlv1.ParameterType_PARAMETER_TYPE_INT
+	case backends.ParameterBool:
+		return controlv1.ParameterType_PARAMETER_TYPE_BOOL
+	case backends.ParameterList:
+		return controlv1.ParameterType_PARAMETER_TYPE_LIST
+	default:
+		return controlv1.ParameterType_PARAMETER_TYPE_UNSPECIFIED
+	}
 }
 
 func backendProto(backend backends.Backend) *controlv1.BackendInfo {
@@ -300,6 +639,7 @@ func backendProto(backend backends.Backend) *controlv1.BackendInfo {
 			MultiFileArtifacts:  capabilities.MultiFileArtifacts,
 			DiscreteVram:        capabilities.DiscreteVRAM, UnifiedMemory: capabilities.UnifiedMemory,
 			ManagedInstall: capabilities.ManagedInstall, SingleActiveProfile: capabilities.SingleActiveProfile,
+			ParameterIntrospection: capabilities.ParameterIntrospection,
 		},
 	}
 }
@@ -320,10 +660,106 @@ func catalogModelProto(model modelcatalog.Model) *controlv1.CatalogModel {
 
 func profileProto(doc profiles.ProfileDocument) *controlv1.Profile {
 	p := doc.Effective
-	return &controlv1.Profile{
+	message := &controlv1.Profile{
 		Name: doc.Name, Backend: p.Backend, ProfileYaml: doc.ProfileYAML,
 		ModelSource: p.Model.Source, ModelReference: p.Model.Reference,
 		Host: p.Listen.Host, Port: int32(p.Listen.Port),
+	}
+	if args, err := structpb.NewStruct(normalizeEngineArgs(p.EngineArgs)); err == nil {
+		message.EngineArgs = args
+	}
+	return message
+}
+
+// normalizeEngineArgs coerces YAML-decoded values into the types structpb
+// accepts. yaml.v3 yields int and map[string]any, neither of which structpb
+// handles, so an unconverted profile would silently lose its engine args.
+func normalizeEngineArgs(args map[string]any) map[string]any {
+	out := make(map[string]any, len(args))
+	for key, value := range args {
+		out[key] = normalizeEngineValue(value)
+	}
+	return out
+}
+
+func normalizeEngineValue(value any) any {
+	switch typed := value.(type) {
+	case int:
+		return float64(typed)
+	case int32:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	case uint64:
+		return float64(typed)
+	case []any:
+		items := make([]any, 0, len(typed))
+		for _, item := range typed {
+			items = append(items, normalizeEngineValue(item))
+		}
+		return items
+	case map[string]any:
+		return normalizeEngineArgs(typed)
+	case map[any]any:
+		// yaml.v3 produces this for nested mappings with non-string keys.
+		nested := make(map[string]any, len(typed))
+		for key, item := range typed {
+			nested[fmt.Sprint(key)] = normalizeEngineValue(item)
+		}
+		return nested
+	default:
+		return value
+	}
+}
+
+// renderProfileYAML turns a structured profile into the canonical YAML the
+// store validates. Integral engine-arg values are emitted as integers: JSON and
+// structpb have only float64, and a rendered "threads: 8.0" is not a value any
+// engine accepts.
+func renderProfileYAML(name string, message *controlv1.Profile) (string, error) {
+	profile := profiles.Profile{
+		Version: 1,
+		Name:    name,
+		Backend: message.GetBackend(),
+		Model: profiles.ModelSpec{
+			Source: message.GetModelSource(), Reference: message.GetModelReference(),
+		},
+		Listen: profiles.ListenSpec{Host: message.GetHost(), Port: int(message.GetPort())},
+	}
+	if args := message.GetEngineArgs(); args != nil {
+		profile.EngineArgs = make(map[string]any, len(args.GetFields()))
+		for key, value := range args.AsMap() {
+			profile.EngineArgs[key] = demoteWholeFloats(value)
+		}
+	}
+	rendered, err := yaml.Marshal(profile)
+	if err != nil {
+		return "", control.Errorf(control.ErrorInvalidInput, "render profile: %v", err)
+	}
+	return string(rendered), nil
+}
+
+func demoteWholeFloats(value any) any {
+	switch typed := value.(type) {
+	case float64:
+		if typed == math.Trunc(typed) && math.Abs(typed) < math.MaxInt64 {
+			return int64(typed)
+		}
+		return typed
+	case []any:
+		items := make([]any, 0, len(typed))
+		for _, item := range typed {
+			items = append(items, demoteWholeFloats(item))
+		}
+		return items
+	case map[string]any:
+		nested := make(map[string]any, len(typed))
+		for key, item := range typed {
+			nested[key] = demoteWholeFloats(item)
+		}
+		return nested
+	default:
+		return value
 	}
 }
 
@@ -400,15 +836,43 @@ func downloadProto(job modeldownload.Job) *controlv1.ModelDownload {
 		TargetPath: job.TargetPath, ItemCount: int32(job.ItemCount),
 		ReceivedBytes: job.ReceivedBytes, TotalBytes: job.TotalBytes, Percent: job.Percent,
 		Error: job.Error, StartedAt: job.StartedAt, CompletedAt: job.CompletedAt,
+		Backend: job.Backend, Profile: job.Profile,
 	}
 }
 
 func signalsProto(snapshot signals.Snapshot) *controlv1.Signals {
+	accelerators := make([]*controlv1.Accelerator, 0, len(snapshot.Accelerators))
+	for _, item := range snapshot.Accelerators {
+		accelerators = append(accelerators, &controlv1.Accelerator{
+			Name: item.Name, UnifiedMemory: item.UnifiedMemory,
+			TotalMemoryBytes: item.TotalBytes, UsedMemoryBytes: item.UsedBytes,
+		})
+	}
+	disks := make([]*controlv1.Disk, 0, len(snapshot.Disks))
+	for _, item := range snapshot.Disks {
+		disks = append(disks, &controlv1.Disk{
+			Label: item.Label, Path: item.Path, TotalBytes: item.TotalBytes,
+			UsedBytes: item.UsedBytes, UsedPercent: item.UsedPercent, FreeBytes: item.FreeBytes,
+		})
+	}
+	processes := make([]*controlv1.RuntimeProcess, 0, len(snapshot.Runtime))
+	for _, item := range snapshot.Runtime {
+		processes = append(processes, &controlv1.RuntimeProcess{
+			Name: item.Name, Pid: int32(item.PID), RssBytes: item.RSSBytes,
+			CpuPercent: item.CPUPercent, Command: item.Command,
+		})
+	}
 	return &controlv1.Signals{
 		CapturedAt: snapshot.CapturedAt, TotalMemoryBytes: snapshot.Memory.TotalBytes,
 		AvailableMemoryBytes: snapshot.Memory.AvailableBytes,
+		UsedMemoryBytes:      snapshot.Memory.UsedBytes,
+		UsedMemoryPercent:    snapshot.Memory.UsedPercent,
 		LogicalCpuCores:      int32(snapshot.CPU.LogicalCores),
 		CpuUsedPercent:       snapshot.CPU.UsedPercent, Warnings: snapshot.Warnings,
+		Accelerators: accelerators, Disks: disks, Runtime: processes,
+		Host: &controlv1.HostInfo{
+			Hostname: snapshot.Host.Hostname, Os: snapshot.Host.OS, Platform: snapshot.Host.Platform,
+		},
 	}
 }
 

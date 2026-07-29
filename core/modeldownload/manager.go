@@ -54,7 +54,7 @@ func (m *Manager) Start(ctx context.Context, req Request) (Job, error) {
 		return Job{}, err
 	}
 	if exists(req.Plan.TargetRoot) && !req.Force {
-		job := newJob(req.Plan, StateAlreadyDownloaded)
+		job := newJob(req, StateAlreadyDownloaded)
 		job.ReceivedBytes, job.Percent, job.CompletedAt = job.TotalBytes, 100, timestamp()
 		m.store(job)
 		return job, nil
@@ -65,7 +65,7 @@ func (m *Manager) Start(ctx context.Context, req Request) (Job, error) {
 		m.mu.Unlock()
 		return job, nil
 	}
-	job := newJob(req.Plan, StateQueued)
+	job := newJob(req, StateQueued)
 	stored := job
 	m.jobs[job.ID] = &stored
 	m.active[req.Plan.TargetRoot] = job.ID
@@ -257,10 +257,11 @@ func (m *Manager) clearActive(id string) {
 	delete(m.cancel, id)
 }
 
-func newJob(plan backends.ArtifactPlan, state State) Job {
+func newJob(req Request, state State) Job {
+	plan := req.Plan
 	return Job{
 		ID: newID(), State: state, MultiFile: plan.MultiFile, TargetPath: plan.TargetRoot,
-		ItemCount: len(plan.Items), TotalBytes: plan.TotalBytes,
+		ItemCount: len(plan.Items), TotalBytes: plan.TotalBytes, Backend: req.Backend, Profile: req.Profile,
 	}
 }
 

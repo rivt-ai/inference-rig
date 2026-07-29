@@ -22,7 +22,10 @@ generate:
 	buf generate
 
 webui:
-	go test ./webui
+	cd webui && pnpm run build
 
 e2e-live:
 	go test -tags=live ./test/live -count=1 -timeout=10m
+
+analyze:
+	go tool sizeanalyzer -html report.html

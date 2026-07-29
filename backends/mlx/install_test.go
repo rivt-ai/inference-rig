@@ -54,6 +54,18 @@ func TestInstallCreatesPinnedEnvironmentAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestInstallStatusFindsUsableHostPython(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := New(Options{EngineRoot: t.TempDir(), Executable: executable, runner: &stubRunner{}})
+	status, err := backend.InstallStatus(context.Background())
+	if err != nil || !status.Installed || status.Managed || status.Path != executable {
+		t.Fatalf("status = %#v, err = %v", status, err)
+	}
+}
+
 func TestInstallRejectsUnsupportedHost(t *testing.T) {
 	b := New(Options{EngineRoot: t.TempDir(), goos: "linux", goarch: "arm64"})
 	if _, err := b.Install(context.Background(), backends.InstallOptions{}); err == nil {

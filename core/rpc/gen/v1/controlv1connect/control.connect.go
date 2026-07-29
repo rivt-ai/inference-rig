@@ -53,6 +53,9 @@ const (
 	// ControlServiceInstallBackendProcedure is the fully-qualified name of the ControlService's
 	// InstallBackend RPC.
 	ControlServiceInstallBackendProcedure = "/inferencerig.control.v1.ControlService/InstallBackend"
+	// ControlServiceGetBackendInstallStatusProcedure is the fully-qualified name of the
+	// ControlService's GetBackendInstallStatus RPC.
+	ControlServiceGetBackendInstallStatusProcedure = "/inferencerig.control.v1.ControlService/GetBackendInstallStatus"
 	// ControlServiceStartRuntimeProcedure is the fully-qualified name of the ControlService's
 	// StartRuntime RPC.
 	ControlServiceStartRuntimeProcedure = "/inferencerig.control.v1.ControlService/StartRuntime"
@@ -65,6 +68,9 @@ const (
 	// ControlServiceResolveProfileModelProcedure is the fully-qualified name of the ControlService's
 	// ResolveProfileModel RPC.
 	ControlServiceResolveProfileModelProcedure = "/inferencerig.control.v1.ControlService/ResolveProfileModel"
+	// ControlServiceResolveModelProcedure is the fully-qualified name of the ControlService's
+	// ResolveModel RPC.
+	ControlServiceResolveModelProcedure = "/inferencerig.control.v1.ControlService/ResolveModel"
 	// ControlServiceStartModelDownloadProcedure is the fully-qualified name of the ControlService's
 	// StartModelDownload RPC.
 	ControlServiceStartModelDownloadProcedure = "/inferencerig.control.v1.ControlService/StartModelDownload"
@@ -95,6 +101,46 @@ const (
 	// ControlServiceDeleteLocalModelProcedure is the fully-qualified name of the ControlService's
 	// DeleteLocalModel RPC.
 	ControlServiceDeleteLocalModelProcedure = "/inferencerig.control.v1.ControlService/DeleteLocalModel"
+	// ControlServiceApplyDownloadToProfileProcedure is the fully-qualified name of the ControlService's
+	// ApplyDownloadToProfile RPC.
+	ControlServiceApplyDownloadToProfileProcedure = "/inferencerig.control.v1.ControlService/ApplyDownloadToProfile"
+	// ControlServiceCleanupProfileProcedure is the fully-qualified name of the ControlService's
+	// CleanupProfile RPC.
+	ControlServiceCleanupProfileProcedure = "/inferencerig.control.v1.ControlService/CleanupProfile"
+	// ControlServiceSetProfileAutostartProcedure is the fully-qualified name of the ControlService's
+	// SetProfileAutostart RPC.
+	ControlServiceSetProfileAutostartProcedure = "/inferencerig.control.v1.ControlService/SetProfileAutostart"
+	// ControlServiceSetStartupServicesProcedure is the fully-qualified name of the ControlService's
+	// SetStartupServices RPC.
+	ControlServiceSetStartupServicesProcedure = "/inferencerig.control.v1.ControlService/SetStartupServices"
+	// ControlServiceRestartRuntimeProcedure is the fully-qualified name of the ControlService's
+	// RestartRuntime RPC.
+	ControlServiceRestartRuntimeProcedure = "/inferencerig.control.v1.ControlService/RestartRuntime"
+	// ControlServiceGetInfoProcedure is the fully-qualified name of the ControlService's GetInfo RPC.
+	ControlServiceGetInfoProcedure = "/inferencerig.control.v1.ControlService/GetInfo"
+	// ControlServiceGetBackendParamsProcedure is the fully-qualified name of the ControlService's
+	// GetBackendParams RPC.
+	ControlServiceGetBackendParamsProcedure = "/inferencerig.control.v1.ControlService/GetBackendParams"
+	// ControlServiceEstimateFitProcedure is the fully-qualified name of the ControlService's
+	// EstimateFit RPC.
+	ControlServiceEstimateFitProcedure = "/inferencerig.control.v1.ControlService/EstimateFit"
+	// ControlServiceGetLogsProcedure is the fully-qualified name of the ControlService's GetLogs RPC.
+	ControlServiceGetLogsProcedure = "/inferencerig.control.v1.ControlService/GetLogs"
+	// ControlServiceWatchLogsProcedure is the fully-qualified name of the ControlService's WatchLogs
+	// RPC.
+	ControlServiceWatchLogsProcedure = "/inferencerig.control.v1.ControlService/WatchLogs"
+	// ControlServiceListLogArchivesProcedure is the fully-qualified name of the ControlService's
+	// ListLogArchives RPC.
+	ControlServiceListLogArchivesProcedure = "/inferencerig.control.v1.ControlService/ListLogArchives"
+	// ControlServiceGetLogArchiveProcedure is the fully-qualified name of the ControlService's
+	// GetLogArchive RPC.
+	ControlServiceGetLogArchiveProcedure = "/inferencerig.control.v1.ControlService/GetLogArchive"
+	// ControlServiceDeleteLogArchiveProcedure is the fully-qualified name of the ControlService's
+	// DeleteLogArchive RPC.
+	ControlServiceDeleteLogArchiveProcedure = "/inferencerig.control.v1.ControlService/DeleteLogArchive"
+	// ControlServiceClearLogArchivesProcedure is the fully-qualified name of the ControlService's
+	// ClearLogArchives RPC.
+	ControlServiceClearLogArchivesProcedure = "/inferencerig.control.v1.ControlService/ClearLogArchives"
 )
 
 // ControlServiceClient is a client for the inferencerig.control.v1.ControlService service.
@@ -106,10 +152,14 @@ type ControlServiceClient interface {
 	PutProfile(context.Context, *v1.PutProfileRequest) (*v1.PutProfileResponse, error)
 	DeleteProfile(context.Context, *v1.DeleteProfileRequest) (*v1.DeleteProfileResponse, error)
 	InstallBackend(context.Context, *v1.InstallBackendRequest) (*v1.InstallBackendResponse, error)
+	GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error)
 	StartRuntime(context.Context, *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error)
 	StopRuntime(context.Context, *v1.StopRuntimeRequest) (*v1.StopRuntimeResponse, error)
 	GetRuntimeStatus(context.Context, *v1.GetRuntimeStatusRequest) (*v1.GetRuntimeStatusResponse, error)
 	ResolveProfileModel(context.Context, *v1.ResolveProfileModelRequest) (*v1.ResolveProfileModelResponse, error)
+	// ResolveModel resolves an arbitrary catalog reference without requiring a
+	// profile, so the UI can browse and download before a profile exists.
+	ResolveModel(context.Context, *v1.ResolveModelRequest) (*v1.ResolveModelResponse, error)
 	StartModelDownload(context.Context, *v1.StartModelDownloadRequest) (*v1.StartModelDownloadResponse, error)
 	GetModelDownload(context.Context, *v1.GetModelDownloadRequest) (*v1.GetModelDownloadResponse, error)
 	CancelModelDownload(context.Context, *v1.CancelModelDownloadRequest) (*v1.CancelModelDownloadResponse, error)
@@ -120,6 +170,25 @@ type ControlServiceClient interface {
 	WatchModelCatalog(context.Context, *v1.WatchModelCatalogRequest) (*connect.ServerStreamForClient[v1.WatchModelCatalogResponse], error)
 	ListLocalModels(context.Context, *v1.ListLocalModelsRequest) (*v1.ListLocalModelsResponse, error)
 	DeleteLocalModel(context.Context, *v1.DeleteLocalModelRequest) (*v1.DeleteLocalModelResponse, error)
+	ApplyDownloadToProfile(context.Context, *v1.ApplyDownloadToProfileRequest) (*v1.ApplyDownloadToProfileResponse, error)
+	CleanupProfile(context.Context, *v1.CleanupProfileRequest) (*v1.CleanupProfileResponse, error)
+	SetProfileAutostart(context.Context, *v1.SetProfileAutostartRequest) (*v1.SetProfileAutostartResponse, error)
+	SetStartupServices(context.Context, *v1.SetStartupServicesRequest) (*v1.SetStartupServicesResponse, error)
+	RestartRuntime(context.Context, *v1.RestartRuntimeRequest) (*v1.RestartRuntimeResponse, error)
+	GetInfo(context.Context, *v1.GetInfoRequest) (*v1.GetInfoResponse, error)
+	GetBackendParams(context.Context, *v1.GetBackendParamsRequest) (*v1.GetBackendParamsResponse, error)
+	// EstimateFit reports whether a model of a given size fits the host, for the
+	// memory model the named backend uses. Both backends have implemented this
+	// since Phase 6/7; it simply had no way to reach a caller.
+	EstimateFit(context.Context, *v1.EstimateFitRequest) (*v1.EstimateFitResponse, error)
+	// Service logs. The archive store behind these has existed since Phase 2 with
+	// its own retention policy and was unreachable from any adapter.
+	GetLogs(context.Context, *v1.GetLogsRequest) (*v1.GetLogsResponse, error)
+	WatchLogs(context.Context, *v1.WatchLogsRequest) (*connect.ServerStreamForClient[v1.WatchLogsResponse], error)
+	ListLogArchives(context.Context, *v1.ListLogArchivesRequest) (*v1.ListLogArchivesResponse, error)
+	GetLogArchive(context.Context, *v1.GetLogArchiveRequest) (*v1.GetLogArchiveResponse, error)
+	DeleteLogArchive(context.Context, *v1.DeleteLogArchiveRequest) (*v1.DeleteLogArchiveResponse, error)
+	ClearLogArchives(context.Context, *v1.ClearLogArchivesRequest) (*v1.ClearLogArchivesResponse, error)
 }
 
 // NewControlServiceClient constructs a client for the inferencerig.control.v1.ControlService
@@ -175,6 +244,12 @@ func NewControlServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(controlServiceMethods.ByName("InstallBackend")),
 			connect.WithClientOptions(opts...),
 		),
+		getBackendInstallStatus: connect.NewClient[v1.GetBackendInstallStatusRequest, v1.GetBackendInstallStatusResponse](
+			httpClient,
+			baseURL+ControlServiceGetBackendInstallStatusProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("GetBackendInstallStatus")),
+			connect.WithClientOptions(opts...),
+		),
 		startRuntime: connect.NewClient[v1.StartRuntimeRequest, v1.StartRuntimeResponse](
 			httpClient,
 			baseURL+ControlServiceStartRuntimeProcedure,
@@ -197,6 +272,12 @@ func NewControlServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+ControlServiceResolveProfileModelProcedure,
 			connect.WithSchema(controlServiceMethods.ByName("ResolveProfileModel")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveModel: connect.NewClient[v1.ResolveModelRequest, v1.ResolveModelResponse](
+			httpClient,
+			baseURL+ControlServiceResolveModelProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("ResolveModel")),
 			connect.WithClientOptions(opts...),
 		),
 		startModelDownload: connect.NewClient[v1.StartModelDownloadRequest, v1.StartModelDownloadResponse](
@@ -259,32 +340,132 @@ func NewControlServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(controlServiceMethods.ByName("DeleteLocalModel")),
 			connect.WithClientOptions(opts...),
 		),
+		applyDownloadToProfile: connect.NewClient[v1.ApplyDownloadToProfileRequest, v1.ApplyDownloadToProfileResponse](
+			httpClient,
+			baseURL+ControlServiceApplyDownloadToProfileProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("ApplyDownloadToProfile")),
+			connect.WithClientOptions(opts...),
+		),
+		cleanupProfile: connect.NewClient[v1.CleanupProfileRequest, v1.CleanupProfileResponse](
+			httpClient,
+			baseURL+ControlServiceCleanupProfileProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("CleanupProfile")),
+			connect.WithClientOptions(opts...),
+		),
+		setProfileAutostart: connect.NewClient[v1.SetProfileAutostartRequest, v1.SetProfileAutostartResponse](
+			httpClient,
+			baseURL+ControlServiceSetProfileAutostartProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("SetProfileAutostart")),
+			connect.WithClientOptions(opts...),
+		),
+		setStartupServices: connect.NewClient[v1.SetStartupServicesRequest, v1.SetStartupServicesResponse](
+			httpClient,
+			baseURL+ControlServiceSetStartupServicesProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("SetStartupServices")),
+			connect.WithClientOptions(opts...),
+		),
+		restartRuntime: connect.NewClient[v1.RestartRuntimeRequest, v1.RestartRuntimeResponse](
+			httpClient,
+			baseURL+ControlServiceRestartRuntimeProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("RestartRuntime")),
+			connect.WithClientOptions(opts...),
+		),
+		getInfo: connect.NewClient[v1.GetInfoRequest, v1.GetInfoResponse](
+			httpClient,
+			baseURL+ControlServiceGetInfoProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("GetInfo")),
+			connect.WithClientOptions(opts...),
+		),
+		getBackendParams: connect.NewClient[v1.GetBackendParamsRequest, v1.GetBackendParamsResponse](
+			httpClient,
+			baseURL+ControlServiceGetBackendParamsProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("GetBackendParams")),
+			connect.WithClientOptions(opts...),
+		),
+		estimateFit: connect.NewClient[v1.EstimateFitRequest, v1.EstimateFitResponse](
+			httpClient,
+			baseURL+ControlServiceEstimateFitProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("EstimateFit")),
+			connect.WithClientOptions(opts...),
+		),
+		getLogs: connect.NewClient[v1.GetLogsRequest, v1.GetLogsResponse](
+			httpClient,
+			baseURL+ControlServiceGetLogsProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("GetLogs")),
+			connect.WithClientOptions(opts...),
+		),
+		watchLogs: connect.NewClient[v1.WatchLogsRequest, v1.WatchLogsResponse](
+			httpClient,
+			baseURL+ControlServiceWatchLogsProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("WatchLogs")),
+			connect.WithClientOptions(opts...),
+		),
+		listLogArchives: connect.NewClient[v1.ListLogArchivesRequest, v1.ListLogArchivesResponse](
+			httpClient,
+			baseURL+ControlServiceListLogArchivesProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("ListLogArchives")),
+			connect.WithClientOptions(opts...),
+		),
+		getLogArchive: connect.NewClient[v1.GetLogArchiveRequest, v1.GetLogArchiveResponse](
+			httpClient,
+			baseURL+ControlServiceGetLogArchiveProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("GetLogArchive")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteLogArchive: connect.NewClient[v1.DeleteLogArchiveRequest, v1.DeleteLogArchiveResponse](
+			httpClient,
+			baseURL+ControlServiceDeleteLogArchiveProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("DeleteLogArchive")),
+			connect.WithClientOptions(opts...),
+		),
+		clearLogArchives: connect.NewClient[v1.ClearLogArchivesRequest, v1.ClearLogArchivesResponse](
+			httpClient,
+			baseURL+ControlServiceClearLogArchivesProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("ClearLogArchives")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // controlServiceClient implements ControlServiceClient.
 type controlServiceClient struct {
-	health              *connect.Client[v1.HealthRequest, v1.HealthResponse]
-	listBackends        *connect.Client[v1.ListBackendsRequest, v1.ListBackendsResponse]
-	listProfiles        *connect.Client[v1.ListProfilesRequest, v1.ListProfilesResponse]
-	getProfile          *connect.Client[v1.GetProfileRequest, v1.GetProfileResponse]
-	putProfile          *connect.Client[v1.PutProfileRequest, v1.PutProfileResponse]
-	deleteProfile       *connect.Client[v1.DeleteProfileRequest, v1.DeleteProfileResponse]
-	installBackend      *connect.Client[v1.InstallBackendRequest, v1.InstallBackendResponse]
-	startRuntime        *connect.Client[v1.StartRuntimeRequest, v1.StartRuntimeResponse]
-	stopRuntime         *connect.Client[v1.StopRuntimeRequest, v1.StopRuntimeResponse]
-	getRuntimeStatus    *connect.Client[v1.GetRuntimeStatusRequest, v1.GetRuntimeStatusResponse]
-	resolveProfileModel *connect.Client[v1.ResolveProfileModelRequest, v1.ResolveProfileModelResponse]
-	startModelDownload  *connect.Client[v1.StartModelDownloadRequest, v1.StartModelDownloadResponse]
-	getModelDownload    *connect.Client[v1.GetModelDownloadRequest, v1.GetModelDownloadResponse]
-	cancelModelDownload *connect.Client[v1.CancelModelDownloadRequest, v1.CancelModelDownloadResponse]
-	getSignals          *connect.Client[v1.GetSignalsRequest, v1.GetSignalsResponse]
-	listEvents          *connect.Client[v1.ListEventsRequest, v1.ListEventsResponse]
-	watchEvents         *connect.Client[v1.WatchEventsRequest, v1.WatchEventsResponse]
-	listModelCatalog    *connect.Client[v1.ListModelCatalogRequest, v1.ListModelCatalogResponse]
-	watchModelCatalog   *connect.Client[v1.WatchModelCatalogRequest, v1.WatchModelCatalogResponse]
-	listLocalModels     *connect.Client[v1.ListLocalModelsRequest, v1.ListLocalModelsResponse]
-	deleteLocalModel    *connect.Client[v1.DeleteLocalModelRequest, v1.DeleteLocalModelResponse]
+	health                  *connect.Client[v1.HealthRequest, v1.HealthResponse]
+	listBackends            *connect.Client[v1.ListBackendsRequest, v1.ListBackendsResponse]
+	listProfiles            *connect.Client[v1.ListProfilesRequest, v1.ListProfilesResponse]
+	getProfile              *connect.Client[v1.GetProfileRequest, v1.GetProfileResponse]
+	putProfile              *connect.Client[v1.PutProfileRequest, v1.PutProfileResponse]
+	deleteProfile           *connect.Client[v1.DeleteProfileRequest, v1.DeleteProfileResponse]
+	installBackend          *connect.Client[v1.InstallBackendRequest, v1.InstallBackendResponse]
+	getBackendInstallStatus *connect.Client[v1.GetBackendInstallStatusRequest, v1.GetBackendInstallStatusResponse]
+	startRuntime            *connect.Client[v1.StartRuntimeRequest, v1.StartRuntimeResponse]
+	stopRuntime             *connect.Client[v1.StopRuntimeRequest, v1.StopRuntimeResponse]
+	getRuntimeStatus        *connect.Client[v1.GetRuntimeStatusRequest, v1.GetRuntimeStatusResponse]
+	resolveProfileModel     *connect.Client[v1.ResolveProfileModelRequest, v1.ResolveProfileModelResponse]
+	resolveModel            *connect.Client[v1.ResolveModelRequest, v1.ResolveModelResponse]
+	startModelDownload      *connect.Client[v1.StartModelDownloadRequest, v1.StartModelDownloadResponse]
+	getModelDownload        *connect.Client[v1.GetModelDownloadRequest, v1.GetModelDownloadResponse]
+	cancelModelDownload     *connect.Client[v1.CancelModelDownloadRequest, v1.CancelModelDownloadResponse]
+	getSignals              *connect.Client[v1.GetSignalsRequest, v1.GetSignalsResponse]
+	listEvents              *connect.Client[v1.ListEventsRequest, v1.ListEventsResponse]
+	watchEvents             *connect.Client[v1.WatchEventsRequest, v1.WatchEventsResponse]
+	listModelCatalog        *connect.Client[v1.ListModelCatalogRequest, v1.ListModelCatalogResponse]
+	watchModelCatalog       *connect.Client[v1.WatchModelCatalogRequest, v1.WatchModelCatalogResponse]
+	listLocalModels         *connect.Client[v1.ListLocalModelsRequest, v1.ListLocalModelsResponse]
+	deleteLocalModel        *connect.Client[v1.DeleteLocalModelRequest, v1.DeleteLocalModelResponse]
+	applyDownloadToProfile  *connect.Client[v1.ApplyDownloadToProfileRequest, v1.ApplyDownloadToProfileResponse]
+	cleanupProfile          *connect.Client[v1.CleanupProfileRequest, v1.CleanupProfileResponse]
+	setProfileAutostart     *connect.Client[v1.SetProfileAutostartRequest, v1.SetProfileAutostartResponse]
+	setStartupServices      *connect.Client[v1.SetStartupServicesRequest, v1.SetStartupServicesResponse]
+	restartRuntime          *connect.Client[v1.RestartRuntimeRequest, v1.RestartRuntimeResponse]
+	getInfo                 *connect.Client[v1.GetInfoRequest, v1.GetInfoResponse]
+	getBackendParams        *connect.Client[v1.GetBackendParamsRequest, v1.GetBackendParamsResponse]
+	estimateFit             *connect.Client[v1.EstimateFitRequest, v1.EstimateFitResponse]
+	getLogs                 *connect.Client[v1.GetLogsRequest, v1.GetLogsResponse]
+	watchLogs               *connect.Client[v1.WatchLogsRequest, v1.WatchLogsResponse]
+	listLogArchives         *connect.Client[v1.ListLogArchivesRequest, v1.ListLogArchivesResponse]
+	getLogArchive           *connect.Client[v1.GetLogArchiveRequest, v1.GetLogArchiveResponse]
+	deleteLogArchive        *connect.Client[v1.DeleteLogArchiveRequest, v1.DeleteLogArchiveResponse]
+	clearLogArchives        *connect.Client[v1.ClearLogArchivesRequest, v1.ClearLogArchivesResponse]
 }
 
 // Health calls inferencerig.control.v1.ControlService.Health.
@@ -350,6 +531,15 @@ func (c *controlServiceClient) InstallBackend(ctx context.Context, req *v1.Insta
 	return nil, err
 }
 
+// GetBackendInstallStatus calls inferencerig.control.v1.ControlService.GetBackendInstallStatus.
+func (c *controlServiceClient) GetBackendInstallStatus(ctx context.Context, req *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error) {
+	response, err := c.getBackendInstallStatus.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // StartRuntime calls inferencerig.control.v1.ControlService.StartRuntime.
 func (c *controlServiceClient) StartRuntime(ctx context.Context, req *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error) {
 	response, err := c.startRuntime.CallUnary(ctx, connect.NewRequest(req))
@@ -380,6 +570,15 @@ func (c *controlServiceClient) GetRuntimeStatus(ctx context.Context, req *v1.Get
 // ResolveProfileModel calls inferencerig.control.v1.ControlService.ResolveProfileModel.
 func (c *controlServiceClient) ResolveProfileModel(ctx context.Context, req *v1.ResolveProfileModelRequest) (*v1.ResolveProfileModelResponse, error) {
 	response, err := c.resolveProfileModel.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// ResolveModel calls inferencerig.control.v1.ControlService.ResolveModel.
+func (c *controlServiceClient) ResolveModel(ctx context.Context, req *v1.ResolveModelRequest) (*v1.ResolveModelResponse, error) {
+	response, err := c.resolveModel.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -468,6 +667,128 @@ func (c *controlServiceClient) DeleteLocalModel(ctx context.Context, req *v1.Del
 	return nil, err
 }
 
+// ApplyDownloadToProfile calls inferencerig.control.v1.ControlService.ApplyDownloadToProfile.
+func (c *controlServiceClient) ApplyDownloadToProfile(ctx context.Context, req *v1.ApplyDownloadToProfileRequest) (*v1.ApplyDownloadToProfileResponse, error) {
+	response, err := c.applyDownloadToProfile.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// CleanupProfile calls inferencerig.control.v1.ControlService.CleanupProfile.
+func (c *controlServiceClient) CleanupProfile(ctx context.Context, req *v1.CleanupProfileRequest) (*v1.CleanupProfileResponse, error) {
+	response, err := c.cleanupProfile.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// SetProfileAutostart calls inferencerig.control.v1.ControlService.SetProfileAutostart.
+func (c *controlServiceClient) SetProfileAutostart(ctx context.Context, req *v1.SetProfileAutostartRequest) (*v1.SetProfileAutostartResponse, error) {
+	response, err := c.setProfileAutostart.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// SetStartupServices calls inferencerig.control.v1.ControlService.SetStartupServices.
+func (c *controlServiceClient) SetStartupServices(ctx context.Context, req *v1.SetStartupServicesRequest) (*v1.SetStartupServicesResponse, error) {
+	response, err := c.setStartupServices.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// RestartRuntime calls inferencerig.control.v1.ControlService.RestartRuntime.
+func (c *controlServiceClient) RestartRuntime(ctx context.Context, req *v1.RestartRuntimeRequest) (*v1.RestartRuntimeResponse, error) {
+	response, err := c.restartRuntime.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// GetInfo calls inferencerig.control.v1.ControlService.GetInfo.
+func (c *controlServiceClient) GetInfo(ctx context.Context, req *v1.GetInfoRequest) (*v1.GetInfoResponse, error) {
+	response, err := c.getInfo.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// GetBackendParams calls inferencerig.control.v1.ControlService.GetBackendParams.
+func (c *controlServiceClient) GetBackendParams(ctx context.Context, req *v1.GetBackendParamsRequest) (*v1.GetBackendParamsResponse, error) {
+	response, err := c.getBackendParams.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// EstimateFit calls inferencerig.control.v1.ControlService.EstimateFit.
+func (c *controlServiceClient) EstimateFit(ctx context.Context, req *v1.EstimateFitRequest) (*v1.EstimateFitResponse, error) {
+	response, err := c.estimateFit.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// GetLogs calls inferencerig.control.v1.ControlService.GetLogs.
+func (c *controlServiceClient) GetLogs(ctx context.Context, req *v1.GetLogsRequest) (*v1.GetLogsResponse, error) {
+	response, err := c.getLogs.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// WatchLogs calls inferencerig.control.v1.ControlService.WatchLogs.
+func (c *controlServiceClient) WatchLogs(ctx context.Context, req *v1.WatchLogsRequest) (*connect.ServerStreamForClient[v1.WatchLogsResponse], error) {
+	return c.watchLogs.CallServerStream(ctx, connect.NewRequest(req))
+}
+
+// ListLogArchives calls inferencerig.control.v1.ControlService.ListLogArchives.
+func (c *controlServiceClient) ListLogArchives(ctx context.Context, req *v1.ListLogArchivesRequest) (*v1.ListLogArchivesResponse, error) {
+	response, err := c.listLogArchives.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// GetLogArchive calls inferencerig.control.v1.ControlService.GetLogArchive.
+func (c *controlServiceClient) GetLogArchive(ctx context.Context, req *v1.GetLogArchiveRequest) (*v1.GetLogArchiveResponse, error) {
+	response, err := c.getLogArchive.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// DeleteLogArchive calls inferencerig.control.v1.ControlService.DeleteLogArchive.
+func (c *controlServiceClient) DeleteLogArchive(ctx context.Context, req *v1.DeleteLogArchiveRequest) (*v1.DeleteLogArchiveResponse, error) {
+	response, err := c.deleteLogArchive.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// ClearLogArchives calls inferencerig.control.v1.ControlService.ClearLogArchives.
+func (c *controlServiceClient) ClearLogArchives(ctx context.Context, req *v1.ClearLogArchivesRequest) (*v1.ClearLogArchivesResponse, error) {
+	response, err := c.clearLogArchives.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // ControlServiceHandler is an implementation of the inferencerig.control.v1.ControlService service.
 type ControlServiceHandler interface {
 	Health(context.Context, *v1.HealthRequest) (*v1.HealthResponse, error)
@@ -477,10 +798,14 @@ type ControlServiceHandler interface {
 	PutProfile(context.Context, *v1.PutProfileRequest) (*v1.PutProfileResponse, error)
 	DeleteProfile(context.Context, *v1.DeleteProfileRequest) (*v1.DeleteProfileResponse, error)
 	InstallBackend(context.Context, *v1.InstallBackendRequest) (*v1.InstallBackendResponse, error)
+	GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error)
 	StartRuntime(context.Context, *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error)
 	StopRuntime(context.Context, *v1.StopRuntimeRequest) (*v1.StopRuntimeResponse, error)
 	GetRuntimeStatus(context.Context, *v1.GetRuntimeStatusRequest) (*v1.GetRuntimeStatusResponse, error)
 	ResolveProfileModel(context.Context, *v1.ResolveProfileModelRequest) (*v1.ResolveProfileModelResponse, error)
+	// ResolveModel resolves an arbitrary catalog reference without requiring a
+	// profile, so the UI can browse and download before a profile exists.
+	ResolveModel(context.Context, *v1.ResolveModelRequest) (*v1.ResolveModelResponse, error)
 	StartModelDownload(context.Context, *v1.StartModelDownloadRequest) (*v1.StartModelDownloadResponse, error)
 	GetModelDownload(context.Context, *v1.GetModelDownloadRequest) (*v1.GetModelDownloadResponse, error)
 	CancelModelDownload(context.Context, *v1.CancelModelDownloadRequest) (*v1.CancelModelDownloadResponse, error)
@@ -491,6 +816,25 @@ type ControlServiceHandler interface {
 	WatchModelCatalog(context.Context, *v1.WatchModelCatalogRequest, *connect.ServerStream[v1.WatchModelCatalogResponse]) error
 	ListLocalModels(context.Context, *v1.ListLocalModelsRequest) (*v1.ListLocalModelsResponse, error)
 	DeleteLocalModel(context.Context, *v1.DeleteLocalModelRequest) (*v1.DeleteLocalModelResponse, error)
+	ApplyDownloadToProfile(context.Context, *v1.ApplyDownloadToProfileRequest) (*v1.ApplyDownloadToProfileResponse, error)
+	CleanupProfile(context.Context, *v1.CleanupProfileRequest) (*v1.CleanupProfileResponse, error)
+	SetProfileAutostart(context.Context, *v1.SetProfileAutostartRequest) (*v1.SetProfileAutostartResponse, error)
+	SetStartupServices(context.Context, *v1.SetStartupServicesRequest) (*v1.SetStartupServicesResponse, error)
+	RestartRuntime(context.Context, *v1.RestartRuntimeRequest) (*v1.RestartRuntimeResponse, error)
+	GetInfo(context.Context, *v1.GetInfoRequest) (*v1.GetInfoResponse, error)
+	GetBackendParams(context.Context, *v1.GetBackendParamsRequest) (*v1.GetBackendParamsResponse, error)
+	// EstimateFit reports whether a model of a given size fits the host, for the
+	// memory model the named backend uses. Both backends have implemented this
+	// since Phase 6/7; it simply had no way to reach a caller.
+	EstimateFit(context.Context, *v1.EstimateFitRequest) (*v1.EstimateFitResponse, error)
+	// Service logs. The archive store behind these has existed since Phase 2 with
+	// its own retention policy and was unreachable from any adapter.
+	GetLogs(context.Context, *v1.GetLogsRequest) (*v1.GetLogsResponse, error)
+	WatchLogs(context.Context, *v1.WatchLogsRequest, *connect.ServerStream[v1.WatchLogsResponse]) error
+	ListLogArchives(context.Context, *v1.ListLogArchivesRequest) (*v1.ListLogArchivesResponse, error)
+	GetLogArchive(context.Context, *v1.GetLogArchiveRequest) (*v1.GetLogArchiveResponse, error)
+	DeleteLogArchive(context.Context, *v1.DeleteLogArchiveRequest) (*v1.DeleteLogArchiveResponse, error)
+	ClearLogArchives(context.Context, *v1.ClearLogArchivesRequest) (*v1.ClearLogArchivesResponse, error)
 }
 
 // NewControlServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -542,6 +886,12 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 		connect.WithSchema(controlServiceMethods.ByName("InstallBackend")),
 		connect.WithHandlerOptions(opts...),
 	)
+	controlServiceGetBackendInstallStatusHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceGetBackendInstallStatusProcedure,
+		svc.GetBackendInstallStatus,
+		connect.WithSchema(controlServiceMethods.ByName("GetBackendInstallStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
 	controlServiceStartRuntimeHandler := connect.NewUnaryHandlerSimple(
 		ControlServiceStartRuntimeProcedure,
 		svc.StartRuntime,
@@ -564,6 +914,12 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 		ControlServiceResolveProfileModelProcedure,
 		svc.ResolveProfileModel,
 		connect.WithSchema(controlServiceMethods.ByName("ResolveProfileModel")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceResolveModelHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceResolveModelProcedure,
+		svc.ResolveModel,
+		connect.WithSchema(controlServiceMethods.ByName("ResolveModel")),
 		connect.WithHandlerOptions(opts...),
 	)
 	controlServiceStartModelDownloadHandler := connect.NewUnaryHandlerSimple(
@@ -626,6 +982,90 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 		connect.WithSchema(controlServiceMethods.ByName("DeleteLocalModel")),
 		connect.WithHandlerOptions(opts...),
 	)
+	controlServiceApplyDownloadToProfileHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceApplyDownloadToProfileProcedure,
+		svc.ApplyDownloadToProfile,
+		connect.WithSchema(controlServiceMethods.ByName("ApplyDownloadToProfile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceCleanupProfileHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceCleanupProfileProcedure,
+		svc.CleanupProfile,
+		connect.WithSchema(controlServiceMethods.ByName("CleanupProfile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceSetProfileAutostartHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceSetProfileAutostartProcedure,
+		svc.SetProfileAutostart,
+		connect.WithSchema(controlServiceMethods.ByName("SetProfileAutostart")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceSetStartupServicesHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceSetStartupServicesProcedure,
+		svc.SetStartupServices,
+		connect.WithSchema(controlServiceMethods.ByName("SetStartupServices")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceRestartRuntimeHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceRestartRuntimeProcedure,
+		svc.RestartRuntime,
+		connect.WithSchema(controlServiceMethods.ByName("RestartRuntime")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceGetInfoHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceGetInfoProcedure,
+		svc.GetInfo,
+		connect.WithSchema(controlServiceMethods.ByName("GetInfo")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceGetBackendParamsHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceGetBackendParamsProcedure,
+		svc.GetBackendParams,
+		connect.WithSchema(controlServiceMethods.ByName("GetBackendParams")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceEstimateFitHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceEstimateFitProcedure,
+		svc.EstimateFit,
+		connect.WithSchema(controlServiceMethods.ByName("EstimateFit")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceGetLogsHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceGetLogsProcedure,
+		svc.GetLogs,
+		connect.WithSchema(controlServiceMethods.ByName("GetLogs")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceWatchLogsHandler := connect.NewServerStreamHandlerSimple(
+		ControlServiceWatchLogsProcedure,
+		svc.WatchLogs,
+		connect.WithSchema(controlServiceMethods.ByName("WatchLogs")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceListLogArchivesHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceListLogArchivesProcedure,
+		svc.ListLogArchives,
+		connect.WithSchema(controlServiceMethods.ByName("ListLogArchives")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceGetLogArchiveHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceGetLogArchiveProcedure,
+		svc.GetLogArchive,
+		connect.WithSchema(controlServiceMethods.ByName("GetLogArchive")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceDeleteLogArchiveHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceDeleteLogArchiveProcedure,
+		svc.DeleteLogArchive,
+		connect.WithSchema(controlServiceMethods.ByName("DeleteLogArchive")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceClearLogArchivesHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceClearLogArchivesProcedure,
+		svc.ClearLogArchives,
+		connect.WithSchema(controlServiceMethods.ByName("ClearLogArchives")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/inferencerig.control.v1.ControlService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ControlServiceHealthProcedure:
@@ -642,6 +1082,8 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 			controlServiceDeleteProfileHandler.ServeHTTP(w, r)
 		case ControlServiceInstallBackendProcedure:
 			controlServiceInstallBackendHandler.ServeHTTP(w, r)
+		case ControlServiceGetBackendInstallStatusProcedure:
+			controlServiceGetBackendInstallStatusHandler.ServeHTTP(w, r)
 		case ControlServiceStartRuntimeProcedure:
 			controlServiceStartRuntimeHandler.ServeHTTP(w, r)
 		case ControlServiceStopRuntimeProcedure:
@@ -650,6 +1092,8 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 			controlServiceGetRuntimeStatusHandler.ServeHTTP(w, r)
 		case ControlServiceResolveProfileModelProcedure:
 			controlServiceResolveProfileModelHandler.ServeHTTP(w, r)
+		case ControlServiceResolveModelProcedure:
+			controlServiceResolveModelHandler.ServeHTTP(w, r)
 		case ControlServiceStartModelDownloadProcedure:
 			controlServiceStartModelDownloadHandler.ServeHTTP(w, r)
 		case ControlServiceGetModelDownloadProcedure:
@@ -670,6 +1114,34 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 			controlServiceListLocalModelsHandler.ServeHTTP(w, r)
 		case ControlServiceDeleteLocalModelProcedure:
 			controlServiceDeleteLocalModelHandler.ServeHTTP(w, r)
+		case ControlServiceApplyDownloadToProfileProcedure:
+			controlServiceApplyDownloadToProfileHandler.ServeHTTP(w, r)
+		case ControlServiceCleanupProfileProcedure:
+			controlServiceCleanupProfileHandler.ServeHTTP(w, r)
+		case ControlServiceSetProfileAutostartProcedure:
+			controlServiceSetProfileAutostartHandler.ServeHTTP(w, r)
+		case ControlServiceSetStartupServicesProcedure:
+			controlServiceSetStartupServicesHandler.ServeHTTP(w, r)
+		case ControlServiceRestartRuntimeProcedure:
+			controlServiceRestartRuntimeHandler.ServeHTTP(w, r)
+		case ControlServiceGetInfoProcedure:
+			controlServiceGetInfoHandler.ServeHTTP(w, r)
+		case ControlServiceGetBackendParamsProcedure:
+			controlServiceGetBackendParamsHandler.ServeHTTP(w, r)
+		case ControlServiceEstimateFitProcedure:
+			controlServiceEstimateFitHandler.ServeHTTP(w, r)
+		case ControlServiceGetLogsProcedure:
+			controlServiceGetLogsHandler.ServeHTTP(w, r)
+		case ControlServiceWatchLogsProcedure:
+			controlServiceWatchLogsHandler.ServeHTTP(w, r)
+		case ControlServiceListLogArchivesProcedure:
+			controlServiceListLogArchivesHandler.ServeHTTP(w, r)
+		case ControlServiceGetLogArchiveProcedure:
+			controlServiceGetLogArchiveHandler.ServeHTTP(w, r)
+		case ControlServiceDeleteLogArchiveProcedure:
+			controlServiceDeleteLogArchiveHandler.ServeHTTP(w, r)
+		case ControlServiceClearLogArchivesProcedure:
+			controlServiceClearLogArchivesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -707,6 +1179,10 @@ func (UnimplementedControlServiceHandler) InstallBackend(context.Context, *v1.In
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.InstallBackend is not implemented"))
 }
 
+func (UnimplementedControlServiceHandler) GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.GetBackendInstallStatus is not implemented"))
+}
+
 func (UnimplementedControlServiceHandler) StartRuntime(context.Context, *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.StartRuntime is not implemented"))
 }
@@ -721,6 +1197,10 @@ func (UnimplementedControlServiceHandler) GetRuntimeStatus(context.Context, *v1.
 
 func (UnimplementedControlServiceHandler) ResolveProfileModel(context.Context, *v1.ResolveProfileModelRequest) (*v1.ResolveProfileModelResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.ResolveProfileModel is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) ResolveModel(context.Context, *v1.ResolveModelRequest) (*v1.ResolveModelResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.ResolveModel is not implemented"))
 }
 
 func (UnimplementedControlServiceHandler) StartModelDownload(context.Context, *v1.StartModelDownloadRequest) (*v1.StartModelDownloadResponse, error) {
@@ -761,4 +1241,60 @@ func (UnimplementedControlServiceHandler) ListLocalModels(context.Context, *v1.L
 
 func (UnimplementedControlServiceHandler) DeleteLocalModel(context.Context, *v1.DeleteLocalModelRequest) (*v1.DeleteLocalModelResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.DeleteLocalModel is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) ApplyDownloadToProfile(context.Context, *v1.ApplyDownloadToProfileRequest) (*v1.ApplyDownloadToProfileResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.ApplyDownloadToProfile is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) CleanupProfile(context.Context, *v1.CleanupProfileRequest) (*v1.CleanupProfileResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.CleanupProfile is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) SetProfileAutostart(context.Context, *v1.SetProfileAutostartRequest) (*v1.SetProfileAutostartResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.SetProfileAutostart is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) SetStartupServices(context.Context, *v1.SetStartupServicesRequest) (*v1.SetStartupServicesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.SetStartupServices is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) RestartRuntime(context.Context, *v1.RestartRuntimeRequest) (*v1.RestartRuntimeResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.RestartRuntime is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) GetInfo(context.Context, *v1.GetInfoRequest) (*v1.GetInfoResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.GetInfo is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) GetBackendParams(context.Context, *v1.GetBackendParamsRequest) (*v1.GetBackendParamsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.GetBackendParams is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) EstimateFit(context.Context, *v1.EstimateFitRequest) (*v1.EstimateFitResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.EstimateFit is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) GetLogs(context.Context, *v1.GetLogsRequest) (*v1.GetLogsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.GetLogs is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) WatchLogs(context.Context, *v1.WatchLogsRequest, *connect.ServerStream[v1.WatchLogsResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.WatchLogs is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) ListLogArchives(context.Context, *v1.ListLogArchivesRequest) (*v1.ListLogArchivesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.ListLogArchives is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) GetLogArchive(context.Context, *v1.GetLogArchiveRequest) (*v1.GetLogArchiveResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.GetLogArchive is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) DeleteLogArchive(context.Context, *v1.DeleteLogArchiveRequest) (*v1.DeleteLogArchiveResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.DeleteLogArchive is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) ClearLogArchives(context.Context, *v1.ClearLogArchivesRequest) (*v1.ClearLogArchivesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.ClearLogArchives is not implemented"))
 }

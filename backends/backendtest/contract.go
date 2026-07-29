@@ -19,6 +19,7 @@ func RunContractTests(t *testing.T, newBackend func() backends.Backend) {
 	t.Run("ResolvePlan", func(t *testing.T) { checkResolvePlan(t, newBackend()) })
 	t.Run("Fit", func(t *testing.T) { checkFit(t, newBackend()) })
 	t.Run("Install", func(t *testing.T) { checkInstall(t, newBackend()) })
+	t.Run("InstallStatus", func(t *testing.T) { checkInstallStatus(t, newBackend()) })
 	t.Run("Capabilities", func(t *testing.T) { checkCapabilities(t, newBackend()) })
 }
 
@@ -91,7 +92,7 @@ func checkResolvePlan(t *testing.T, b backends.Backend) {
 
 func checkFit(t *testing.T, b backends.Backend) {
 	t.Helper()
-	est, err := b.Fit(validProfile(b.Name()), backends.HostResources{
+	est, err := b.Fit(validProfile(b.Name()), 0, backends.HostResources{
 		AvailableRAMBytes: 64 << 30,
 		VRAMBytes:         24 << 30,
 	})
@@ -121,6 +122,20 @@ func checkInstall(t *testing.T, b backends.Backend) {
 	}
 }
 
+func checkInstallStatus(t *testing.T, b backends.Backend) {
+	t.Helper()
+	if _, err := b.Install(context.Background(), backends.InstallOptions{}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	status, err := b.InstallStatus(context.Background())
+	if err != nil {
+		t.Fatalf("InstallStatus: %v", err)
+	}
+	if !status.Installed || status.Path == "" {
+		t.Fatalf("InstallStatus after install = %#v", status)
+	}
+}
+
 func checkCapabilities(t *testing.T, b backends.Backend) {
 	t.Helper()
 	c := b.Capabilities()
@@ -131,6 +146,16 @@ func checkCapabilities(t *testing.T, b backends.Backend) {
 		t.Fatal("Capabilities advertise neither discrete-VRAM nor unified-memory fit")
 	}
 	assertPlanMatchesCapabilities(t, b, c)
+	if c.ParameterIntrospection {
+		provider, ok := b.(backends.ParameterProvider)
+		if !ok {
+			t.Fatal("parameter introspection advertised without ParameterProvider")
+		}
+		params, err := provider.Parameters(context.Background())
+		if err != nil || len(params) == 0 {
+			t.Fatalf("Parameters = %#v, err = %v", params, err)
+		}
+	}
 }
 
 // assertPlanMatchesCapabilities checks the artifact form a backend actually
