@@ -235,6 +235,34 @@ func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
 	if err != nil || !deleted.GetOk() {
 		t.Fatalf("deleted = %#v, err = %v", deleted, err)
 	}
+	// A catalog download starts with no profile, because browsing comes before
+	// deciding where a model goes. It must still be applicable afterwards.
+	catalogDownload, err := client.StartModelDownload(ctx, &controlv1.StartModelDownloadRequest{
+		Backend: "test", Reference: downloadServer.URL, VariantReference: "model.bin", Force: true,
+	})
+	if err != nil || catalogDownload.GetDownload().GetProfile() != "" {
+		t.Fatalf("catalog download = %#v, err = %v", catalogDownload, err)
+	}
+	catalogID := catalogDownload.GetDownload().GetId()
+	catalogState := catalogDownload.GetDownload().GetState()
+	deadline = time.Now().Add(3 * time.Second)
+	for catalogState != string(modeldownload.StateCompleted) &&
+		catalogState != string(modeldownload.StateAlreadyDownloaded) &&
+		time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+		status, statusErr := client.GetModelDownload(ctx, &controlv1.GetModelDownloadRequest{Id: catalogID})
+		if statusErr != nil {
+			t.Fatal(statusErr)
+		}
+		catalogState = status.GetDownload().GetState()
+	}
+	appliedCatalog, err := client.ApplyDownloadToProfile(ctx, &controlv1.ApplyDownloadToProfileRequest{
+		Profile: "demo", Id: catalogID,
+	})
+	if err != nil || appliedCatalog.GetProfile().GetModelSource() != backend.target {
+		t.Fatalf("applied catalog download = %#v, err = %v (state %s)", appliedCatalog, err, catalogState)
+	}
+
 	cleaned, err := client.CleanupProfile(ctx, &controlv1.CleanupProfileRequest{Name: "demo"})
 	if err != nil || !cleaned.GetOk() {
 		t.Fatalf("cleaned = %#v, err = %v", cleaned, err)

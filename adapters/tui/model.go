@@ -2,8 +2,9 @@ package tui
 
 import (
 	"context"
-	"fmt"
-	"sort"
+	"maps"
+	"net"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/antonikliment/tuikit"
 
+	"inferencerig/config"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
@@ -19,6 +21,9 @@ import (
 const (
 	pageCount       = 4
 	refreshInterval = 5 * time.Second
+	// catalogTimeout covers a cold remote catalog: the backend lists a search
+	// page and then every repository's files before it can report variants.
+	catalogTimeout = 60 * time.Second
 )
 
 type snapshot struct {
@@ -31,13 +36,32 @@ type snapshot struct {
 	events             *controlv1.ListEventsResponse
 	downloads          []*controlv1.ModelDownload
 	controlLog, webLog []string
-	warnings           map[string]string
-	refreshed          time.Time
+	// webReachable reports that the configured gateway address answers, which
+	// is how a gateway this TUI did not start is detected. The PID file only
+	// records gateways started here, so trusting it alone reports a serving
+	// gateway as stopped.
+	webReachable bool
+	// catalogPending marks a catalog fetch that did not finish inside the poll
+	// timeout. A cold cache takes several seconds to fill from the remote, far
+	// longer than one poll, and the empty table it leaves behind is otherwise
+	// indistinguishable from a backend with no models at all.
+	catalogPending bool
+	warnings       map[string]string
+	refreshed      time.Time
 }
 
 type pollResult struct {
 	value snapshot
 	ok    map[string]bool
+}
+
+// catalogMsg carries the model catalog, which is fetched on its own command
+// rather than in the poll. A cold remote catalog takes far longer than the
+// poll's responsiveness budget, and cancelling it every poll meant the fetch
+// restarted forever and the table never filled.
+type catalogMsg struct {
+	value *controlv1.ListModelCatalogResponse
+	err   error
 }
 
 type tickMsg struct{}
@@ -59,7 +83,10 @@ type dashboard struct {
 	system     systemPage
 	activity   activityPage
 	refreshing bool
-	notice     string
+	// catalogInFlight keeps one slow catalog request outstanding at a time, so
+	// the five-second tick cannot pile them up.
+	catalogInFlight bool
+	notice          string
 }
 
 type model struct {
@@ -140,6 +167,8 @@ func (d *dashboard) update(msg tea.Msg) tea.Cmd {
 		return d.refresh()
 	case pollResult:
 		d.applyPoll(msg)
+	case catalogMsg:
+		d.applyCatalog(msg)
 	default:
 		return d.updateAction(msg)
 	}
@@ -204,7 +233,33 @@ func (d *dashboard) refresh() tea.Cmd {
 	}
 	d.refreshing = true
 	backend := d.models.backend(d.data.backends)
-	return poll(d.ctx, d.client, backend, d.data.downloads, d.manage)
+	commands := []tea.Cmd{poll(d.ctx, d.client, backend, d.data.downloads, d.manage)}
+	if backend != "" && !d.catalogInFlight {
+		d.catalogInFlight, d.data.catalogPending = true, true
+		commands = append(commands, fetchCatalog(d.ctx, d.client, backend))
+	}
+	return tea.Batch(commands...)
+}
+
+// fetchCatalog runs outside the poll with a timeout sized for a remote fetch
+// that has to enumerate repository files before it can answer.
+func fetchCatalog(ctx context.Context, client controlv1connect.ControlServiceClient, backend string) tea.Cmd {
+	return func() tea.Msg {
+		catalogCtx, cancel := context.WithTimeout(ctx, catalogTimeout)
+		defer cancel()
+		value, err := client.ListModelCatalog(catalogCtx, &controlv1.ListModelCatalogRequest{Backend: backend})
+		return catalogMsg{value: value, err: err}
+	}
+}
+
+func (d *dashboard) applyCatalog(msg catalogMsg) {
+	d.catalogInFlight, d.data.catalogPending = false, false
+	if msg.err != nil {
+		d.data.warnings["catalog"] = msg.err.Error()
+		return
+	}
+	delete(d.data.warnings, "catalog")
+	d.data.catalog = msg.value
 }
 
 func (d *dashboard) applyPoll(result pollResult) {
@@ -212,9 +267,9 @@ func (d *dashboard) applyPoll(result pollResult) {
 	if !result.ok["base"] {
 		next.info, next.backends, next.profiles = current.info, current.backends, current.profiles
 	}
-	if !result.ok["catalog"] {
-		next.catalog = current.catalog
-	}
+	next.catalogPending = !result.ok["catalog"]
+	// The catalog arrives on its own command, so a poll never carries one.
+	next.catalog, next.catalogPending = current.catalog, current.catalogPending
 	if !result.ok["local"] {
 		next.local = current.local
 	}
@@ -235,11 +290,7 @@ func (d *dashboard) applyPoll(result pollResult) {
 
 func (d *dashboard) status() (string, tuikit.Level) {
 	if len(d.data.warnings) > 0 {
-		keys := make([]string, 0, len(d.data.warnings))
-		for key := range d.data.warnings {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(d.data.warnings))
 		for i, key := range keys {
 			keys[i] = key + ": " + d.data.warnings[key]
 		}
@@ -247,6 +298,12 @@ func (d *dashboard) status() (string, tuikit.Level) {
 	}
 	if d.notice != "" {
 		return d.notice + refreshedText(d.data.refreshed), tuikit.LevelSuccess
+	}
+	// Setup no longer writes a starter profile, so a fresh install has nothing
+	// to run. The TUI cannot create profiles, so say where they are created.
+	if !d.data.refreshed.IsZero() && len(d.data.profiles.GetProfiles()) == 0 {
+		return "No profiles yet — create one in the web interface (`" +
+			config.ProjectName + " web`)" + refreshedText(d.data.refreshed), tuikit.LevelWarning
 	}
 	return "Ready" + refreshedText(d.data.refreshed), tuikit.LevelInfo
 }
@@ -322,7 +379,6 @@ func poll(ctx context.Context, client controlv1connect.ControlServiceClient, bac
 			p.result.ok["logs"] = true
 		}
 		p.fetch("base", p.base)
-		p.fetch("catalog", p.catalog)
 		p.fetch("local", p.local)
 		p.fetch("signals", p.signals)
 		p.fetch("events", p.events)
@@ -331,8 +387,26 @@ func poll(ctx context.Context, client controlv1connect.ControlServiceClient, bac
 			p.fetch("logs", p.logs)
 		}
 		p.wg.Wait()
+		if local {
+			p.result.value.webReachable = gatewayReachable(listenAddress())
+		}
 		return p.result
 	}
+}
+
+// gatewayReachable dials the gateway's own address. A refused connection is the
+// normal "not running" answer, not an error worth surfacing, so this reports a
+// bool rather than going through fetch and its warning line.
+func gatewayReachable(address string) bool {
+	if address == "" {
+		return false
+	}
+	conn, err := net.DialTimeout("tcp", address, 300*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
 }
 
 func (p *poller) fetch(key string, call func() error) {
@@ -355,13 +429,6 @@ func (p *poller) base() (err error) {
 		return err
 	}
 	p.result.value.profiles, err = p.client.ListProfiles(p.ctx, &controlv1.ListProfilesRequest{})
-	return err
-}
-
-func (p *poller) catalog() (err error) {
-	if p.backend != "" {
-		p.result.value.catalog, err = p.client.ListModelCatalog(p.ctx, &controlv1.ListModelCatalogRequest{Backend: p.backend})
-	}
 	return err
 }
 
@@ -439,11 +506,4 @@ func selected[T any](items []T, index int) (T, bool) {
 		return zero, false
 	}
 	return items[index], true
-}
-
-func countText(count int, singular string) string {
-	if count == 1 {
-		return fmt.Sprintf("1 %s", singular)
-	}
-	return fmt.Sprintf("%d %ss", count, singular)
 }

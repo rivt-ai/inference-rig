@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -55,7 +56,9 @@ func TestFrameHasAdaptedPages(t *testing.T) {
 
 func TestPollLoadsCanonicalViews(t *testing.T) {
 	result := poll(context.Background(), testClient{}, "one", nil, false)().(pollResult)
-	for _, key := range []string{"base", "catalog", "local", "signals", "events", "downloads"} {
+	// The catalog is deliberately absent: a cold remote catalog outlasts the
+	// poll timeout, so it is fetched on its own command instead.
+	for _, key := range []string{"base", "local", "signals", "events", "downloads"} {
 		if !result.ok[key] {
 			t.Fatalf("%s failed: %v", key, result.value.warnings)
 		}
@@ -63,7 +66,31 @@ func TestPollLoadsCanonicalViews(t *testing.T) {
 	if result.value.profiles.GetProfiles()[0].GetName() != "demo" {
 		t.Fatalf("profiles = %#v", result.value.profiles)
 	}
+	if result.value.catalog != nil {
+		t.Fatalf("poll carried a catalog: %#v", result.value.catalog)
+	}
 }
+
+// The slow catalog command is what fills the table, and one failure must leave
+// the last good catalog in place rather than blanking it.
+func TestCatalogCommandLoadsAndReportsFailure(t *testing.T) {
+	msg := fetchCatalog(context.Background(), testClient{}, "one")().(catalogMsg)
+	if msg.err != nil || len(msg.value.GetModels()) == 0 {
+		t.Fatalf("catalog = %#v, err = %v", msg.value, msg.err)
+	}
+	app := &dashboard{data: snapshot{warnings: map[string]string{}}, catalogInFlight: true}
+	app.applyCatalog(msg)
+	if app.catalogInFlight || app.data.catalogPending || len(app.data.catalog.GetModels()) == 0 {
+		t.Fatalf("dashboard = %#v", app.data)
+	}
+	app.catalogInFlight = true
+	app.applyCatalog(catalogMsg{err: errCatalogTest})
+	if app.data.warnings["catalog"] == "" || len(app.data.catalog.GetModels()) == 0 {
+		t.Fatalf("failed catalog dropped state: %#v", app.data)
+	}
+}
+
+var errCatalogTest = errors.New("catalog unavailable")
 
 func TestModelsSelectBackendAndConfirmDelete(t *testing.T) {
 	page := newModelsPage()

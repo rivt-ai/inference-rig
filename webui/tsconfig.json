@@ -1,10 +1,20 @@
 {
   "extends": "@tsconfig/svelte/tsconfig.json",
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": true,
+    "allowJs": false,
+    "checkJs": false,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "isolatedModules": true,
     "moduleResolution": "bundler",
-    "strict": true
+    "resolveJsonModule": true,
+    "strict": true,
+    "paths": {
+      "$lib": ["./web/src/lib"],
+      "$lib/*": ["./web/src/lib/*"]
+    },
+    "types": ["vitest/globals", "vite/client"]
   },
-  "include": ["web/src/**/*.ts", "web/src/**/*.svelte", "vite.config.ts"]
+  "include": ["web/src/**/*.ts", "web/src/**/*.svelte"],
+  "exclude": ["node_modules", "dist"]
 }

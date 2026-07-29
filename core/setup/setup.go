@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"golang.org/x/term"
 
 	"inferencerig/config"
-	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/platform/filedoc"
 )
 
@@ -21,7 +19,6 @@ type Paths struct {
 
 type Result struct {
 	Skipped     bool
-	Profile     *controlv1.Profile
 	ConfigWrite filedoc.WriteResult
 }
 
@@ -87,16 +84,16 @@ func (w *Wizard) run(ctx context.Context, input io.Reader, output io.Writer, for
 			config.ProjectDisplayName, paths.Config,
 		)
 	}
-	answers, err := w.collect(ctx, paths, input, output, force)
+	answers, err := w.collect(ctx, paths, input, output)
 	if err != nil {
 		return Result{}, err
 	}
-	profile, configWrite, err := w.write(ctx, paths, answers, force)
+	configWrite, err := w.write(paths, answers, force)
 	if err != nil {
 		return Result{}, err
 	}
-	printSummary(output, paths, answers, configWrite)
-	return Result{Profile: profile, ConfigWrite: configWrite}, nil
+	printSummary(output, paths, configWrite)
+	return Result{ConfigWrite: configWrite}, nil
 }
 
 func interactive(input io.Reader, output io.Writer) bool {
@@ -116,15 +113,13 @@ func pathExists(path string) (bool, error) {
 	return false, fmt.Errorf("stat %q: %w", path, err)
 }
 
-func printSummary(output io.Writer, paths Paths, answers Answers, write filedoc.WriteResult) {
+func printSummary(output io.Writer, paths Paths, write filedoc.WriteResult) {
 	_, _ = fmt.Fprintf(output,
-		"%s setup complete.\n\nCreated:\n  %s\n  %s\n\nNext steps:\n"+
-			"  1. Open `%s` to use the TUI\n"+
-			"  2. Download or select a model for profile %q\n"+
+		"%s setup complete.\n\nCreated:\n  %s\n\nNo profile exists yet. Next steps:\n"+
+			"  1. Open `%s` to use the TUI, or the web interface\n"+
+			"  2. Create a profile and download a model for it\n"+
 			"  3. Start the profile from the TUI, CLI, or web interface\n",
-		config.ProjectDisplayName, paths.Config,
-		filepath.Join(paths.ProfilesDir, answers.ProfileName, "profile.yaml"),
-		config.ProjectName, answers.ProfileName,
+		config.ProjectDisplayName, paths.Config, config.ProjectName,
 	)
 	if write.BackupPath != "" {
 		_, _ = fmt.Fprintf(output, "\nPrevious config backup: %s\n", write.BackupPath)

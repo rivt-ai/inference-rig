@@ -56,6 +56,29 @@ func (r *fakeRuntime) Status(context.Context) (coreruntime.Status, error) {
 }
 func (r *fakeRuntime) Recover(context.Context) (bool, error) { return false, nil }
 
+// A catalog entry is a repository plus a file inside it. Folding the two into
+// one field left the backend resolving a bare filename, which fetched a URI
+// with no scheme, so both halves must reach the backend intact.
+func TestResolveModelCarriesTheVariantIntoTheBackend(t *testing.T) {
+	registry := backends.NewRegistry()
+	if err := registry.Register(backendtest.New("test")); err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(Dependencies{
+		Registry: registry,
+		Profiles: profiles.NewFileStore(t.TempDir(), 0, registry.BackendLookup()),
+	})
+	resolved, _, err := manager.ResolveModel(
+		context.Background(), "test", "https://example.test/owner/repo", "sub/model.gguf",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Source != "https://example.test/owner/repo" || resolved.Reference != "sub/model.gguf" {
+		t.Fatalf("resolved = %#v", resolved)
+	}
+}
+
 //nolint:gocognit,gocyclo // One integration scenario verifies the manager's coordinated lifecycle.
 func TestManagerControlsProfilesRuntimeInstallAndDownloads(t *testing.T) {
 	body := []byte("model")
@@ -153,4 +176,37 @@ func waitDownload(t *testing.T, manager *Manager, id string) modeldownload.Job {
 	}
 	t.Fatal("download did not finish")
 	return modeldownload.Job{}
+}
+
+// recording must start the clock when the defer is registered, not when it
+// runs, so the recorded duration covers the operation rather than being zero.
+func TestRecordingMeasuresOperationDuration(t *testing.T) {
+	store := NewEventStore(DefaultEventLimit)
+	m := &Manager{events: store, audit: MultiAuditSink{store}}
+	_ = func() (err error) {
+		defer m.recording(context.Background(), "probe.action", &err)()
+		time.Sleep(2 * time.Millisecond)
+		return nil
+	}()
+	events := store.List()
+	if len(events) != 1 || events[0].Action != "probe.action" || !events[0].Success {
+		t.Fatalf("events = %#v", events)
+	}
+	if events[0].Duration == "" || events[0].Duration == "0s" {
+		t.Fatalf("duration not measured: %q", events[0].Duration)
+	}
+}
+
+// A failing operation records the mapped error kind.
+func TestRecordingCapturesErrorKind(t *testing.T) {
+	store := NewEventStore(DefaultEventLimit)
+	m := &Manager{events: store, audit: MultiAuditSink{store}}
+	_ = func() (err error) {
+		defer m.recording(context.Background(), "probe.fail", &err)()
+		return Errorf(ErrorNotFound, "nope")
+	}()
+	events := store.List()
+	if len(events) != 1 || events[0].Success || events[0].ErrorKind != ErrorNotFound {
+		t.Fatalf("events = %#v", events)
+	}
 }

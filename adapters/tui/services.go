@@ -136,13 +136,15 @@ func (p *servicesPage) View(width, height int, data snapshot, manage bool) strin
 	logPath, _ := audit.GetLogPath(config.ProjectName)
 	controlStatus, _ := process.StatusDetached(config.ProjectName)
 	webStatus, _ := process.StatusDetached(config.StartupServiceWeb)
+	// A gateway started outside this TUI has no PID file here, so the address
+	// answering is what proves it is up.
+	external := !webStatus.Running && data.webReachable
 	top := []string{
 		serviceBox(column, 10, "Control Daemon", green, controlStatus, p.action[panelControl], p.focus == panelControl, p.stopping[panelControl], p.spin.View(),
 			[]string{tuikit.Field("PID", pidText(controlStatus)), tuikit.Field("Uptime", uptimeText(controlStatus)), tuikit.Field("Config", shortPath(configPath)), tuikit.Field("Log", shortPath(logPath))},
 			[]string{"Start", "Stop", "Status"}, manage),
-		serviceBox(column, 10, "Web Gateway", blue, webStatus, p.action[panelWeb], p.focus == panelWeb, p.stopping[panelWeb], p.spin.View(),
-			[]string{tuikit.Field("Address", listenAddress()), tuikit.Field("Base URL", publicURL(listenAddress())), tuikit.Field("MCP endpoint", "/mcp"), tuikit.Field("Transport", "Streamable HTTP")},
-			[]string{"Start", "Stop", "Open"}, manage),
+		webServiceBox(column, webStatus, external, p, manage,
+			[]string{tuikit.Field("Address", listenAddress()), tuikit.Field("Base URL", publicURL(listenAddress())), tuikit.Field("MCP endpoint", "/mcp"), tuikit.Field("Transport", "Streamable HTTP")}),
 		runtimeBox(column, 10, data, p.action[panelRuntime], p.focus == panelRuntime),
 	}
 	help := tuikit.HelpLine(
@@ -157,6 +159,20 @@ func (p *servicesPage) View(width, height int, data snapshot, manage bool) strin
 	p.vp.SetHeight(height)
 	p.vp.SetContent(body)
 	return p.vp.View()
+}
+
+// webServiceBox renders the gateway box, labelling a gateway this TUI does not
+// own as external: its Stop and Start actions act on the PID file, so they
+// cannot manage a process started elsewhere.
+func webServiceBox(width int, status process.DetachedStatus, external bool, p *servicesPage, manage bool, fields []string) string {
+	if external {
+		rows := append([]string{theme.StatusTitle("Web Gateway", "Running (external)", blue, green, width)}, fields...)
+		rows = append(rows, theme.Rule(width))
+		rows = append(rows, mutedStyle.Render("Started outside this TUI; stop it where it was started"))
+		return panel(blue, p.focus == panelWeb, width, 10, lipgloss.JoinVertical(lipgloss.Left, rows...))
+	}
+	return serviceBox(width, 10, "Web Gateway", blue, status, p.action[panelWeb], p.focus == panelWeb,
+		p.stopping[panelWeb], p.spin.View(), fields, []string{"Start", "Stop", "Open"}, manage)
 }
 
 func serviceBox(width, height int, title string, accent color.Color, status process.DetachedStatus, selectedAction int, focused, stopping bool, spin string, fields, actions []string, enabled bool) string {
@@ -182,7 +198,9 @@ func serviceBox(width, height int, title string, accent color.Color, status proc
 
 func runtimeBox(width, height int, data snapshot, index int, focused bool) string {
 	profiles := data.info.GetRunningProfiles()
-	rows := []string{theme.StatusTitle("Runtimes", countText(len(profiles), "running"), cyan, green, width)}
+	// "running" is the state, not a countable noun: pluralising it read "0
+	// runnings" for the most common case on a fresh install.
+	rows := []string{theme.StatusTitle("Runtimes", fmt.Sprintf("%d running", len(profiles)), cyan, green, width)}
 	if len(profiles) == 0 {
 		rows = append(rows, mutedStyle.Render("No running profiles"))
 	} else {
