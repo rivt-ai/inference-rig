@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"inferencerig/backends"
+	"inferencerig/config"
+	"inferencerig/core/configstore"
+	"inferencerig/core/modelcatalog"
 	"inferencerig/core/modeldownload"
 	"inferencerig/core/profiles"
 	coreruntime "inferencerig/core/runtime"
@@ -35,6 +38,17 @@ type Runtime interface {
 	Recover(context.Context) (bool, error)
 }
 
+type ModelCatalog interface {
+	Search(context.Context, modelcatalog.SearchRequest, modelcatalog.CatalogPolicy) (modelcatalog.Result, error)
+	Subscribe() (<-chan modelcatalog.RefreshEvent, func())
+}
+
+type ConfigStore interface {
+	Read(context.Context) (config.Config, error)
+	SetStartupServices(context.Context, []string) (configstore.WriteResult, error)
+	SetProfileAutostart(context.Context, string, bool) (configstore.WriteResult, error)
+}
+
 // Dependencies wires the neutral control manager.
 type Dependencies struct {
 	Registry       *backends.Registry
@@ -44,10 +58,13 @@ type Dependencies struct {
 	Events         *EventStore
 	Audit          AuditSink
 	RuntimeFactory func(coreruntime.LaunchSpec) Runtime
+	Catalog        ModelCatalog
+	Config         ConfigStore
 }
 
 type runtimeSlot struct {
 	process Runtime
+	profile string
 }
 
 // Manager is the canonical in-process control plane used by RPC and later
@@ -60,6 +77,8 @@ type Manager struct {
 	events    *EventStore
 	audit     AuditSink
 	factory   func(coreruntime.LaunchSpec) Runtime
+	catalog   ModelCatalog
+	config    ConfigStore
 
 	mu       sync.Mutex
 	runtimes map[string]runtimeSlot
@@ -82,8 +101,58 @@ func NewManager(deps Dependencies) *Manager {
 	return &Manager{
 		registry: deps.Registry, profiles: deps.Profiles, downloads: deps.Downloads,
 		signals: deps.Signals, events: events, audit: audit, factory: factory,
-		runtimes: map[string]runtimeSlot{},
+		catalog: deps.Catalog, config: deps.Config, runtimes: map[string]runtimeSlot{},
 	}
+}
+
+func (m *Manager) ListModelCatalog(ctx context.Context, req modelcatalog.SearchRequest) (modelcatalog.Result, error) {
+	if m.catalog == nil {
+		return modelcatalog.Result{}, Errorf(ErrorInvalidInput, "model catalog is not configured")
+	}
+	backend, err := m.Backend(req.Backend)
+	if err != nil {
+		return modelcatalog.Result{}, err
+	}
+	result, err := m.catalog.Search(ctx, req, backend.CatalogPolicy())
+	if err != nil {
+		return result, CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return result, nil
+}
+
+func (m *Manager) WatchModelCatalog() (<-chan modelcatalog.RefreshEvent, func(), error) {
+	if m.catalog == nil {
+		return nil, nil, Errorf(ErrorInvalidInput, "model catalog is not configured")
+	}
+	events, unsubscribe := m.catalog.Subscribe()
+	return events, unsubscribe, nil
+}
+
+func (m *Manager) ListLocalModels(ctx context.Context, backendName string) ([]modelcatalog.LocalModel, error) {
+	backend, err := m.Backend(backendName)
+	if err != nil {
+		return nil, err
+	}
+	models, err := backend.CatalogPolicy().ListLocal(ctx)
+	if err != nil {
+		return nil, CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return models, nil
+}
+
+func (m *Manager) DeleteLocalModel(ctx context.Context, backendName, path string) (err error) {
+	defer m.recording(ctx, "model.delete", &err)()
+	if path == "" {
+		return Errorf(ErrorInvalidInput, "local model path is required")
+	}
+	backend, err := m.Backend(backendName)
+	if err != nil {
+		return err
+	}
+	if err := backend.CatalogPolicy().DeleteLocal(path); err != nil {
+		return CoreError(ErrorInvalidInput, err.Error(), err)
+	}
+	return nil
 }
 
 // Backend returns a registered backend or a typed not-found error.
@@ -126,8 +195,7 @@ func (m *Manager) GetProfile(ctx context.Context, name string) (profiles.Profile
 
 // PutProfile creates or replaces a canonical YAML profile.
 func (m *Manager) PutProfile(ctx context.Context, name, yaml string, createOnly bool) (doc profiles.ProfileDocument, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "profile.put", start, err) }()
+	defer m.recording(ctx, "profile.put", &err)()
 	// Defers run LIFO, so this mapping is applied before the audit record above
 	// observes err — matching the previous behavior of mapping at every return,
 	// without a path that can forget to.
@@ -150,8 +218,7 @@ func (m *Manager) PutProfile(ctx context.Context, name, yaml string, createOnly 
 
 // DeleteProfile stops its backend runtime before deleting the profile.
 func (m *Manager) DeleteProfile(ctx context.Context, name string) (result profiles.DeleteResult, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "profile.delete", start, err) }()
+	defer m.recording(ctx, "profile.delete", &err)()
 	if _, stopErr := m.StopRuntime(ctx, name); stopErr != nil && Kind(stopErr) != ErrorNotFound {
 		return result, stopErr
 	}
@@ -161,8 +228,7 @@ func (m *Manager) DeleteProfile(ctx context.Context, name string) (result profil
 
 // InstallBackend runs a backend's managed installer.
 func (m *Manager) InstallBackend(ctx context.Context, name string, opts backends.InstallOptions) (result backends.InstallResult, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "backend.install", start, err) }()
+	defer m.recording(ctx, "backend.install", &err)()
 	backend, err := m.Backend(name)
 	if err != nil {
 		return result, err
@@ -174,12 +240,24 @@ func (m *Manager) InstallBackend(ctx context.Context, name string, opts backends
 	return result, err
 }
 
+// BackendInstallStatus reports whether a backend has a usable engine.
+func (m *Manager) BackendInstallStatus(ctx context.Context, name string) (backends.InstallStatus, error) {
+	backend, err := m.Backend(name)
+	if err != nil {
+		return backends.InstallStatus{}, err
+	}
+	status, err := backend.InstallStatus(ctx)
+	if err != nil {
+		return backends.InstallStatus{}, CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return status, nil
+}
+
 // StartRuntime materializes all relevant profiles and starts the selected
 // backend through the shared supervisor. One runtime slot per backend also
 // implements single-active-profile switching without engine-name branches.
 func (m *Manager) StartRuntime(ctx context.Context, name string) (result coreruntime.CommandResult, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "runtime.start", start, err) }()
+	defer m.recording(ctx, "runtime.start", &err)()
 	doc, backend, err := m.profileBackend(ctx, name)
 	if err != nil {
 		return result, err
@@ -208,14 +286,13 @@ func (m *Manager) StartRuntime(ctx context.Context, name string) (result corerun
 		delete(m.runtimes, backend.Name())
 		return result, mapRuntimeError(err)
 	}
-	m.runtimes[backend.Name()] = runtimeSlot{process: process}
+	m.runtimes[backend.Name()] = runtimeSlot{process: process, profile: name}
 	return result, nil
 }
 
 // StopRuntime stops the backend slot selected by profile.
 func (m *Manager) StopRuntime(ctx context.Context, name string) (result coreruntime.CommandResult, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "runtime.stop", start, err) }()
+	defer m.recording(ctx, "runtime.stop", &err)()
 	_, backend, err := m.profileBackend(ctx, name)
 	if err != nil {
 		return result, err
@@ -223,7 +300,7 @@ func (m *Manager) StopRuntime(ctx context.Context, name string) (result corerunt
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	slot, ok := m.runtimes[backend.Name()]
-	if !ok {
+	if !ok || slot.profile != name {
 		return coreruntime.CommandResult{Action: "stop"}, nil
 	}
 	result, err = slot.process.Stop(ctx)
@@ -242,11 +319,26 @@ func (m *Manager) RuntimeStatus(ctx context.Context, name string) (coreruntime.S
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	slot, ok := m.runtimes[backend.Name()]
-	if !ok {
+	if !ok || slot.profile != name {
 		return coreruntime.Status{State: coreruntime.Stopped, CheckedAt: time.Now().UTC()}, nil
 	}
 	status, err := slot.process.Status(ctx)
 	return status, mapRuntimeError(err)
+}
+
+// StopAllRuntimes stops every active backend slot during daemon shutdown.
+func (m *Manager) StopAllRuntimes(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var errs []error
+	for name, slot := range m.runtimes {
+		if _, err := slot.process.Stop(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("stop backend %q runtime: %w", name, err))
+			continue
+		}
+		delete(m.runtimes, name)
+	}
+	return errors.Join(errs...)
 }
 
 // ResolveProfileModel resolves and plans the selected profile through its
@@ -269,8 +361,7 @@ func (m *Manager) ResolveProfileModel(ctx context.Context, name string) (backend
 
 // StartDownload resolves a profile then submits its neutral plan.
 func (m *Manager) StartDownload(ctx context.Context, name string, force bool) (job modeldownload.Job, err error) {
-	start := time.Now()
-	defer func() { m.record(ctx, "download.start", start, err) }()
+	defer m.recording(ctx, "download.start", &err)()
 	if m.downloads == nil {
 		return job, Errorf(ErrorInvalidInput, "downloads are not configured")
 	}
@@ -278,7 +369,13 @@ func (m *Manager) StartDownload(ctx context.Context, name string, force bool) (j
 	if err != nil {
 		return job, err
 	}
-	job, err = m.downloads.Start(ctx, modeldownload.Request{Plan: plan, Force: force})
+	doc, _, profileErr := m.profileBackend(ctx, name)
+	if profileErr != nil {
+		return job, profileErr
+	}
+	job, err = m.downloads.Start(ctx, modeldownload.Request{
+		Plan: plan, Force: force, Backend: doc.Effective.Backend, Profile: name,
+	})
 	return job, mapDownloadError(err)
 }
 
@@ -370,6 +467,13 @@ func writeMaterialization(materialization backends.Materialization) error {
 		}
 	}
 	return nil
+}
+
+// audit starts the clock and returns the deferred recorder, so a caller cannot
+// register the audit without also timing it. Use as: defer m.audit(...)().
+func (m *Manager) recording(ctx context.Context, action string, err *error) func() {
+	start := time.Now()
+	return func() { m.record(ctx, action, start, *err) }
 }
 
 func (m *Manager) record(ctx context.Context, action string, start time.Time, err error) {

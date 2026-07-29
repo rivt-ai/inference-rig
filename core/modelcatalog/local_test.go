@@ -60,6 +60,21 @@ func TestPathContainment(t *testing.T) {
 	}
 }
 
+func TestRemoveLocalRejectsEscapeAndDeletesExpectedShape(t *testing.T) {
+	root := t.TempDir()
+	model := filepath.Join(root, "model.bin")
+	writeFile(t, model, "model")
+	if err := RemoveLocal(root, filepath.Join(root, "..", "escape.bin"), false); err == nil {
+		t.Fatal("expected path escape rejection")
+	}
+	if err := RemoveLocal(root, model, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(model); !os.IsNotExist(err) {
+		t.Fatalf("model remains: %v", err)
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
