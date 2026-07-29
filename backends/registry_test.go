@@ -1,15 +1,14 @@
-package backends
+package backends_test
 
-import "testing"
+import (
+	"testing"
 
-// fakeBackend is a stand-in used to exercise the registry without any real
-// engine; the contract tests in Phase 5 grow from here.
-type fakeBackend struct{ name string }
-
-func (f fakeBackend) Name() string { return f.name }
+	"inferencerig/backends"
+	"inferencerig/backends/backendtest"
+)
 
 func TestRegistryStartsEmpty(t *testing.T) {
-	r := NewRegistry()
+	r := backends.NewRegistry()
 	if names := r.Names(); len(names) != 0 {
 		t.Fatalf("new registry not empty: %v", names)
 	}
@@ -19,17 +18,17 @@ func TestRegistryStartsEmpty(t *testing.T) {
 }
 
 func TestRegistryRegisterAndLookup(t *testing.T) {
-	r := NewRegistry()
-	if err := r.Register(fakeBackend{"llamacpp"}); err != nil {
+	r := backends.NewRegistry()
+	if err := r.Register(backendtest.New("llamacpp")); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Register(fakeBackend{"mlx"}); err != nil {
+	if err := r.Register(backendtest.New("mlx")); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Register(fakeBackend{"llamacpp"}); err == nil {
+	if err := r.Register(backendtest.New("llamacpp")); err == nil {
 		t.Fatal("duplicate registration accepted")
 	}
-	if err := r.Register(fakeBackend{""}); err == nil {
+	if err := r.Register(backendtest.New("")); err == nil {
 		t.Fatal("empty backend name accepted")
 	}
 	b, ok := r.Lookup("mlx")
