@@ -15,6 +15,16 @@ import type { EngineArgRow } from './types';
 export const ENGINE_ARG_PREFIX = 'engine_args.';
 const ENGINE_ARG_WILDCARD = `${ENGINE_ARG_PREFIX}*`;
 
+// engineArgParams narrows a backend's parameter list to the engine arguments an
+// editor row can hold, under the bare key a row uses. The list also describes
+// profile-level fields (model.source, listen.port) that have their own inputs;
+// offering them as rows writes them into engine_args, where they mean nothing.
+export function engineArgParams(params: BackendParameter[]): BackendParameter[] {
+  return params
+    .filter((param) => param.name.startsWith(ENGINE_ARG_PREFIX) && param.name !== ENGINE_ARG_WILDCARD)
+    .map((param) => ({ ...param, name: param.name.slice(ENGINE_ARG_PREFIX.length) }));
+}
+
 export function createParamLookup(params: BackendParameter[]) {
   const index = new Map<string, BackendParameter>();
   for (const param of params) {

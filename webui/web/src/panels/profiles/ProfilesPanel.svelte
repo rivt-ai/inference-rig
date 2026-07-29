@@ -8,7 +8,7 @@
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
   import { createParamLookup, missingRequiredParams, unknownParamKeys } from '../../lib/profileValidation';
   import { kindForParameterType } from '../../lib/engineArgs';
-  import { profileTemplates, type ProfileTemplate } from '../../lib/profileTemplates';
+  import { DEFAULT_HOST, DEFAULT_PORT, nextFreePort, profileTemplates, type ProfileTemplate } from '../../lib/profileTemplates';
   import { profileTarget } from '../../lib/state/selectors';
   import type { EngineArgKind } from '../../lib/types';
   import ParamKeyCombobox from './ParamKeyCombobox.svelte';
@@ -38,6 +38,10 @@
   let pendingProfile = $state('');
   let newName = $state('');
   let newTemplate = $state<ProfileTemplate>('defaults');
+  let newModelSource = $state('');
+  let newModelReference = $state('');
+  let newHost = $state(DEFAULT_HOST);
+  let newPort = $state(DEFAULT_PORT);
   let duplicateName = $state('');
 
   const params = $derived(appState.backendParams);
@@ -65,11 +69,26 @@
 
   async function createProfile(event: SubmitEvent) {
     event.preventDefault();
-    await app.createProfile(newName, newTemplate);
+    await app.createProfile(newName, newTemplate, {
+      source: newModelSource,
+      reference: newModelReference,
+      host: newHost,
+      port: newPort
+    });
     if (!app.errorMessage) {
       createOpen = false;
       newName = '';
+      newModelSource = '';
+      newModelReference = '';
     }
+  }
+
+  // The port defaults to the first one no existing profile claims, recomputed
+  // when the dialog opens rather than once at load, so two profiles created in
+  // one session do not collide.
+  function openCreate() {
+    newPort = nextFreePort(appState.profiles);
+    createOpen = true;
   }
 
   async function duplicateProfile(event: SubmitEvent) {
@@ -127,7 +146,7 @@
       <Card.Content class="space-y-4">
         <div class="flex flex-wrap gap-2">
           <Dialog.Root bind:open={createOpen}>
-            <Dialog.Trigger class={buttonVariants({ size: 'sm' })}><Plus /> New</Dialog.Trigger>
+            <Dialog.Trigger class={buttonVariants({ size: 'sm' })} onclick={openCreate}><Plus /> New</Dialog.Trigger>
             <Dialog.Content>
               <Dialog.Header><Dialog.Title>Create profile</Dialog.Title><Dialog.Description>Choose a name and starter configuration for {appState.selectedBackend || 'the selected backend'}.</Dialog.Description></Dialog.Header>
               <form class="space-y-4" onsubmit={createProfile}>
@@ -140,6 +159,19 @@
                   </Select.Root>
                   <Field.Description>Backend defaults are read from this backend's own parameter list.</Field.Description>
                 </Field.Field>
+                <Field.Field>
+                  <Field.Label for="profile-model-source">Model source</Field.Label>
+                  <Input id="profile-model-source" bind:value={newModelSource} autocomplete="off" placeholder="owner/repo, URL, or local path" />
+                  <Field.Description>Required. Download a model from the Models tab and apply it here to change this later.</Field.Description>
+                </Field.Field>
+                <Field.Field>
+                  <Field.Label for="profile-model-reference">Model reference</Field.Label>
+                  <Input id="profile-model-reference" bind:value={newModelReference} autocomplete="off" placeholder="optional file within the repository" />
+                </Field.Field>
+                <div class="grid grid-cols-2 gap-3">
+                  <Field.Field><Field.Label for="profile-host">Listen host</Field.Label><Input id="profile-host" bind:value={newHost} autocomplete="off" /></Field.Field>
+                  <Field.Field><Field.Label for="profile-port">Listen port</Field.Label><Input id="profile-port" type="number" min="1" max="65535" bind:value={newPort} /></Field.Field>
+                </div>
                 <Dialog.Footer><Dialog.Close class={buttonVariants({ variant: 'outline' })}>Cancel</Dialog.Close><Button type="submit" disabled={appState.busy}>Create</Button></Dialog.Footer>
               </form>
             </Dialog.Content>
@@ -208,7 +240,7 @@
         {#if appState.currentProfile}
           <dl class="grid gap-2 text-sm sm:grid-cols-3">
             <div><dt class="text-muted-foreground">Backend</dt><dd class="font-mono">{appState.currentProfile.backend}</dd></div>
-            <div class="min-w-0"><dt class="text-muted-foreground">Model</dt><dd class="truncate font-mono" title={appState.currentProfile.modelReference}>{appState.currentProfile.modelReference || '-'}</dd></div>
+            <div class="min-w-0"><dt class="text-muted-foreground">Model</dt><dd class="truncate font-mono" title={appState.currentProfile.modelReference || appState.currentProfile.modelSource}>{appState.currentProfile.modelReference || appState.currentProfile.modelSource || '-'}</dd></div>
             <div><dt class="text-muted-foreground">Listen</dt><dd class="font-mono">{appState.currentProfile.host || '-'}:{appState.currentProfile.port || '-'}</dd></div>
           </dl>
 

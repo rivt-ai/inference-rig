@@ -2201,9 +2201,14 @@ type ResolveModelRequest struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Backend string                 `protobuf:"bytes,1,opt,name=backend,proto3" json:"backend,omitempty"`
 	// reference is a catalog reference or repository URL.
-	Reference     string `protobuf:"bytes,2,opt,name=reference,proto3" json:"reference,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Reference string `protobuf:"bytes,2,opt,name=reference,proto3" json:"reference,omitempty"`
+	// variant_reference selects one artifact inside the repository the reference
+	// names, exactly as Variant.reference reports it. A catalog entry is a
+	// repository plus a file within it; sending only the filename leaves no host
+	// to fetch from, so both halves travel together.
+	VariantReference string `protobuf:"bytes,3,opt,name=variant_reference,json=variantReference,proto3" json:"variant_reference,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ResolveModelRequest) Reset() {
@@ -2246,6 +2251,13 @@ func (x *ResolveModelRequest) GetBackend() string {
 func (x *ResolveModelRequest) GetReference() string {
 	if x != nil {
 		return x.Reference
+	}
+	return ""
+}
+
+func (x *ResolveModelRequest) GetVariantReference() string {
+	if x != nil {
+		return x.VariantReference
 	}
 	return ""
 }
@@ -2315,12 +2327,15 @@ type StartModelDownloadRequest struct {
 	// profile downloads that profile's model. Leave it empty and set
 	// backend + reference to download a catalog entry before any profile exists,
 	// which is the order the catalog UI works in.
-	Profile       string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
-	Force         bool   `protobuf:"varint,2,opt,name=force,proto3" json:"force,omitempty"`
-	Backend       string `protobuf:"bytes,3,opt,name=backend,proto3" json:"backend,omitempty"`
-	Reference     string `protobuf:"bytes,4,opt,name=reference,proto3" json:"reference,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Profile   string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	Force     bool   `protobuf:"varint,2,opt,name=force,proto3" json:"force,omitempty"`
+	Backend   string `protobuf:"bytes,3,opt,name=backend,proto3" json:"backend,omitempty"`
+	Reference string `protobuf:"bytes,4,opt,name=reference,proto3" json:"reference,omitempty"`
+	// variant_reference selects one artifact inside the repository, as in
+	// ResolveModelRequest.
+	VariantReference string `protobuf:"bytes,5,opt,name=variant_reference,json=variantReference,proto3" json:"variant_reference,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *StartModelDownloadRequest) Reset() {
@@ -2377,6 +2392,13 @@ func (x *StartModelDownloadRequest) GetBackend() string {
 func (x *StartModelDownloadRequest) GetReference() string {
 	if x != nil {
 		return x.Reference
+	}
+	return ""
+}
+
+func (x *StartModelDownloadRequest) GetVariantReference() string {
+	if x != nil {
+		return x.VariantReference
 	}
 	return ""
 }
@@ -6411,19 +6433,21 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\vtarget_path\x18\x03 \x01(\tR\n" +
 	"targetPath\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18\x04 \x01(\x03R\tsizeBytes\"M\n" +
+	"size_bytes\x18\x04 \x01(\x03R\tsizeBytes\"z\n" +
 	"\x13ResolveModelRequest\x12\x18\n" +
 	"\abackend\x18\x01 \x01(\tR\abackend\x12\x1c\n" +
-	"\treference\x18\x02 \x01(\tR\treference\"\x9f\x01\n" +
+	"\treference\x18\x02 \x01(\tR\treference\x12+\n" +
+	"\x11variant_reference\x18\x03 \x01(\tR\x10variantReference\"\x9f\x01\n" +
 	"\x14ResolveModelResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12<\n" +
 	"\x05model\x18\x02 \x01(\v2&.inferencerig.control.v1.ResolvedModelR\x05model\x129\n" +
-	"\x04plan\x18\x03 \x01(\v2%.inferencerig.control.v1.ArtifactPlanR\x04plan\"\x83\x01\n" +
+	"\x04plan\x18\x03 \x01(\v2%.inferencerig.control.v1.ArtifactPlanR\x04plan\"\xb0\x01\n" +
 	"\x19StartModelDownloadRequest\x12\x18\n" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\x12\x18\n" +
 	"\abackend\x18\x03 \x01(\tR\abackend\x12\x1c\n" +
-	"\treference\x18\x04 \x01(\tR\treference\"p\n" +
+	"\treference\x18\x04 \x01(\tR\treference\x12+\n" +
+	"\x11variant_reference\x18\x05 \x01(\tR\x10variantReference\"p\n" +
 	"\x1aStartModelDownloadResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12B\n" +
 	"\bdownload\x18\x02 \x01(\v2&.inferencerig.control.v1.ModelDownloadR\bdownload\")\n" +

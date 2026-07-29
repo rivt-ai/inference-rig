@@ -168,6 +168,8 @@ func (f *Fake) CatalogPolicy() modelcatalog.CatalogPolicy { return fakeCatalogPo
 
 type fakeCatalogPolicy struct{}
 
+func (fakeCatalogPolicy) SearchFilter() string { return "" }
+
 func (fakeCatalogPolicy) Variants(_ modelcatalog.Source, files []modelcatalog.RemoteFile) ([]modelcatalog.Variant, error) {
 	if len(files) == 0 {
 		return nil, nil

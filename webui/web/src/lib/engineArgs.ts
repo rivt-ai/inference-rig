@@ -1,5 +1,6 @@
 import type { JsonObject, JsonValue } from '@bufbuild/protobuf';
 import { ParameterType, type BackendParameter } from './gen/inferencerig/control/v1/control_pb';
+import { engineArgParams } from './profileValidation';
 import type { EngineArgKind, EngineArgRow } from './types';
 
 // engine_args is a google.protobuf.Struct, so a value can be a string, a
@@ -80,7 +81,7 @@ export function parseRowValue(row: EngineArgRow): JsonValue {
 // what replaces llamarig's hardcoded llama.cpp flag templates, so a new backend
 // gets sensible templates without a UI change.
 export function defaultRowsFor(params: BackendParameter[]): EngineArgRow[] {
-  return params
+  return engineArgParams(params)
     .filter((param) => param.required || param.defaultValue !== '')
     .map((param) => ({
       key: param.name,

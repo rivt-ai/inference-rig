@@ -228,6 +228,11 @@ message ResolveModelRequest {
   string backend = 1;
   // reference is a catalog reference or repository URL.
   string reference = 2;
+  // variant_reference selects one artifact inside the repository the reference
+  // names, exactly as Variant.reference reports it. A catalog entry is a
+  // repository plus a file within it; sending only the filename leaves no host
+  // to fetch from, so both halves travel together.
+  string variant_reference = 3;
 }
 message ResolveModelResponse {
   bool ok = 1;
@@ -243,6 +248,9 @@ message StartModelDownloadRequest {
   bool force = 2;
   string backend = 3;
   string reference = 4;
+  // variant_reference selects one artifact inside the repository, as in
+  // ResolveModelRequest.
+  string variant_reference = 5;
 }
 message StartModelDownloadResponse {
   bool ok = 1;

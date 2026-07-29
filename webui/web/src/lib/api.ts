@@ -78,13 +78,20 @@ export function createApiClient(getSession: () => SessionState, fetcher: typeof 
       }),
     watchModelCatalog: (signal: AbortSignal) => control().watchModelCatalog({}, { signal }),
     estimateFit: (backend: string, sizeBytes: bigint) => control().estimateFit({ backend, sizeBytes }),
-    resolveModel: (backend: string, reference: string) => control().resolveModel({ backend, reference }),
+    resolveModel: (backend: string, reference: string, variantReference = '') =>
+      control().resolveModel({ backend, reference, variantReference }),
     resolveProfileModel: (profile: string) => control().resolveProfileModel({ profile }),
     listLocalModels: (backend = '') => control().listLocalModels({ backend }),
     deleteLocalModel: (backend: string, path: string, cascadeProfiles = false) =>
       control().deleteLocalModel({ backend, path, cascadeProfiles }),
 
-    startModelDownload: (request: { backend?: string; reference?: string; profile?: string; force?: boolean }) =>
+    startModelDownload: (request: {
+      backend?: string;
+      reference?: string;
+      variantReference?: string;
+      profile?: string;
+      force?: boolean;
+    }) =>
       control().startModelDownload(request),
     getModelDownload: (id: string) => control().getModelDownload({ id }),
     cancelModelDownload: (id: string) => control().cancelModelDownload({ id }),

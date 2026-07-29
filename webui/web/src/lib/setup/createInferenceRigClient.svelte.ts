@@ -5,7 +5,7 @@ import { loadSession, saveApiBase, saveToken } from '../session';
 import { canApplyDownload, chooseProfileSelection, isTerminalDownloadState } from '../tasks';
 import { capabilitiesFor, singleActiveProfileWarning } from '../backends';
 import { engineArgsFromRows, rowsFromEngineArgs } from '../engineArgs';
-import { modelProfile, templateProfile, type ProfileTemplate } from '../profileTemplates';
+import { modelProfile, nextFreePort, templateProfile, type ProfileTemplate } from '../profileTemplates';
 import { createInferenceRigState } from '../state/createInferenceRigState.svelte';
 import { isProfileActive as selectIsProfileActive } from '../state/selectors';
 import { appendRuntimeSample } from '../runtimeHistory';
@@ -457,14 +457,34 @@ export function createInferenceRigClient() {
     }
   }
 
-  async function createProfile(profileName: string, template: ProfileTemplate) {
+  async function createProfile(
+    profileName: string,
+    template: ProfileTemplate,
+    model: { source: string; reference?: string; host?: string; port?: number }
+  ) {
     await runTask('create profile', async () => {
       const name = profileName.trim();
       if (!name) throw new Error('profile name is required');
-      await api.putProfile(templateProfile(name, state.selectedBackend, template, state.backendParams), true);
+      const source = model.source.trim();
+      // The server requires a model source and a valid port on every profile.
+      // Failing here names the missing field; failing there returns a generic
+      // invalid-profile error after a round trip.
+      if (!source) throw new Error('model source is required');
+      await api.putProfile(
+        templateProfile(name, state.selectedBackend, template, state.backendParams, {
+          modelSource: source,
+          modelReference: model.reference?.trim(),
+          host: model.host?.trim(),
+          port: model.port || nextFreePort(state.profiles)
+        }),
+        true
+      );
       log(`Created profile ${name}.`);
       toast.success(`Created ${name}`);
       await loadProfiles({ select: name, force: true });
+      // A new profile changes which local models are in use, so the model list
+      // is stale the moment this returns.
+      await loadLocalModels();
     });
   }
 
@@ -472,7 +492,10 @@ export function createInferenceRigClient() {
     await runTask('create model profile', async () => {
       const name = profileName.trim();
       if (!name) throw new Error('profile name is required');
-      await api.putProfile(modelProfile(name, state.selectedBackend, reference, state.backendParams), true);
+      await api.putProfile(
+        modelProfile(name, state.selectedBackend, reference, state.backendParams, nextFreePort(state.profiles)),
+        true
+      );
       log(`Created profile ${name}.`);
       toast.success(`Created ${name}`);
       await loadProfiles({ select: name, force: true });
@@ -570,7 +593,7 @@ export function createInferenceRigClient() {
     await runTask('validate model', async () => {
       const reference = state.modelReference.trim();
       if (!reference) throw new Error('model reference is required');
-      const response = await api.resolveModel(state.selectedBackend, reference);
+      const response = await api.resolveModel(state.selectedBackend, reference, state.selectedVariantReference);
       state.modelResolution = response.model || null;
       state.modelPlan = response.plan || null;
       log(`Resolved ${response.model?.reference || reference}.`);
@@ -641,19 +664,27 @@ export function createInferenceRigClient() {
     catalogEvents = null;
   }
 
+  // A catalog pick is a repository plus a file inside it. Collapsing the two
+  // into one field loses the host, which is what left downloads fetching a bare
+  // filename, so the repository stays in modelReference and the artifact in
+  // selectedVariantReference.
   function useCatalogVariant(model: CatalogModel, variant: ModelVariant | undefined = model.bestVariant) {
     if (!variant) return;
     state.selectedCatalogModelId = model.id;
-    state.modelReference = variant.reference;
+    state.modelReference = model.id;
     state.selectedVariantReference = variant.reference;
     log(`Selected ${model.id} ${variant.name || variant.reference}.`);
   }
 
   async function startDownload() {
     await runTask('download model', async () => {
-      const reference = state.selectedVariantReference || state.modelReference.trim();
+      const reference = state.modelReference.trim();
       if (!reference) throw new Error('resolve or select a model first');
-      const data = await api.startModelDownload({ backend: state.selectedBackend, reference });
+      const data = await api.startModelDownload({
+        backend: state.selectedBackend,
+        reference,
+        variantReference: state.selectedVariantReference
+      });
       const job = requireDownload(data.download);
       state.downloads[job.id] = job;
       state.activeModelDownloadId = job.id;

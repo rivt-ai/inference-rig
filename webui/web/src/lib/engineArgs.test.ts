@@ -57,11 +57,12 @@ describe('kindForParameterType', () => {
 });
 
 describe('defaultRowsFor', () => {
-  it('seeds required parameters and those carrying a default', () => {
+  // Names are namespaced as the backends report them; rows hold the bare key.
+  it('seeds required engine arguments and those carrying a default', () => {
     const params: BackendParameter[] = [
       {
         $typeName: 'inferencerig.control.v1.BackendParameter',
-        name: 'adapter',
+        name: 'engine_args.adapter',
         description: '',
         required: true,
         aliases: [],
@@ -71,7 +72,7 @@ describe('defaultRowsFor', () => {
       },
       {
         $typeName: 'inferencerig.control.v1.BackendParameter',
-        name: 'max-tokens',
+        name: 'engine_args.max-tokens',
         description: '',
         required: false,
         aliases: [],
@@ -81,7 +82,7 @@ describe('defaultRowsFor', () => {
       },
       {
         $typeName: 'inferencerig.control.v1.BackendParameter',
-        name: 'optional',
+        name: 'engine_args.optional',
         description: '',
         required: false,
         aliases: [],

@@ -3,6 +3,7 @@
   import Check from '@lucide/svelte/icons/check';
   import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
   import type { BackendParameter } from '../../lib/gen/inferencerig/control/v1/control_pb';
+  import { engineArgParams } from '../../lib/profileValidation';
   import { Input } from '$lib/components/ui/input';
 
   // Completion is offered only when the backend can enumerate its own
@@ -29,14 +30,18 @@
     inputValue = value;
   });
 
+  // Rows hold bare engine-arg keys, so the suggestions must be the bare engine
+  // arguments only — a profile-level name picked here lands in engine_args.
+  const options = $derived(engineArgParams(params));
+
   const filtered = $derived(
     inputValue.trim()
-      ? params.filter(
+      ? options.filter(
           (param) =>
             param.name.includes(inputValue.toLowerCase()) ||
             param.aliases.some((alias) => alias.includes(inputValue.toLowerCase()))
         )
-      : params
+      : options
   );
 
   function onValueChange(next: string) {

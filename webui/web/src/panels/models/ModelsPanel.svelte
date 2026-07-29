@@ -47,6 +47,15 @@
   const appState = $derived(app.state);
   const capabilities = $derived(app.capabilities());
 
+  // The artifact choice comes from the catalog entry's variants, which carry a
+  // repository-relative reference. The resolved artifacts carry absolute fetch
+  // URIs instead, and binding those to the variant reference is what made
+  // "Choose variant" send a URL where the server expects a file within a repo.
+  const selectedCatalogModel = $derived(
+    appState.catalogModels.find((model) => model.id === appState.selectedCatalogModelId)
+  );
+  const catalogVariants = $derived(selectedCatalogModel?.variants || []);
+
   let activeTab = $state('mine');
   let localFilter = $state<LocalModelFilter>('all');
   let expandedModel = $state<string | null>(null);
@@ -310,17 +319,35 @@
                 <p class="truncate text-xs text-muted-foreground" title={appState.modelPlan.targetRoot}>into {appState.modelPlan.targetRoot}</p>
                 <p class="mt-1 text-xs text-muted-foreground">{formatBytes(Number(appState.modelPlan.totalBytes))} total</p>
               </div>
-            {:else}
-              <RadioGroup.Root bind:value={appState.selectedVariantReference} aria-label="Model artifact">
-                {#each appState.modelResolution?.artifacts || [] as artifact (artifact.uri)}
+            {:else if catalogVariants.length}
+              <!-- Picking a variant also pins the repository it came from, so the
+                   download carries both halves even when the card was never clicked. -->
+              <RadioGroup.Root
+                bind:value={appState.selectedVariantReference}
+                onValueChange={() => (appState.modelReference = appState.selectedCatalogModelId)}
+                aria-label="Model artifact"
+              >
+                {#each catalogVariants as variant (variant.reference)}
                   <Field.Field orientation="horizontal" class="rounded-md border p-3">
-                    <RadioGroup.Item id={`artifact-${artifact.name}`} value={artifact.uri} />
-                    <Field.Content><Field.Label for={`artifact-${artifact.name}`}>{artifact.name}</Field.Label><Field.Description>{formatBytes(Number(artifact.sizeBytes))}</Field.Description></Field.Content>
+                    <RadioGroup.Item id={`variant-${variant.reference}`} value={variant.reference} />
+                    <Field.Content><Field.Label for={`variant-${variant.reference}`}>{variant.name || variant.reference}</Field.Label><Field.Description>{formatBytes(Number(variant.sizeBytes))}</Field.Description></Field.Content>
                   </Field.Field>
-                {:else}
-                  <Empty.Root><Empty.Header><Empty.Title>No model resolved</Empty.Title><Empty.Description>Validate a model reference first.</Empty.Description></Empty.Header></Empty.Root>
                 {/each}
               </RadioGroup.Root>
+            {:else if appState.modelResolution?.artifacts?.length}
+              <!-- A manually entered reference resolves to concrete fetch URIs
+                   with no variant list behind them; there is nothing to choose. -->
+              <div class="space-y-2">
+                {#each appState.modelResolution.artifacts as artifact (artifact.uri)}
+                  <div class="rounded-md border p-3 text-sm">
+                    <p class="font-medium">{artifact.name}</p>
+                    <p class="truncate text-xs text-muted-foreground" title={artifact.uri}>{artifact.uri}</p>
+                    <p class="mt-1 text-xs text-muted-foreground">{formatBytes(Number(artifact.sizeBytes))}</p>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <Empty.Root><Empty.Header><Empty.Title>No model resolved</Empty.Title><Empty.Description>Validate a model reference or pick a catalog model first.</Empty.Description></Empty.Header></Empty.Root>
             {/if}
 
             <Separator />

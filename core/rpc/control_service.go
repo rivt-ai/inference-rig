@@ -212,7 +212,7 @@ func (s *ControlService) StartModelDownload(ctx context.Context, req *controlv1.
 	// backend + reference downloads a catalog entry before any profile exists.
 	if req.GetProfile() == "" {
 		job, err := s.manager.StartCatalogDownload(
-			ctx, req.GetBackend(), req.GetReference(), req.GetForce(),
+			ctx, req.GetBackend(), req.GetReference(), req.GetVariantReference(), req.GetForce(),
 		)
 		if err != nil {
 			return nil, rpcError(err)
@@ -227,7 +227,7 @@ func (s *ControlService) StartModelDownload(ctx context.Context, req *controlv1.
 }
 
 func (s *ControlService) ResolveModel(ctx context.Context, req *controlv1.ResolveModelRequest) (*controlv1.ResolveModelResponse, error) {
-	resolved, plan, err := s.manager.ResolveModel(ctx, req.GetBackend(), req.GetReference())
+	resolved, plan, err := s.manager.ResolveModel(ctx, req.GetBackend(), req.GetReference(), req.GetVariantReference())
 	if err != nil {
 		return nil, rpcError(err)
 	}

@@ -24,6 +24,11 @@ type FormatPolicy interface {
 // CatalogPolicy owns the backend-specific interpretation of remote repository
 // files and local artifact layout.
 type CatalogPolicy interface {
+	// SearchFilter is the remote catalog's tag for this format ("gguf", "mlx").
+	// Without it a search returns the most-downloaded models of any format and
+	// Variants discards nearly all of them, leaving an empty catalog that looks
+	// like a network failure. An empty string searches unfiltered.
+	SearchFilter() string
 	Variants(Source, []RemoteFile) ([]Variant, error)
 	ListLocal(context.Context) ([]LocalModel, error)
 	DeleteLocal(string) error

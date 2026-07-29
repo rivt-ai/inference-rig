@@ -206,6 +206,8 @@ var _ modelcatalog.FormatPolicy = ggufPolicy{}
 
 type catalogPolicy struct{ backend *Backend }
 
+func (catalogPolicy) SearchFilter() string { return "gguf" }
+
 func (p catalogPolicy) Variants(source modelcatalog.Source, files []modelcatalog.RemoteFile) ([]modelcatalog.Variant, error) {
 	var variants []modelcatalog.Variant
 	for _, file := range files {

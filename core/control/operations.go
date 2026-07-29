@@ -79,8 +79,16 @@ func (m *Manager) planDownloadApply(
 	if err != nil {
 		return profiles.ProfileDocument{}, "", err
 	}
-	if job.Profile != name || job.Backend != backend.Name() || job.MultiFile != backend.Capabilities().MultiFileArtifacts {
+	// A catalog download carries no profile by design — it is started while
+	// browsing, before the user has decided where it goes — so an empty profile
+	// is applicable anywhere the backend and layout agree. A job that names a
+	// different profile is still refused: that one was started for something else.
+	if job.Profile != "" && job.Profile != name {
 		return profiles.ProfileDocument{}, "", Errorf(ErrorConflict, "download %q does not belong to profile %q", id, name)
+	}
+	if job.Backend != backend.Name() || job.MultiFile != backend.Capabilities().MultiFileArtifacts {
+		return profiles.ProfileDocument{}, "", Errorf(ErrorConflict,
+			"download %q was fetched for backend %q, which profile %q does not use", id, job.Backend, name)
 	}
 	updated := doc.Parsed
 	updated.Model.Source, updated.Model.Reference = job.TargetPath, ""

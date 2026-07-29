@@ -18,17 +18,38 @@ export function templateRows(kind: ProfileTemplate, params: BackendParameter[]):
   return defaultRowsFor(params);
 }
 
+// DEFAULT_HOST and DEFAULT_PORT seed a new profile's listen address. The server
+// fills in nothing — a profile must name a valid port — so a create form that
+// omits them is rejected outright.
+export const DEFAULT_HOST = '127.0.0.1';
+export const DEFAULT_PORT = 8080;
+
 export function templateProfile(
   name: string,
   backend: string,
   kind: ProfileTemplate,
-  params: BackendParameter[]
+  params: BackendParameter[],
+  listen: { modelSource: string; modelReference?: string; host?: string; port?: number }
 ): Profile {
   return create(ProfileSchema, {
     name,
     backend,
+    modelSource: listen.modelSource,
+    modelReference: listen.modelReference || '',
+    host: listen.host || DEFAULT_HOST,
+    port: listen.port || DEFAULT_PORT,
     engineArgs: engineArgsFromRows(templateRows(kind, params))
   });
+}
+
+// nextFreePort keeps a new profile off a port another profile already claims,
+// which is the difference between "created" and "created and unstartable".
+export function nextFreePort(existing: { port?: number }[], start = DEFAULT_PORT) {
+  const used = new Set(existing.map((item) => item.port).filter(Boolean));
+  for (let port = start; port <= 65535; port += 1) {
+    if (!used.has(port)) return port;
+  }
+  return start;
 }
 
 // modelProfile builds a profile that serves one already-downloaded model:
@@ -40,13 +61,17 @@ export function modelProfile(
   backend: string,
   reference: string,
   params: BackendParameter[],
-  source = 'local'
+  port = DEFAULT_PORT
 ): Profile {
   return create(ProfileSchema, {
     name,
     backend,
-    modelSource: source,
-    modelReference: reference,
+    // A local model is addressed by its own path. There is no separate
+    // reference: the file on disk IS the artifact, and a placeholder source
+    // with the path in reference resolves to a fetch with no host.
+    modelSource: reference,
+    host: DEFAULT_HOST,
+    port,
     engineArgs: engineArgsFromRows(defaultRowsFor(params))
   });
 }
