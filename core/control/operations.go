@@ -40,30 +40,55 @@ type RuntimeRestart struct {
 
 func (m *Manager) ApplyDownloadToProfile(ctx context.Context, name, id string) (doc profiles.ProfileDocument, err error) {
 	defer m.recording(ctx, "download.apply", &err)()
-	if m.downloads == nil {
-		return profiles.ProfileDocument{}, Errorf(ErrorInvalidInput, "downloads are not configured")
-	}
-	job, err := m.downloads.Get(ctx, id)
-	if err != nil {
-		return profiles.ProfileDocument{}, mapDownloadError(err)
-	}
-	if job.State != modeldownload.StateCompleted && job.State != modeldownload.StateAlreadyDownloaded {
-		return profiles.ProfileDocument{}, Errorf(ErrorConflict, "download %q is %s", id, job.State)
-	}
-	doc, backend, err := m.profileBackend(ctx, name)
+	_, updated, err := m.planDownloadApply(ctx, name, id)
 	if err != nil {
 		return profiles.ProfileDocument{}, err
 	}
+	return m.PutProfile(ctx, name, updated, false)
+}
+
+// PreviewDownloadApply returns the profile YAML before and after applying a
+// download, without writing anything, so a caller can show the change and let
+// the user decide.
+func (m *Manager) PreviewDownloadApply(ctx context.Context, name, id string) (original, updated string, err error) {
+	doc, updated, err := m.planDownloadApply(ctx, name, id)
+	if err != nil {
+		return "", "", err
+	}
+	return doc.ProfileYAML, updated, nil
+}
+
+// planDownloadApply validates that the download belongs to the profile and
+// renders the resulting YAML. Applying and previewing must agree, so both go
+// through here rather than duplicating the checks.
+func (m *Manager) planDownloadApply(
+	ctx context.Context,
+	name, id string,
+) (profiles.ProfileDocument, string, error) {
+	if m.downloads == nil {
+		return profiles.ProfileDocument{}, "", Errorf(ErrorInvalidInput, "downloads are not configured")
+	}
+	job, err := m.downloads.Get(ctx, id)
+	if err != nil {
+		return profiles.ProfileDocument{}, "", mapDownloadError(err)
+	}
+	if job.State != modeldownload.StateCompleted && job.State != modeldownload.StateAlreadyDownloaded {
+		return profiles.ProfileDocument{}, "", Errorf(ErrorConflict, "download %q is %s", id, job.State)
+	}
+	doc, backend, err := m.profileBackend(ctx, name)
+	if err != nil {
+		return profiles.ProfileDocument{}, "", err
+	}
 	if job.Profile != name || job.Backend != backend.Name() || job.MultiFile != backend.Capabilities().MultiFileArtifacts {
-		return profiles.ProfileDocument{}, Errorf(ErrorConflict, "download %q does not belong to profile %q", id, name)
+		return profiles.ProfileDocument{}, "", Errorf(ErrorConflict, "download %q does not belong to profile %q", id, name)
 	}
 	updated := doc.Parsed
 	updated.Model.Source, updated.Model.Reference = job.TargetPath, ""
 	data, err := yaml.Marshal(updated)
 	if err != nil {
-		return profiles.ProfileDocument{}, CoreError(ErrorRuntime, err.Error(), err)
+		return profiles.ProfileDocument{}, "", CoreError(ErrorRuntime, err.Error(), err)
 	}
-	return m.PutProfile(ctx, name, string(data), false)
+	return doc, string(data), nil
 }
 
 func (m *Manager) CleanupProfile(ctx context.Context, name string) (err error) {

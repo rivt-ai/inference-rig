@@ -103,8 +103,11 @@ func (f *Fake) Plan(r backends.ResolvedModel) (backends.ArtifactPlan, error) {
 }
 
 // Fit compares a fixed model size to the host's discrete VRAM (or RAM).
-func (f *Fake) Fit(_ profiles.Profile, host backends.HostResources) (backends.FitEstimate, error) {
-	const required int64 = 2 << 30
+func (f *Fake) Fit(_ profiles.Profile, sizeBytes int64, host backends.HostResources) (backends.FitEstimate, error) {
+	required := sizeBytes
+	if required <= 0 {
+		required = 2 << 30
+	}
 	capacity := host.AvailableRAMBytes
 	if host.HasGPU {
 		capacity = host.VRAMBytes
