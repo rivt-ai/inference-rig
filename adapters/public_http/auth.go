@@ -59,10 +59,13 @@ func ResolveAuthToken(configured string) (token string, generated bool) {
 	return hex.EncodeToString(buffer), true
 }
 
-func connectInterceptors(token string) connect.HandlerOption {
+func connectInterceptors(token string, disabled bool) connect.HandlerOption {
 	return connect.WithInterceptors(connect.UnaryInterceptorFunc(
 		func(next connect.UnaryFunc) connect.UnaryFunc {
 			return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
+				if disabled {
+					return next(ctx, request)
+				}
 				if _, mutating := mutatingProcedures[request.Spec().Procedure]; !mutating {
 					return next(ctx, request)
 				}
@@ -75,7 +78,10 @@ func connectInterceptors(token string) connect.HandlerOption {
 	))
 }
 
-func requireToken(token string, next http.Handler) http.Handler {
+func requireToken(token string, disabled bool, next http.Handler) http.Handler {
+	if disabled {
+		return next
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !tokenMatches(token, r.Header.Get("Authorization")) {
 			http.Error(w, "authorization required", http.StatusUnauthorized)

@@ -41,6 +41,10 @@ func (testClient) ListBackends(context.Context, *controlv1.ListBackendsRequest) 
 	return &controlv1.ListBackendsResponse{Ok: true, Backends: []*controlv1.BackendInfo{{Name: "test"}}}, nil
 }
 
+func (testClient) StartRuntime(context.Context, *controlv1.StartRuntimeRequest) (*controlv1.StartRuntimeResponse, error) {
+	return &controlv1.StartRuntimeResponse{Ok: true}, nil
+}
+
 // controlProcedures returns every procedure on the service, split by whether it
 // is a server stream, straight from the descriptor so the tests below cannot
 // drift as RPCs are added.
@@ -134,6 +138,27 @@ func TestMutationWithoutTokenIsRejected(t *testing.T) {
 	NewHandler(Dependencies{Control: testClient{}, AuthToken: "secret"}).ServeHTTP(response, request)
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", response.Code)
+	}
+}
+
+// DisableAuth is the local-only escape hatch: mutations must go through with no
+// Authorization header at all, and the MCP endpoint must open with them.
+func TestDisableAuthServesMutationsUnauthenticated(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost,
+		controlv1connect.ControlServiceStartRuntimeProcedure, strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	NewHandler(Dependencies{Control: testClient{}, DisableAuth: true}).ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d %q, want 200", response.Code, response.Body.String())
+	}
+
+	mcp := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+	mcp.Header.Set("Content-Type", "application/json")
+	mcpResponse := httptest.NewRecorder()
+	NewHandler(Dependencies{Control: testClient{}, DisableAuth: true}).ServeHTTP(mcpResponse, mcp)
+	if mcpResponse.Code == http.StatusUnauthorized {
+		t.Fatal("/mcp returned 401 with DisableAuth")
 	}
 }
 

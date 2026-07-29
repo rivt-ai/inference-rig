@@ -32,6 +32,10 @@ type Answers struct {
 	Port                                                   int
 	StartupServices                                        []string
 	Autostart                                              bool
+	// DisableAuth serves the gateway without a bearer token. The form only
+	// offers it for a loopback bind, and the generated config is validated,
+	// so it cannot be paired with an address that reaches the network.
+	DisableAuth bool
 }
 
 // Wizard discovers capabilities and persists profiles through canonical RPC.
@@ -115,6 +119,9 @@ func (w *Wizard) collect(ctx context.Context, paths Paths, input io.Reader, outp
 		huh.NewGroup(
 			huh.NewInput().Title("Public web listen address").Value(&answers.ListenAddr).Validate(validateListen),
 			huh.NewInput().Title("Bearer token environment variable").Value(&answers.AuthTokenEnv),
+			huh.NewConfirm().
+				Title("Run without authentication? (local use only; ignored unless the bind is loopback)").
+				Value(&answers.DisableAuth),
 			huh.NewInput().Title("Model storage directory").Value(&answers.ModelStorageDir).Validate(validateStorageDir),
 			huh.NewSelect[string]().Title("Start automatically").Options(
 				huh.NewOption("control + web", "both"),
@@ -183,10 +190,14 @@ func (w *Wizard) collect(ctx context.Context, paths Paths, input io.Reader, outp
 	if err := w.ensureBackend(ctx, input, output, selected); err != nil {
 		return Answers{}, err
 	}
-	if (&config.Config{ListenAddr: answers.ListenAddr}).AllowsNonLoopback() &&
-		os.Getenv(answers.AuthTokenEnv) == "" {
-		if err := requireConfirm(ctx, input, output, "Remote-capable bind without a populated token environment — continue anyway?"); err != nil {
-			return Answers{}, err
+	if (&config.Config{ListenAddr: answers.ListenAddr}).AllowsNonLoopback() {
+		// A remote-capable bind cannot serve unauthenticated, so the answer is
+		// dropped rather than written into a config that would fail to load.
+		answers.DisableAuth = false
+		if os.Getenv(answers.AuthTokenEnv) == "" {
+			if err := requireConfirm(ctx, input, output, "Remote-capable bind without a populated token environment — continue anyway?"); err != nil {
+				return Answers{}, err
+			}
 		}
 	}
 	return answers, nil
@@ -301,6 +312,15 @@ func startupServices(selected string) []string {
 	}
 }
 
+// authSummary describes the effective auth posture, which is not simply the
+// answer: a remote-capable bind overrides a request to disable it.
+func authSummary(answers Answers) string {
+	if answers.DisableAuth && !(&config.Config{ListenAddr: answers.ListenAddr}).AllowsNonLoopback() {
+		return "disabled (loopback only)"
+	}
+	return "bearer token from $" + answers.AuthTokenEnv
+}
+
 func reviewSummary(paths Paths, answers Answers, port, startup string, replacing bool) string {
 	replacement := ""
 	if replacing {
@@ -310,6 +330,7 @@ func reviewSummary(paths Paths, answers Answers, port, startup string, replacing
 		"Config file:       " + paths.Config + "\n" +
 		"Model storage:     " + answers.ModelStorageDir + "\n" +
 		"Public address:    " + answers.ListenAddr + "\n" +
+		"Authentication:    " + authSummary(answers) + "\n" +
 		"Startup services:  " + strings.Join(startupServices(startup), ", ") + "\n" +
 		"Profile:           " + answers.ProfileName + " (" + answers.Backend + ")\n" +
 		"Model source:      " + answers.ModelSource + "\n" +

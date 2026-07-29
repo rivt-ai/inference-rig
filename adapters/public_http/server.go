@@ -24,6 +24,10 @@ type Dependencies struct {
 	// ResolveAuthToken so an unset token fails closed rather than opening the
 	// gateway.
 	AuthToken string
+	// DisableAuth serves every procedure unauthenticated. It exists for a
+	// single-user local install bound to loopback; the caller is responsible
+	// for refusing it on a bind that reaches the network.
+	DisableAuth bool
 	// AppFS holds the built web app. A nil AppFS serves no static files.
 	AppFS fs.FS
 	// AllowedOrigin, when set, is the only browser origin permitted to reach
@@ -45,7 +49,7 @@ func NewHandler(deps Dependencies) http.Handler {
 	// server streams are piped by controlBridge.
 	path, handler := controlv1connect.NewControlServiceHandler(
 		controlBridge{ControlServiceClient: deps.Control},
-		connectInterceptors(deps.AuthToken),
+		connectInterceptors(deps.AuthToken, deps.DisableAuth),
 	)
 	mux.Handle(path, handler)
 
@@ -63,7 +67,7 @@ func NewHandler(deps Dependencies) http.Handler {
 
 	// MCP is JSON-RPC 2.0, a different protocol that cannot be a Connect
 	// method, so it keeps its own route.
-	mux.Handle("/mcp", requireToken(deps.AuthToken, adaptermcp.NewHandler(deps.Control)))
+	mux.Handle("/mcp", requireToken(deps.AuthToken, deps.DisableAuth, adaptermcp.NewHandler(deps.Control)))
 
 	if deps.AppFS != nil {
 		mux.Handle("/", http.FileServer(http.FS(deps.AppFS)))

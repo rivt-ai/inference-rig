@@ -71,6 +71,7 @@ func renderConfig(paths Paths, answers Answers) (string, error) {
 		cfg.AutostartProfiles = []string{answers.ProfileName}
 	}
 	cfg.Security.AuthTokenEnv = answers.AuthTokenEnv
+	cfg.Security.DisableAuth = answers.DisableAuth
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return "", err
