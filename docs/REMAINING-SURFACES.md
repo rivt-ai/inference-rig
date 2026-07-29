@@ -65,8 +65,8 @@ Each sequence ships as its own stacked draft PR:
 | **CLI** | ✅ complete — grouped commands reach every canonical RPC, including streams | `adapters/cli` 434 | full neutral surface |
 | **Setup wizard command** | ✅ capability-aware stdlib prompts create canonical YAML through RPC | — | — |
 | **TUI** | ✅ neutral tuikit adaptation with service management, multi-backend model workflows, telemetry, events, and searchable logs | `adapters/tui` ~2,300 (+tabs,+ui) | source-style four-page dashboard |
-| **Web UI** | ✅ Svelte/Vite SPA, pnpm verification, committed embedded dist, CI + release builds | `webui/web` 158 `.svelte` + vite/pnpm pipeline | neutral REST client |
-| **public_http (REST facade)** | ✅ full unary surface with bearer protection on mutations | `adapters/public_http` 734 | neutral generated-client facade |
+| **Web UI** | ✅ capability-aware Svelte 5 SPA over Connect, pnpm verification, CI-built embedded dist | `webui/web` ~230 files incl. shadcn primitives + vite/pnpm pipeline | neutral generated Connect client |
+| **public_http (gateway)** | ✅ canonical RPC served over Connect; `/health` and `/mcp` retained; auth fails closed | `adapters/public_http` | Connect handler over the control client |
 | **MCP** | ✅ full unary tool surface through generated client | `adapters/mcp` ~440 | neutral tool registry |
 
 ## 4. Workstreams (dependency-ordered)
@@ -99,8 +99,9 @@ Without this nothing runs; every other surface needs a live control socket.
 - **Exit:** interactive TUI drives the full control surface through RPC. Large. Depends on S1+S3+S2.
 
 ### S7 — Full Web UI — ✅ complete
-- Port the `webui/web` Svelte/Vite/pnpm app (158 `.svelte`) + build pipeline; Go embeds `webui/dist`; wire `vite build` into `make webui` and CI. Frontend talks only to the `public_http` facade → canonical RPC.
-- **Exit:** `make webui` builds the real SPA; embedded assets served; `make build` stays green without a node toolchain (committed `dist` or CI-built). Large. Depends on S1+S8.
+- Port the `webui/web` Svelte/Vite/pnpm app + build pipeline; Go embeds `webui/dist`; wire `vite build` into `make webui` and CI. The frontend talks to the gateway over Connect → canonical RPC.
+- **Exit:** `make webui` builds the real SPA; embedded assets served; `make build` stays green without a node toolchain (CI-built `dist`, with `.gitkeep` keeping the embed compilable in a fresh clone). Large. Depends on S1+S8.
+- **History:** the surface was first marked complete against a 152-line placeholder `App.svelte`, and this table claimed 158 `.svelte` files that were never committed. The real interface landed later, on the branch that also extended the contract (fit, telemetry, logs, structured engine args) to what a UI actually binds to.
 
 ### S8 — public_http + MCP breadth — ✅ complete
 - Expand the REST facade (`adapters/public_http`, source 734) and MCP tools (`adapters/mcp`, source ~440) to cover the full canonical surface (catalog, downloads, local models, profile CRUD, setup), keeping auth + capability-gating. The web UI (S7) consumes this.
