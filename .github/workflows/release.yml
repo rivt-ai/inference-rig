@@ -65,8 +65,22 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      # Single-binary packaging. Multi-arch archives, web UI embedding, and
-      # generated protobuf are folded in as those pieces land (Phases 9/10).
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      - name: Build web UI
+        run: |
+          cd webui
+          pnpm install --frozen-lockfile
+          pnpm run build
+
       - name: Build and package
         env:
           RELEASE_VERSION: ${{ inputs.version }}

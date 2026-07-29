@@ -30,8 +30,10 @@ const (
 
 // Request starts execution of one backend-generated plan.
 type Request struct {
-	Plan  backends.ArtifactPlan `json:"plan"`
-	Force bool                  `json:"force,omitempty"`
+	Plan    backends.ArtifactPlan `json:"plan"`
+	Force   bool                  `json:"force,omitempty"`
+	Backend string                `json:"backend,omitempty"`
+	Profile string                `json:"profile,omitempty"`
 }
 
 // Job is the observable state of one artifact-plan execution.
@@ -47,6 +49,8 @@ type Job struct {
 	Error         string  `json:"error,omitempty"`
 	StartedAt     string  `json:"started_at,omitempty"`
 	CompletedAt   string  `json:"completed_at,omitempty"`
+	Backend       string  `json:"backend,omitempty"`
+	Profile       string  `json:"profile,omitempty"`
 }
 
 // Downloader is the neutral download job API consumed by control.
