@@ -224,7 +224,7 @@ func (p *modelsPage) View(width, height int, data snapshot) string {
 	p.setRows(data)
 	titles := []string{
 		fmt.Sprintf("Profiles (%d)", len(data.profiles.GetProfiles())),
-		fmt.Sprintf("Catalog (%d)", len(data.catalog.GetModels())),
+		catalogTitle(data),
 		fmt.Sprintf("Local (%d)", len(data.local.GetModels())),
 		fmt.Sprintf("Downloads (%d)", len(data.downloads)),
 	}
@@ -256,6 +256,18 @@ func (p *modelsPage) View(width, height int, data snapshot) string {
 		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "Delete")),
 	)
 	return tuikit.VerticalSlice(lipgloss.JoinVertical(lipgloss.Left, tabbed, detail, panel(muted, false, width, 2, help)), 0, height)
+}
+
+// catalogTitle reports a cold cache as refreshing rather than as an empty
+// catalog. The first request for a query returns nothing while the remote fetch
+// runs behind it, which is indistinguishable from "this backend has no models"
+// unless the tab says so.
+func catalogTitle(data snapshot) string {
+	models := len(data.catalog.GetModels())
+	if models == 0 && (data.catalogPending || data.catalog.GetCache().GetRefreshing()) {
+		return "Catalog (refreshing…)"
+	}
+	return fmt.Sprintf("Catalog (%d)", models)
 }
 
 // profileModel describes what a profile serves. The reference is optional — it
