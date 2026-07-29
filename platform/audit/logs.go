@@ -17,7 +17,13 @@ import (
 	"inferencerig/config"
 )
 
-const DefaultTailLines, MaxTailLines, maxTailReadBytes = 500, 5000, 10 * 1024 * 1024
+// followPollInterval bounds how stale a followed log can be: a line appended to
+// the file surfaces to the caller at most one interval later. Polling keeps
+// FollowLog portable across the platforms we support without an fsnotify
+// dependency, at the cost of that latency ceiling.
+const followPollInterval = 500 * time.Millisecond
+
+const MaxTailLines, maxTailReadBytes = 5000, 10 * 1024 * 1024
 
 var archiveNamePattern, logNamePattern = regexp.MustCompile(`^([A-Za-z0-9_-]+)-(\d{8}T\d{6}\.\d{9}Z)\.log$`), regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
@@ -145,104 +151,165 @@ func TailLogLines(name string, lines int) (string, error) {
 	return tailFileLines(path, lines)
 }
 
-func FollowLog(ctx context.Context, name string, lines int, out io.Writer, interval time.Duration) error {
-	if !logNamePattern.MatchString(name) {
-		return fmt.Errorf("invalid log name %q", name)
+// ValidLogName reports whether name is a usable service log name. Callers that
+// must distinguish a malformed name from a missing log check this first, since
+// the tail and follow helpers collapse both into one error.
+func ValidLogName(name string) bool { return logNamePattern.MatchString(name) }
+
+// ValidArchiveID reports whether id names an archive without escaping the
+// archive directory.
+func ValidArchiveID(id string) bool {
+	return filepath.Base(id) == id && archiveNamePattern.MatchString(id)
+}
+
+// ArchiveService extracts the service an archive belongs to from its ID.
+// Service names may themselves contain hyphens, so only the pattern can split
+// the ID correctly. An unparsable ID yields an empty string.
+func ArchiveService(id string) string {
+	match := archiveNamePattern.FindStringSubmatch(id)
+	if match == nil {
+		return ""
 	}
-	if lines < 1 || lines > MaxTailLines {
-		return fmt.Errorf("log lines must be between 1 and %d", MaxTailLines)
+	return match[1]
+}
+
+// LogExists reports whether a service currently has a log file. A path that
+// exists but is not a regular file counts as absent, matching ArchiveLog's
+// refusal to treat symlinks and devices as logs.
+func LogExists(name string) (bool, error) {
+	if !ValidLogName(name) {
+		return false, fmt.Errorf("invalid log name %q", name)
+	}
+	path, err := GetLogPath(name)
+	if err != nil {
+		return false, err
+	}
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return info.Mode().IsRegular(), nil
+}
+
+// FollowLog streams lines appended to a service log to emit until ctx is
+// cancelled or emit fails. It starts at the current end of the file, so only
+// new output is delivered, and it recovers from the rotation ArchiveLog
+// performs by resuming at the replacement file's start.
+func FollowLog(ctx context.Context, name string, emit func(string) error) error {
+	if !ValidLogName(name) {
+		return fmt.Errorf("invalid log name %q", name)
 	}
 	path, err := GetLogPath(name)
 	if err != nil {
 		return err
 	}
-	previous, offset, err := writeInitialTail(path, lines, out)
+	offset, err := logEnd(path)
 	if err != nil {
 		return err
 	}
-	ticker := time.NewTicker(interval)
+	var partial []byte
+	ticker := time.NewTicker(followPollInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			info, nextOffset, err := followUpdate(path, previous, offset, out)
-			if err != nil {
+		}
+		var lines []string
+		lines, offset, partial, err = readNewLines(path, offset, partial)
+		if err != nil {
+			return err
+		}
+		for _, line := range lines {
+			if err := emit(line); err != nil {
 				return err
 			}
-			previous, offset = info, nextOffset
 		}
 	}
 }
 
-// tailFile returns the formatted tail of path along with the stat it was read
-// from, opening the file once so the read and the reported size share a single
-// view of it; a stat taken after a separate read could skip lines written in
-// between. A missing file yields an empty tail and a nil FileInfo.
-func tailFile(path string, lines int) (string, os.FileInfo, error) {
-	file, err := os.Open(path)
+func logEnd(path string) (int64, error) {
+	info, err := os.Lstat(path)
 	if os.IsNotExist(err) {
-		return "", nil, nil
+		return 0, nil
 	}
 	if err != nil {
-		return "", nil, err
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
+// readNewLines returns the complete lines written past offset, along with the
+// new offset and any trailing partial line to prepend on the next poll.
+func readNewLines(path string, offset int64, partial []byte) ([]string, int64, []byte, error) {
+	file, err := os.Open(path)
+	if os.IsNotExist(err) {
+		// The log was archived away; the replacement starts empty.
+		return nil, 0, nil, nil
+	}
+	if err != nil {
+		return nil, offset, partial, err
 	}
 	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil {
-		return "", nil, err
+		return nil, offset, partial, err
+	}
+	if info.Size() < offset {
+		offset, partial = 0, nil
+	}
+	// A burst larger than the tail budget is skipped rather than buffered, so a
+	// runaway writer cannot grow this read without bound.
+	if info.Size()-offset > maxTailReadBytes {
+		offset, partial = info.Size()-maxTailReadBytes, nil
+	}
+	if info.Size() == offset {
+		return nil, offset, partial, nil
+	}
+	chunk := make([]byte, info.Size()-offset)
+	n, err := file.ReadAt(chunk, offset)
+	if err != nil && err != io.EOF {
+		return nil, offset, partial, err
+	}
+	data := slices.Concat(partial, chunk[:n])
+	offset += int64(n)
+	var lines []string
+	for {
+		index := bytes.IndexByte(data, '\n')
+		if index < 0 {
+			break
+		}
+		lines = append(lines, string(data[:index]))
+		data = data[index+1:]
+	}
+	return lines, offset, bytes.Clone(data), nil
+}
+
+// tailFile returns the formatted tail of path, opening the file once so the
+// read and the size it is bounded by share a single view of it. A missing file
+// yields an empty tail and no error.
+func tailFile(path string, lines int) (string, error) {
+	file, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil {
+		return "", err
 	}
 	data, err := readTailChunks(file, info.Size(), lines)
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
-	return formatTail(data, lines), info, nil
-}
-
-// writeInitialTail emits the starting tail and reports the offset to follow from.
-func writeInitialTail(path string, lines int, out io.Writer) (os.FileInfo, int64, error) {
-	text, info, err := tailFile(path, lines)
-	if err != nil || info == nil {
-		return nil, 0, err
-	}
-	if _, err := io.WriteString(out, text); err != nil {
-		return nil, 0, err
-	}
-	return info, info.Size(), nil
-}
-
-func followUpdate(path string, previous os.FileInfo, offset int64, out io.Writer) (os.FileInfo, int64, error) {
-	info, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return nil, 0, nil
-	}
-	if err != nil {
-		return nil, offset, err
-	}
-	if previous == nil || !os.SameFile(previous, info) || info.Size() < offset {
-		offset = 0
-	}
-	if err := copyFrom(path, offset, info.Size(), out); err != nil {
-		return nil, offset, err
-	}
-	return info, info.Size(), nil
-}
-
-func copyFrom(path string, offset, size int64, out io.Writer) error {
-	if size <= offset {
-		return nil
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = file.Close() }()
-	if _, err := file.Seek(offset, io.SeekStart); err != nil {
-		return err
-	}
-	_, err = io.CopyN(out, file, size-offset)
-	return err
+	return formatTail(data, lines), nil
 }
 
 func ListArchives() ([]Archive, error) {
@@ -290,6 +357,28 @@ func DeleteArchive(id string) error {
 	return nil
 }
 
+// RemoveArchive deletes a single archive and reports whether it existed, so
+// callers can answer an unknown ID with a not-found status instead of a
+// silent success.
+func RemoveArchive(id string) (bool, error) {
+	path, err := archivePath(id)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// ClearArchives deletes every archive regardless of retention and returns how
+// many were removed.
 func ClearArchives() (int, error) {
 	archives, err := ListArchives()
 	if err != nil {
@@ -371,8 +460,7 @@ func tailFileLines(path string, lines int) (string, error) {
 	if lines < 1 || lines > MaxTailLines {
 		return "", fmt.Errorf("log lines must be between 1 and %d", MaxTailLines)
 	}
-	text, _, err := tailFile(path, lines)
-	return text, err
+	return tailFile(path, lines)
 }
 
 func readTailChunks(file *os.File, end int64, lines int) ([]byte, error) {

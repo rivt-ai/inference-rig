@@ -3,8 +3,13 @@ package cmd
 import (
 	"context"
 	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 
+	adaptercli "inferencerig/adapters/cli"
 	"inferencerig/config"
+	"inferencerig/core/rpc"
 	"inferencerig/internal/buildinfo"
 	"inferencerig/internal/logs"
 
@@ -14,12 +19,12 @@ import (
 // Execute configures the default logger and runs the root command.
 func Execute() error {
 	slog.SetDefault(logs.New(slog.LevelInfo))
-	return NewRootCommand().ExecuteContext(context.Background())
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return NewRootCommand().ExecuteContext(ctx)
 }
 
-// NewRootCommand builds the CLI. Subcommands are added here as the control
-// plane grows (serve, gateway, profiles, runtime, …); the bootstrap ships the
-// version command only.
+// NewRootCommand builds the CLI.
 func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:               config.ProjectName,
@@ -27,7 +32,12 @@ func NewRootCommand() *cobra.Command {
 		Args:              cobra.NoArgs,
 		Version:           buildinfo.Version,
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
+		RunE: func(command *cobra.Command, _ []string) error {
+			return runTUI(command, "")
+		},
 	}
 	rootCmd.AddCommand(versionCommand())
+	rootCmd.AddCommand(serveCommand(), daemonCommand(), setupCommand(), tuiCommand(), webCommand())
+	rootCmd.AddCommand(adaptercli.Commands(rpc.DialControl)...)
 	return rootCmd
 }
