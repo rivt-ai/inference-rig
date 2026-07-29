@@ -65,6 +65,21 @@
     </div>
   </div>
 
+  <!-- Setup creates the config only, so a fresh install arrives here with no
+       profile at all. Nothing can be started until one exists. -->
+  {#if appState.profilesLoaded && !appState.profiles.length}
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4"
+      role="status"
+    >
+      <div class="space-y-1">
+        <p class="text-sm font-semibold">No profiles configured</p>
+        <p class="text-sm text-muted-foreground">Create a serving profile and download a model for it to start serving.</p>
+      </div>
+      <Button size="sm" onclick={() => (appState.activeSection = 'profiles')}>Create a profile</Button>
+    </div>
+  {/if}
+
   <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Dashboard summary">
     {#snippet statIcon(Icon: typeof Activity)}
       <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon class="size-4" /></span>

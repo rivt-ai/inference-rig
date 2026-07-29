@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/antonikliment/tuikit"
 
+	"inferencerig/config"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
@@ -244,6 +245,12 @@ func (d *dashboard) status() (string, tuikit.Level) {
 	}
 	if d.notice != "" {
 		return d.notice + refreshedText(d.data.refreshed), tuikit.LevelSuccess
+	}
+	// Setup no longer writes a starter profile, so a fresh install has nothing
+	// to run. The TUI cannot create profiles, so say where they are created.
+	if !d.data.refreshed.IsZero() && len(d.data.profiles.GetProfiles()) == 0 {
+		return "No profiles yet — create one in the web interface (`" +
+			config.ProjectName + " web`)" + refreshedText(d.data.refreshed), tuikit.LevelWarning
 	}
 	return "Ready" + refreshedText(d.data.refreshed), tuikit.LevelInfo
 }

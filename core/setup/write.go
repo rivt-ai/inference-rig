@@ -1,63 +1,58 @@
 package setup
 
 import (
-	"context"
 	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v3"
 
 	"inferencerig/config"
-	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/platform/filedoc"
 )
 
 func defaultAnswers(paths Paths, backend string) Answers {
 	return Answers{
 		ListenAddr: config.DefaultListenAddr, AuthTokenEnv: config.DefaultAuthTokenEnv,
-		ModelStorageDir: paths.DefaultModelStorage, ProfileName: "default",
-		Backend: backend, Host: "127.0.0.1", Port: 8080,
+		ModelStorageDir: paths.DefaultModelStorage, Backend: backend,
 		StartupServices: config.DefaultStartupServices(),
 	}
 }
 
-func (w *Wizard) write(ctx context.Context, paths Paths, answers Answers, force bool) (*controlv1.Profile, filedoc.WriteResult, error) {
+// write creates the home directory, the model store, and the config file.
+// No profile is written: the TUI and web UI create profiles against a running
+// daemon, where the catalog is browsable and a model can be downloaded in the
+// same step.
+func (w *Wizard) write(paths Paths, answers Answers, force bool) (filedoc.WriteResult, error) {
 	content, err := renderConfig(paths, answers)
 	if err != nil {
-		return nil, filedoc.WriteResult{}, err
+		return filedoc.WriteResult{}, err
 	}
 	if err := os.MkdirAll(paths.Home, 0o700); err != nil {
-		return nil, filedoc.WriteResult{}, fmt.Errorf("create application home: %w", err)
+		return filedoc.WriteResult{}, fmt.Errorf("create application home: %w", err)
 	}
 	if err := os.Chmod(paths.Home, 0o700); err != nil {
-		return nil, filedoc.WriteResult{}, fmt.Errorf("secure application home: %w", err)
+		return filedoc.WriteResult{}, fmt.Errorf("secure application home: %w", err)
 	}
 	if err := os.MkdirAll(answers.ModelStorageDir, 0o700); err != nil {
-		return nil, filedoc.WriteResult{}, fmt.Errorf("create model storage: %w", err)
-	}
-	profile, err := w.putProfile(ctx, answers, !force)
-	if err != nil {
-		return nil, filedoc.WriteResult{}, err
+		return filedoc.WriteResult{}, fmt.Errorf("create model storage: %w", err)
 	}
 	exists, err := pathExists(paths.Config)
 	if err != nil {
-		return nil, filedoc.WriteResult{}, err
+		return filedoc.WriteResult{}, err
 	}
 	if force && exists {
-		result, err := filedoc.WriteFile(paths.Config, content, filedoc.WriteOptions{Perm: 0o600, Backup: true})
-		return profile, result, err
+		return filedoc.WriteFile(paths.Config, content, filedoc.WriteOptions{Perm: 0o600, Backup: true})
 	}
 	if exists {
-		return nil, filedoc.WriteResult{}, fmt.Errorf("config already exists at %s", paths.Config)
+		return filedoc.WriteResult{}, fmt.Errorf("config already exists at %s", paths.Config)
 	}
 	if err := filedoc.AtomicCreate(paths.Config, []byte(content), 0o600); err != nil {
-		return profile, filedoc.WriteResult{}, err
+		return filedoc.WriteResult{}, err
 	}
-	result := filedoc.WriteResult{
+	return filedoc.WriteResult{
 		Path: paths.Config, SizeBytes: int64(len(content)),
 		SHA256: filedoc.SHA256Hex([]byte(content)),
-	}
-	return profile, result, nil
+	}, nil
 }
 
 func renderConfig(paths Paths, answers Answers) (string, error) {
@@ -67,9 +62,6 @@ func renderConfig(paths Paths, answers Answers) (string, error) {
 	cfg.CatalogCacheDir = paths.DefaultCatalogCache
 	cfg.StartupServices = answers.StartupServices
 	cfg.AutostartProfiles = nil
-	if answers.Autostart {
-		cfg.AutostartProfiles = []string{answers.ProfileName}
-	}
 	cfg.Security.AuthTokenEnv = answers.AuthTokenEnv
 	cfg.Security.DisableAuth = answers.DisableAuth
 	data, err := yaml.Marshal(cfg)

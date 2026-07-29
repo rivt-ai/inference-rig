@@ -36,6 +36,9 @@ export function createInferenceRigState() {
     hostPlatform: '',
 
     profiles: [] as Profile[],
+    // Distinguishes "no profiles exist" from "profiles have not loaded yet",
+    // so the first-run banner cannot flash before the first ListProfiles.
+    profilesLoaded: false,
     selectedProfileName: '',
     activeProfileNames: [] as string[],
     autostartProfiles: [] as string[],

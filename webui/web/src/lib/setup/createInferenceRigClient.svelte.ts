@@ -413,6 +413,7 @@ export function createInferenceRigClient() {
     const task = async () => {
       const data = await api.listProfiles();
       state.profiles = data.profiles;
+      state.profilesLoaded = true;
       const target = chooseProfileSelection(
         state.profiles,
         options.select || '',
