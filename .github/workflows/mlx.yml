@@ -1,0 +1,128 @@
+name: MLX validation
+
+# Apple Silicon hardware validation. Ordinary PRs are already gated on real
+# llama.cpp inference by the E2E workflow, so this job does not block them; it
+# proves the MLX backend can load a real model and generate on real hardware.
+# It also runs on PRs that touch the MLX backend or the control/RPC layers it
+# depends on, so a regression there is caught before merge rather than at the
+# next nightly run.
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "backends/mlx/**"
+      - "core/control/**"
+      - "core/rpc/**"
+      - "test/e2e/mlx_live_test.go"
+      - ".github/workflows/mlx.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mlx-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mlx:
+    name: MLX inference (Apple Silicon)
+    # Pinned rather than macos-latest so an image rollover cannot silently
+    # change the hardware under the result. For a public repository this is an
+    # Apple Silicon VM at no extra cost; the pinned model is small enough that a
+    # paid larger runner is not needed.
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      - name: Install web dependencies
+        run: cd webui && pnpm install --frozen-lockfile
+
+      # Cached by repository and revision. The Python environment is always
+      # rebuilt: a cached interpreter is executable content, and restoring it
+      # would mean running code the pin no longer describes.
+      - name: Cache pinned MLX model
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mlx-model
+          key: mlx-model-Qwen2.5-0.5B-Instruct-4bit-a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3
+
+      - name: Provision pinned MLX environment and model
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/mlx-venv"
+          "$RUNNER_TEMP/mlx-venv/bin/python" -m pip install --quiet "mlx-lm==0.31.3"
+          "$RUNNER_TEMP/mlx-venv/bin/python" - <<'PY'
+          import os
+          from huggingface_hub import snapshot_download
+          snapshot_download(
+              repo_id="mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+              revision="a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3",
+              local_dir=os.path.join(os.environ["RUNNER_TEMP"], "mlx-model"),
+          )
+          PY
+
+      # mlx_lm server's HTTP bind calls Python's socket.getfqdn(host), which
+      # reverse-resolves the bound address over DNS regardless of whether that
+      # address is "127.0.0.1" or "localhost". This runner's network has no
+      # working reverse-DNS path for loopback, so that call hangs (forward
+      # lookups, e.g. huggingface.co above, are unaffected). sitecustomize.py
+      # is auto-imported by every interpreter start in this venv, so patching
+      # getfqdn there neutralizes the hang without touching the pinned mlx-lm
+      # package itself.
+      - name: Disable reverse-DNS lookup in the MLX venv
+        shell: bash
+        run: |
+          set -euo pipefail
+          site_packages="$("$RUNNER_TEMP/mlx-venv/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+          cat > "$site_packages/sitecustomize.py" <<'PY'
+          import socket
+          socket.getfqdn = lambda name="": name or socket.gethostname()
+          PY
+
+      # Recorded so a green run states what it actually proved, rather than
+      # leaving the reader to infer it from the runner label.
+      - name: Record environment
+        shell: bash
+        run: |
+          sw_vers
+          uname -m
+          "$RUNNER_TEMP/mlx-venv/bin/python" -m pip show mlx-lm mlx | grep -E '^(Name|Version):'
+
+      - name: Run MLX inference E2E
+        env:
+          INFERENCERIG_LIVE_MLX_PYTHON: ${{ runner.temp }}/mlx-venv/bin/python3
+          INFERENCERIG_LIVE_MLX_MODEL: ${{ runner.temp }}/mlx-model
+          # A cold mlx_lm start (Python import plus first Metal/JIT compile) is
+          # slower than the 30s default assumes. Only this job raises it; local
+          # runs and the llama.cpp suite keep the tighter default.
+          INFERENCERIG_READINESS_TIMEOUT_SECONDS: "90"
+        run: make e2e-live-mlx
+
+      - name: Upload MLX logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlx-logs
+          path: /tmp/Test*/**/logs/
+          if-no-files-found: ignore

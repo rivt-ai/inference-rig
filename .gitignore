@@ -65,6 +65,8 @@ coverage.html
 *.pprof
 cpu.out
 mem.out
+# Coverage reports and provisioned E2E fixtures
+artifacts/
 # Go workspace / vendor / env
 go.work
 go.work.sum

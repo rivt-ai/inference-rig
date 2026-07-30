@@ -15,10 +15,21 @@ import (
 	"inferencerig/config"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
+	"inferencerig/core/runtime"
 )
 
-// dialTimeout bounds every control-socket dial the CLI makes.
-const dialTimeout = 30 * time.Second
+// dialTimeoutMargin is added on top of the runtime supervisor's readiness
+// timeout to get the CLI's control-socket dial timeout. A runtime-start call
+// blocks server-side for up to that readiness timeout, so a client timeout
+// equal to or shorter than it races the server and reports a generic
+// deadline-exceeded instead of the real readiness error. Reading
+// runtime.ReadinessTimeout() here keeps the two in step, including under
+// runtime.ReadinessTimeoutEnv overrides such as CI's slower cold starts.
+const dialTimeoutMargin = 30 * time.Second
+
+func dialTimeout() time.Duration {
+	return runtime.ReadinessTimeout() + dialTimeoutMargin
+}
 
 type dialer func(string, time.Duration) (controlv1connect.ControlServiceClient, error)
 type call func(context.Context, controlv1connect.ControlServiceClient, []string) (proto.Message, error)
@@ -199,7 +210,7 @@ func rpcCommand(use, short string, args cobra.PositionalArgs, dial dialer, invok
 	command := &cobra.Command{
 		Use: use, Short: short, Args: args, ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(command *cobra.Command, values []string) error {
-			client, err := dial(resolveSocket(socket), dialTimeout)
+			client, err := dial(resolveSocket(socket), dialTimeout())
 			if err != nil {
 				return err
 			}
@@ -221,7 +232,7 @@ func streamCommand(use, short string, dial dialer, invoke streamCall) *cobra.Com
 	command := &cobra.Command{
 		Use: use, Short: short, Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			client, err := dial(resolveSocket(socket), dialTimeout)
+			client, err := dial(resolveSocket(socket), dialTimeout())
 			if err != nil {
 				return err
 			}

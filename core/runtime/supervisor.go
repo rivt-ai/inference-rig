@@ -28,7 +28,25 @@ const (
 	defaultReadinessInterval = 250 * time.Millisecond
 	// defaultLoopbackHost is used when probing readiness of a wildcard bind.
 	defaultLoopbackHost = "127.0.0.1"
+
+	// ReadinessTimeoutEnv overrides defaultReadinessTimeout with a whole number
+	// of seconds. Slow environments (an emulated or cold-start CI runner) can
+	// raise it without recompiling; adapters/cli reads the same variable to
+	// keep its dial timeout in step, see ReadinessTimeout.
+	ReadinessTimeoutEnv = "INFERENCERIG_READINESS_TIMEOUT_SECONDS"
 )
+
+// ReadinessTimeout returns the effective readiness timeout: the value from
+// ReadinessTimeoutEnv if set to a positive whole number of seconds, otherwise
+// defaultReadinessTimeout.
+func ReadinessTimeout() time.Duration {
+	if raw := os.Getenv(ReadinessTimeoutEnv); raw != "" {
+		if seconds, err := strconv.Atoi(raw); err == nil && seconds > 0 {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	return defaultReadinessTimeout
+}
 
 // LaunchSpec is the neutral contract a backend hands the supervisor to describe
 // how to launch and probe one process. It carries no engine terminology: the
@@ -64,7 +82,7 @@ type LaunchSpec struct {
 
 func (s *LaunchSpec) applyDefaults() {
 	s.StopTimeout = cmp.Or(s.StopTimeout, defaultStopTimeout)
-	s.ReadinessTimeout = cmp.Or(s.ReadinessTimeout, defaultReadinessTimeout)
+	s.ReadinessTimeout = cmp.Or(s.ReadinessTimeout, ReadinessTimeout())
 	s.ReadinessInterval = cmp.Or(s.ReadinessInterval, defaultReadinessInterval)
 }
 

@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "check:architecture": "node scripts/check-panel-architecture.mjs",
     "screenshots": "node scripts/capture.mjs",
+    "test:e2e": "playwright test",
     "verify:web": "pnpm run check && pnpm run test && pnpm run check:architecture && pnpm run build",
     "verify": "pnpm run verify:web && cd .. && go test ./..."
   },
@@ -28,6 +29,7 @@
     "@fontsource-variable/inter": "^5.2.8",
     "@internationalized/date": "^3.12.2",
     "@lucide/svelte": "^1.24.0",
+    "@playwright/test": "^1.62.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tailwindcss/vite": "^4.3.2",
     "@testing-library/jest-dom": "^6.9.1",
