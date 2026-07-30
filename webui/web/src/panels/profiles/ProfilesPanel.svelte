@@ -238,11 +238,51 @@
       </Card.Header>
       <Card.Content class="space-y-4">
         {#if appState.currentProfile}
-          <dl class="grid gap-2 text-sm sm:grid-cols-3">
-            <div><dt class="text-muted-foreground">Backend</dt><dd class="font-mono">{appState.currentProfile.backend}</dd></div>
-            <div class="min-w-0"><dt class="text-muted-foreground">Model</dt><dd class="truncate font-mono" title={appState.currentProfile.modelReference || appState.currentProfile.modelSource}>{appState.currentProfile.modelReference || appState.currentProfile.modelSource || '-'}</dd></div>
-            <div><dt class="text-muted-foreground">Listen</dt><dd class="font-mono">{appState.currentProfile.host || '-'}:{appState.currentProfile.port || '-'}</dd></div>
-          </dl>
+          <div class="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_10rem_7rem]">
+            <div class="text-sm"><span class="text-muted-foreground">Backend</span><p class="pt-2 font-mono">{appState.currentProfile.backend}</p></div>
+            <Field.Field class="min-w-0">
+              <Field.Label for="profile-model">Model</Field.Label>
+              <!-- A datalist, not a select: the source is a downloaded model's
+                   path most of the time, but an unresolved repository id is
+                   equally valid, and a closed list would reject it. -->
+              <Input
+                id="profile-model"
+                class="font-mono text-sm"
+                list="profile-model-options"
+                bind:value={appState.currentProfile.modelSource}
+                oninput={() => (appState.dirty.rows = true)}
+                disabled={appState.busy}
+              />
+              <datalist id="profile-model-options">
+                {#each appState.localModels as model (model.path)}<option value={model.path}>{model.filename}</option>{/each}
+              </datalist>
+            </Field.Field>
+            <Field.Field>
+              <Field.Label for="profile-listen-host">Listen host</Field.Label>
+              <Input
+                id="profile-listen-host"
+                class="font-mono text-sm"
+                list="profile-host-options"
+                bind:value={appState.currentProfile.host}
+                oninput={() => (appState.dirty.rows = true)}
+                disabled={appState.busy}
+              />
+              <datalist id="profile-host-options"><option value="127.0.0.1">this machine only</option><option value="0.0.0.0">all interfaces</option></datalist>
+            </Field.Field>
+            <Field.Field>
+              <Field.Label for="profile-listen-port">Port</Field.Label>
+              <Input
+                id="profile-listen-port"
+                type="number"
+                min="1"
+                max="65535"
+                class="font-mono text-sm"
+                bind:value={appState.currentProfile.port}
+                oninput={() => (appState.dirty.rows = true)}
+                disabled={appState.busy}
+              />
+            </Field.Field>
+          </div>
 
           {#if !capabilities.parameterIntrospection}
             <p class="flex items-start gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground">

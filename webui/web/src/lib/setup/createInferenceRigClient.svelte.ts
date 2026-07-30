@@ -571,9 +571,18 @@ export function createInferenceRigClient() {
   async function saveProfile() {
     await runTask('save profile', async () => {
       const current = requireCurrentProfile();
+      // Model source, listen host and port are editable alongside the engine
+      // arguments, so the same field checks the create form makes apply here:
+      // the server rejects both, but only as a generic invalid-profile error.
+      const modelSource = current.modelSource.trim();
+      if (!modelSource) throw new Error('model source is required');
+      if (!Number.isInteger(current.port) || current.port < 1 || current.port > 65535) {
+        throw new Error(`invalid listen port ${current.port}`);
+      }
       await api.putProfile(
         create(ProfileSchema, {
           ...current,
+          modelSource,
           profileYaml: '',
           engineArgs: engineArgsFromRows(state.draftRows)
         })

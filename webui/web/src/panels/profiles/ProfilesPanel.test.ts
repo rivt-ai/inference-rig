@@ -122,4 +122,37 @@ describe('ProfilesPanel', () => {
     expect(state.draftRows.length).toBe(2);
     expect(state.dirty.rows).toBe(true);
   });
+
+  // Model, host and port are the fields a profile is retargeted with; before
+  // they were read-only text and only engine args could be edited.
+  it('edits the model, listen host and port of the selected profile', async () => {
+    const { state } = panel();
+
+    await userEvent.clear(screen.getByLabelText('Listen host'));
+    await userEvent.type(screen.getByLabelText('Listen host'), '0.0.0.0');
+    await userEvent.clear(screen.getByLabelText('Port'));
+    await userEvent.type(screen.getByLabelText('Port'), '9090');
+    await userEvent.clear(screen.getByLabelText('Model'));
+    await userEvent.type(screen.getByLabelText('Model'), '/models/other.gguf');
+
+    expect(state.currentProfile?.host).toBe('0.0.0.0');
+    expect(state.currentProfile?.port).toBe(9090);
+    expect(state.currentProfile?.modelSource).toBe('/models/other.gguf');
+    expect(state.dirty.rows).toBe(true);
+  });
+
+  it('offers the downloaded models as model completions', () => {
+    const { state } = panel();
+    state.localModels = [
+      {
+        $typeName: 'inferencerig.control.v1.LocalModel',
+        path: '/models/Qwen3-0.6B.Q4_K_M.gguf',
+        filename: 'Qwen3-0.6B.Q4_K_M.gguf',
+        sizeBytes: 0n,
+        modifiedAt: '',
+        usedByProfiles: []
+      }
+    ];
+    expect(screen.getByLabelText('Model')).toHaveAttribute('list', 'profile-model-options');
+  });
 });
