@@ -18,7 +18,7 @@ import (
 
 // Execute configures the default logger and runs the root command.
 func Execute() error {
-	slog.SetDefault(logs.New(slog.LevelInfo))
+	slog.SetDefault(logs.New(slog.LevelInfo, os.Stderr))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return NewRootCommand().ExecuteContext(ctx)

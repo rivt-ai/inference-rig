@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,6 +17,8 @@ import (
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 	"inferencerig/core/setup"
+	"inferencerig/internal/logs"
+	"inferencerig/platform/audit"
 	"inferencerig/platform/process"
 )
 
@@ -31,6 +35,12 @@ func tuiCommand() *cobra.Command {
 }
 
 func runTUI(command *cobra.Command, socket string) error {
+	// The TUI owns the terminal for its full-screen render, so the shared
+	// logger (default: stderr) must not write there — a stray log line
+	// corrupts the frame. Redirect it to a file for the life of this process.
+	if err := redirectLogsToFile("tui"); err != nil {
+		return err
+	}
 	path := socket
 	if path == "" {
 		path = os.Getenv(config.ProjectSocketEnv)
@@ -116,6 +126,25 @@ func waitForControl(ctx context.Context, client controlClient) error {
 		case <-ticker.C:
 		}
 	}
+}
+
+// redirectLogsToFile points the process-wide slog default at
+// ${INFERENCERIG_HOME}/run/<name>.log instead of stderr, mirroring how a
+// detached daemon's output is captured (platform/audit.AttachLogs).
+func redirectLogsToFile(name string) error {
+	path, err := audit.GetLogPath(name)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	slog.SetDefault(logs.New(slog.LevelInfo, file))
+	return nil
 }
 
 type controlClient interface {

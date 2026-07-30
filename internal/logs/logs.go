@@ -4,11 +4,11 @@
 package logs
 
 import (
+	"io"
 	"log/slog"
-	"os"
 )
 
-// New returns a text slog.Logger at the given level, writing to stderr.
-func New(level slog.Level) *slog.Logger {
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+// New returns a text slog.Logger at the given level, writing to w.
+func New(level slog.Level, w io.Writer) *slog.Logger {
+	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: level}))
 }
