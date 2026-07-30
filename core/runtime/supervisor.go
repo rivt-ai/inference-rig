@@ -108,33 +108,6 @@ func (s *Supervisor) Stop(ctx context.Context) (CommandResult, error) {
 	return s.stop(ctx)
 }
 
-// Recover adopts an already-running process recorded in the PID file, provided
-// its executable matches the spec. A stale or mismatched PID is rejected (and
-// the PID file cleared). It reports whether a process was adopted.
-func (s *Supervisor) Recover(ctx context.Context) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	command, err := s.spec.command()
-	if err != nil {
-		return false, err
-	}
-	file, err := s.pidFile()
-	if err != nil {
-		return false, err
-	}
-	pid, ok, err := file.Running()
-	if err != nil || !ok {
-		return false, err
-	}
-	if !pidfile.ExecutableMatches(pid, command.Executable) {
-		_ = file.Remove(pid)
-		return false, nil
-	}
-	s.adopt(pid)
-	s.ready = s.probeReady(ctx) == nil
-	return true, nil
-}
-
 func (s *Supervisor) start(ctx context.Context) (CommandResult, error) {
 	start := s.now()
 	if s.spec.BuildErr != nil {
@@ -319,12 +292,6 @@ func (s *Supervisor) started(cmd *exec.Cmd) {
 	s.cmd, s.done, s.err, s.ready = cmd, make(chan error, 1), nil, false
 	s.pid = cmd.Process.Pid
 	s.pgid, _ = syscall.Getpgid(s.pid)
-}
-
-func (s *Supervisor) adopt(pid int) {
-	s.cmd, s.done, s.err, s.ready = nil, nil, nil, false
-	s.pid = pid
-	s.pgid, _ = syscall.Getpgid(pid)
 }
 
 func (s *Supervisor) isRunning() bool {

@@ -104,32 +104,6 @@ func TestParseStripsInlineCommentsAndRejectsBad(t *testing.T) {
 	}
 }
 
-func TestGenerateAtomicAndInvalidNeverReplaces(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "models.ini")
-	b := New(Options{GeneratedININPath: path})
-
-	res, err := b.Generate([]profiles.Profile{demoProfile("good", "/good.gguf")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	valid, err := os.ReadFile(path)
-	if err != nil || res.Path != path {
-		t.Fatalf("write result = %#v, err = %v", res, err)
-	}
-
-	// A profile whose engine_args inject a newline must fail render and leave the
-	// last valid file byte-identical (no partial/atomic-replace corruption).
-	bad := demoProfile("bad", "/bad.gguf")
-	bad.EngineArgs = map[string]any{"ctx-size": "4096\n[evil]\nmodel = /evil.gguf"}
-	if _, err := b.Generate([]profiles.Profile{bad}); err == nil {
-		t.Fatal("Generate accepted an injection profile")
-	}
-	after, err := os.ReadFile(path)
-	if err != nil || string(after) != string(valid) {
-		t.Fatal("invalid profile set replaced the last valid models.ini")
-	}
-}
-
 func TestMaterializeReturnsGeneratedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "models.ini")
 	b := New(Options{GeneratedININPath: path})

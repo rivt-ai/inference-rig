@@ -267,11 +267,6 @@ func watchEvents(ctx context.Context, client controlv1connect.ControlServiceClie
 	return drainStream(stream, print)
 }
 
-// ResolveSocket resolves the control socket from an explicit flag, then the
-// environment, then "" so the dialer applies its own default. Exported so other
-// command packages share this convention instead of restating it.
-func ResolveSocket(flag string) string { return resolveSocket(flag) }
-
 func resolveSocket(flag string) string {
 	if flag != "" {
 		return flag

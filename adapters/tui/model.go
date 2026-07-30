@@ -120,7 +120,7 @@ func newModel(ctx context.Context, client controlv1connect.ControlServiceClient,
 func (m *model) Init() tea.Cmd {
 	commands := []tea.Cmd{m.app.refresh(), tick()}
 	if m.app.manage {
-		commands = append(commands, autostartServices(m.app.ctx, m.app.client))
+		commands = append(commands, autostartServices())
 	}
 	return tea.Batch(commands...)
 }

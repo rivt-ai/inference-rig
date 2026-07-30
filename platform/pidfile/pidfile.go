@@ -2,13 +2,10 @@ package pidfile
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
-
-	"github.com/shirou/gopsutil/v4/process"
 )
 
 type File struct{ path string }
@@ -65,17 +62,3 @@ func Alive(pid int) bool {
 	return pid > 0 && syscall.Kill(pid, 0) == nil
 }
 
-func ExecutableMatches(pid int, expected string) bool {
-	actual, err := executable(pid)
-	resolved, _ := exec.LookPath(expected)
-	evaluated, _ := filepath.EvalSymlinks(resolved)
-	return err == nil && (actual == expected || actual == resolved || actual == evaluated || filepath.Base(actual) == filepath.Base(expected))
-}
-
-func executable(pid int) (string, error) {
-	proc, err := process.NewProcess(int32(pid))
-	if err != nil {
-		return "", err
-	}
-	return proc.Exe()
-}

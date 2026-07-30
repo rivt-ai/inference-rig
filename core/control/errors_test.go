@@ -38,36 +38,6 @@ func TestKind(t *testing.T) {
 	}
 }
 
-func TestMessage(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		err  error
-		want string
-	}{
-		{"nil", nil, ""},
-		{"plain error", errors.New("plain failure"), "plain failure"},
-		{"typed error", CoreError(ErrorRuntime, "runtime failure", nil), "runtime failure"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := Message(tc.err); got != tc.want {
-				t.Fatalf("Message = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestMessageOr(t *testing.T) {
-	if got := MessageOr("fallback", nil); got != "fallback" {
-		t.Fatalf("MessageOr(nil) = %q", got)
-	}
-	if got := MessageOr("fallback", errors.New("")); got != "fallback" {
-		t.Fatalf("MessageOr(empty) = %q", got)
-	}
-	if got := MessageOr("fallback", errors.New("real")); got != "real" {
-		t.Fatalf("MessageOr(real) = %q", got)
-	}
-}
-
 func TestMapSentinel(t *testing.T) {
 	table := []SentinelKind{
 		{Target: os.ErrNotExist, Kind: ErrorNotFound},

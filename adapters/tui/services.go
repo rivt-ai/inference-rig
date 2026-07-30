@@ -258,7 +258,7 @@ func processAction(name string, action int, args []string) error {
 	}
 }
 
-func autostartServices(ctx context.Context, client controlv1connect.ControlServiceClient) tea.Cmd {
+func autostartServices() tea.Cmd {
 	return func() tea.Msg {
 		cfg, err := config.Load()
 		if os.IsNotExist(err) {
@@ -282,8 +282,6 @@ func autostartServices(ctx context.Context, client controlv1connect.ControlServi
 		if len(started) > 0 {
 			notice = "started " + strings.Join(started, ", ")
 		}
-		_ = client
-		_ = ctx
 		return actionMsg{notice: notice}
 	}
 }

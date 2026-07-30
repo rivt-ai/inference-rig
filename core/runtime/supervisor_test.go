@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -118,44 +117,6 @@ func fakeSpec(t *testing.T, mode, readinessPath string) LaunchSpec {
 
 // spawnFakeChild launches a fake child directly (not through the supervisor) and
 // returns its PID, for exercising Recover. The child is killed at test cleanup.
-func spawnFakeChild(t *testing.T, spec LaunchSpec) int {
-	t.Helper()
-	cmd := newFakeCmd(spec)
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("spawn fake child: %v", err)
-	}
-	pid := cmd.Process.Pid
-	t.Cleanup(func() {
-		_ = syscall.Kill(pid, syscall.SIGKILL)
-		_, _ = cmd.Process.Wait()
-	})
-	return pid
-}
-
-func newFakeCmd(spec LaunchSpec) *exec.Cmd {
-	cmd := exec.Command(spec.Executable)
-	cmd.Env = append(os.Environ(), envList(spec.Env)...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	return cmd
-}
-
-func waitReadyAddr(t *testing.T, host string, port int, timeout time.Duration) {
-	t.Helper()
-	addr := net.JoinHostPort(host, strconv.Itoa(port))
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 50*time.Millisecond)
-		if err == nil {
-			_ = conn.Close()
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("address %s never became reachable", addr)
-}
-
-// --- Full lifecycle -------------------------------------------------------
-
 func TestSupervisorStartStopLifecycle(t *testing.T) {
 	spec := fakeSpec(t, "server", "")
 	sup := NewSupervisor(spec)
@@ -284,113 +245,6 @@ func TestSupervisorStopTimeoutEscalatesToKill(t *testing.T) {
 }
 
 // --- Recover --------------------------------------------------------------
-
-func TestSupervisorRecoverAdoptsLiveProcess(t *testing.T) {
-	spec := fakeSpec(t, "server", "")
-	pid := spawnFakeChild(t, spec)
-	waitReadyAddr(t, spec.Host, spec.Port, 3*time.Second)
-
-	file := pidfile.New(filepath.Join(spec.PIDDir, spec.Name+".pid"))
-	if err := file.Write(pid); err != nil {
-		t.Fatalf("write PID file: %v", err)
-	}
-
-	sup := NewSupervisor(spec)
-	adopted, err := sup.Recover(context.Background())
-	if err != nil {
-		t.Fatalf("Recover: %v", err)
-	}
-	if !adopted {
-		t.Fatal("Recover did not adopt live process")
-	}
-	status, _ := sup.Status(context.Background())
-	if status.State != Running || status.Processes[0].PID != pid {
-		t.Fatalf("status after Recover = %#v", status)
-	}
-}
-
-func TestSupervisorRecoverStartingWhenNotReady(t *testing.T) {
-	// A live but not-yet-ready process (unbound port) is adopted in Starting.
-	spec := fakeSpec(t, "noready", "")
-	pid := spawnFakeChild(t, spec)
-
-	file := pidfile.New(filepath.Join(spec.PIDDir, spec.Name+".pid"))
-	if err := file.Write(pid); err != nil {
-		t.Fatalf("write PID file: %v", err)
-	}
-	sup := NewSupervisor(spec)
-	adopted, err := sup.Recover(context.Background())
-	if err != nil || !adopted {
-		t.Fatalf("Recover adopted=%v err=%v", adopted, err)
-	}
-	status, _ := sup.Status(context.Background())
-	if status.State != Starting {
-		t.Fatalf("state = %q, want starting", status.State)
-	}
-}
-
-func TestSupervisorRecoverRejectsStalePID(t *testing.T) {
-	spec := fakeSpec(t, "server", "")
-	file := pidfile.New(filepath.Join(spec.PIDDir, spec.Name+".pid"))
-	if err := file.Write(deadPID(t)); err != nil {
-		t.Fatalf("write PID file: %v", err)
-	}
-	sup := NewSupervisor(spec)
-	adopted, err := sup.Recover(context.Background())
-	if err != nil {
-		t.Fatalf("Recover: %v", err)
-	}
-	if adopted {
-		t.Fatal("Recover adopted a stale PID")
-	}
-}
-
-func TestSupervisorRecoverRejectsExecutableMismatch(t *testing.T) {
-	spec := fakeSpec(t, "server", "")
-	pid := spawnFakeChild(t, spec)
-	waitReadyAddr(t, spec.Host, spec.Port, 3*time.Second)
-
-	pidPath := filepath.Join(spec.PIDDir, spec.Name+".pid")
-	file := pidfile.New(pidPath)
-	if err := file.Write(pid); err != nil {
-		t.Fatalf("write PID file: %v", err)
-	}
-
-	// Same live PID, but the spec claims a different executable.
-	spec.Executable = "/nonexistent/some-other-binary"
-	sup := NewSupervisor(spec)
-	adopted, err := sup.Recover(context.Background())
-	if err != nil {
-		t.Fatalf("Recover: %v", err)
-	}
-	if adopted {
-		t.Fatal("Recover adopted an executable-mismatched PID")
-	}
-	if _, err := os.Stat(pidPath); !os.IsNotExist(err) {
-		t.Fatalf("mismatched PID file not removed: %v", err)
-	}
-}
-
-// deadPID returns a PID that is not currently alive.
-func deadPID(t *testing.T) int {
-	t.Helper()
-	cmd := exec.Command(os.Args[0])
-	cmd.Env = append(os.Environ(), "IR_FAKE_MODE=server", "IR_FAKE_ADDR=127.0.0.1:0")
-	// Give it an address it will fail to bind so it exits immediately, then
-	// reap it — its PID is now dead.
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("spawn: %v", err)
-	}
-	pid := cmd.Process.Pid
-	_ = syscall.Kill(pid, syscall.SIGKILL)
-	_, _ = cmd.Process.Wait()
-	if pidfile.Alive(pid) {
-		t.Fatalf("PID %d unexpectedly alive", pid)
-	}
-	return pid
-}
-
-// --- Ported neutral unit tests -------------------------------------------
 
 func TestSupervisorNoEngineDefaultsLeak(t *testing.T) {
 	sup := NewSupervisor(LaunchSpec{})

@@ -41,17 +41,3 @@ func TestRemoveDoesNotDeleteReplacement(t *testing.T) {
 		t.Fatalf("PID file = %q", data)
 	}
 }
-
-func TestExecutableMatchesSymlink(t *testing.T) {
-	actual, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	link := filepath.Join(t.TempDir(), "python")
-	if err := os.Symlink(actual, link); err != nil {
-		t.Fatal(err)
-	}
-	if !ExecutableMatches(os.Getpid(), link) {
-		t.Fatalf("process executable does not match symlink %q", link)
-	}
-}

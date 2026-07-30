@@ -49,33 +49,6 @@ func SyncDir(dir string) error {
 	return f.Sync()
 }
 
-// ErrNotRegular marks a path that exists but is not a regular file.
-var ErrNotRegular = errors.New("not a regular file")
-
-// ErrTooLarge marks a file exceeding a caller-supplied size limit.
-var ErrTooLarge = errors.New("file exceeds size limit")
-
-// StatRegular returns path's FileInfo, rejecting symlinks and anything that is
-// not a regular file. A limit above zero also rejects files larger than it.
-// This is the single guard for "is this path safe to read as a document"; it
-// exists so callers do not each hand-roll their own Lstat and mode checks.
-func StatRegular(path string, limit int64) (os.FileInfo, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return nil, err
-	}
-	if info.Mode()&fs.ModeSymlink != 0 {
-		return nil, fmt.Errorf("%w: %s", ErrSymlink, path)
-	}
-	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%w: %s", ErrNotRegular, path)
-	}
-	if limit > 0 && info.Size() > limit {
-		return nil, fmt.Errorf("%w: %s", ErrTooLarge, path)
-	}
-	return info, nil
-}
-
 func RejectSymlink(path string) error {
 	info, err := os.Lstat(path)
 	if err != nil {

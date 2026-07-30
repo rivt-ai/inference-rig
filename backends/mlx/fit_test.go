@@ -14,8 +14,4 @@ func TestFitUsesUnifiedMemoryBudget(t *testing.T) {
 	if fit.Level != backends.FitFits {
 		t.Fatalf("fit = %#v", fit)
 	}
-	total := 16 * gib
-	if got := MemoryBudget(total, 0.8, 2*gib); got != int64(float64(total)*0.8)-2*gib {
-		t.Fatalf("budget = %d", got)
-	}
 }

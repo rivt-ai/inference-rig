@@ -83,7 +83,7 @@ func TestCreateReadBackAndBackendValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if got.ProfileYAMLPath != filepath.Join(store.Root(), "alpha", "profile.yaml") {
+	if got.ProfileYAMLPath != filepath.Join(store.root, "alpha", "profile.yaml") {
 		t.Fatalf("unexpected profile path %q", got.ProfileYAMLPath)
 	}
 	if _, err := os.Stat(got.ProfileYAMLPath); err != nil {
@@ -165,11 +165,11 @@ func TestSymlinkRejected(t *testing.T) {
 	if _, err := store.Create(ctx, CreateRequest{Name: "sym", ProfileYAML: validYAML("sym")}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	path := filepath.Join(store.Root(), "sym", "profile.yaml")
+	path := filepath.Join(store.root, "sym", "profile.yaml")
 	if err := os.Remove(path); err != nil {
 		t.Fatalf("remove: %v", err)
 	}
-	target := filepath.Join(store.Root(), "elsewhere.yaml")
+	target := filepath.Join(store.root, "elsewhere.yaml")
 	if err := os.WriteFile(target, []byte(validYAML("sym")), 0o600); err != nil {
 		t.Fatalf("write target: %v", err)
 	}

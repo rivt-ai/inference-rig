@@ -2,14 +2,11 @@ package llamacpp
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
 
 	"inferencerig/backends"
 	"inferencerig/config"
 	"inferencerig/core/profiles"
-	"inferencerig/platform/filedoc"
 )
 
 // modelKey is the models.ini key naming the model file a section serves.
@@ -47,25 +44,6 @@ func (b *Backend) MaterializeProfiles(ps []profiles.Profile) (backends.Materiali
 		}},
 		Summary: fmt.Sprintf("rendered %d models.ini sections", len(ps)),
 	}, nil
-}
-
-// Generate renders every profile plus the backend-wide defaults into the
-// generated models.ini and replaces it atomically. Rendering fully precedes the
-// write, so an invalid profile set returns an error and never replaces the last
-// valid file. The router's models source is then refreshed by rereading it.
-func (b *Backend) Generate(ps []profiles.Profile) (filedoc.WriteResult, error) {
-	path, err := b.generatedININPath()
-	if err != nil {
-		return filedoc.WriteResult{}, err
-	}
-	content, err := b.render(ps)
-	if err != nil {
-		return filedoc.WriteResult{}, err
-	}
-	if mkErr := os.MkdirAll(filepath.Dir(path), 0o700); mkErr != nil {
-		return filedoc.WriteResult{}, mkErr
-	}
-	return filedoc.WriteFile(path, content, filedoc.WriteOptions{Perm: generatedFileMode})
 }
 
 // render turns the backend defaults and profiles into deterministic models.ini

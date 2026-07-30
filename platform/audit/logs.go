@@ -344,17 +344,8 @@ func TailArchive(id string, lines int) (string, error) {
 }
 
 func DeleteArchive(id string) error {
-	path, err := archivePath(id)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	return nil
+	_, err := RemoveArchive(id)
+	return err
 }
 
 // RemoveArchive deletes a single archive and reports whether it existed, so

@@ -47,7 +47,6 @@ func NewFileStore(root string, limitBytes int64, lookup BackendLookup) *FileStor
 }
 
 // Root returns the profiles root directory.
-func (s *FileStore) Root() string { return s.root }
 
 // List returns every profile under the root, sorted by name.
 func (s *FileStore) List(ctx context.Context) ([]ProfileSummary, error) {

@@ -16,6 +16,9 @@ import (
 	gopsprocess "github.com/shirou/gopsutil/v4/process"
 )
 
+// defaultShutdownTimeout bounds graceful shutdown of a serving process.
+const defaultShutdownTimeout = 5 * time.Second
+
 type DetachedStatus struct {
 	Running bool
 	PID     int

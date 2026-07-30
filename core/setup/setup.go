@@ -23,29 +23,13 @@ type Result struct {
 }
 
 func ResolvePaths() (Paths, error) {
-	home, err := config.Home()
-	if err != nil {
-		return Paths{}, err
-	}
-	configPath, err := config.ConfigPath()
-	if err != nil {
-		return Paths{}, err
-	}
-	profilesDir, err := config.ProfilesDir()
-	if err != nil {
-		return Paths{}, err
-	}
-	models, err := config.DefaultModelStorageDir()
-	if err != nil {
-		return Paths{}, err
-	}
-	cache, err := config.DefaultCatalogCacheDir()
+	p, err := config.ResolvePaths()
 	if err != nil {
 		return Paths{}, err
 	}
 	return Paths{
-		Home: home, Config: configPath, ProfilesDir: profilesDir,
-		DefaultModelStorage: models, DefaultCatalogCache: cache,
+		Home: p.Home, Config: p.Config, ProfilesDir: p.Profiles,
+		DefaultModelStorage: p.ModelStorage, DefaultCatalogCache: p.CatalogCache,
 	}, nil
 }
 

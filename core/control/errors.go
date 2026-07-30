@@ -58,16 +58,6 @@ func Kind(err error) ErrorKind {
 	return ErrorInternal
 }
 
-func Message(err error) string {
-	if err == nil {
-		return ""
-	}
-	if coreErr, ok := errors.AsType[*Error](err); ok {
-		return coreErr.Message
-	}
-	return err.Error()
-}
-
 // SentinelKind pairs a sentinel error with the ErrorKind it maps to.
 type SentinelKind struct {
 	Target error
@@ -87,11 +77,4 @@ func MapSentinel(err error, table []SentinelKind) error {
 		}
 	}
 	return err
-}
-
-func MessageOr(fallback string, err error) string {
-	if err == nil || err.Error() == "" {
-		return fallback
-	}
-	return err.Error()
 }
