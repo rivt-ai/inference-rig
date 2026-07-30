@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -13,6 +14,7 @@ import (
 	"inferencerig/adapters/public_http"
 	"inferencerig/config"
 	"inferencerig/core/rpc"
+	"inferencerig/platform/pidfile"
 	"inferencerig/webui"
 )
 
@@ -24,6 +26,11 @@ func webCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			removePIDFile, err := registerWebPID()
+			if err != nil {
+				return err
+			}
+			defer removePIDFile()
 			cfg := config.Default()
 			if loaded, err := config.Load(); err == nil {
 				cfg = loaded
@@ -69,4 +76,21 @@ func webCommand() *cobra.Command {
 			return err
 		},
 	}
+}
+
+// registerWebPID self-registers this process's PID like the control
+// daemon's own PID file (bootstrap.Service): written here regardless of how
+// this process was launched, so the TUI's "Stop" can find and stop a gateway
+// it did not itself start (a bare CLI invocation, a unit file, ...).
+func registerWebPID() (func(), error) {
+	home, err := config.Home()
+	if err != nil {
+		return nil, err
+	}
+	file := pidfile.New(filepath.Join(home, "run", config.StartupServiceWeb+".pid"))
+	pid := os.Getpid()
+	if err := file.Write(pid); err != nil {
+		return nil, err
+	}
+	return func() { _ = file.Remove(pid) }, nil
 }
