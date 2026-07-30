@@ -110,6 +110,16 @@ jobs:
       - name: Install web dependencies
         run: cd webui && pnpm install --frozen-lockfile
 
+      # The browser download is the slowest step in this job and only changes
+      # when Playwright's version does, which the lockfile pins. The install
+      # still runs on a hit: it is a no-op for a browser already present, but
+      # --with-deps must re-apply the apt packages, which are not in this path.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('webui/pnpm-lock.yaml') }}
+
       - name: Install Chromium
         run: cd webui && pnpm exec playwright install --with-deps chromium
 
