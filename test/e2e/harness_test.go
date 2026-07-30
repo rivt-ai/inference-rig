@@ -170,13 +170,13 @@ func (r *rig) configPath() string { return filepath.Join(r.home, "config.yaml") 
 // puts the provisioned engine first on PATH.
 func (r *rig) buildEnv(engineDir string) []string {
 	r.t.Helper()
-	env := []string{
-		"INFERENCERIG_HOME=" + r.home,
-		"INFERENCERIG_CONFIG=" + r.configPath(),
-		"INFERENCERIG_CONTROL_TOKEN=" + r.token,
-		"PATH=" + engineDir + string(os.PathListSeparator) + os.Getenv("PATH"),
-		"HOME=" + r.home,
-	}
+	env := append(os.Environ(),
+		"INFERENCERIG_HOME="+r.home,
+		"INFERENCERIG_CONFIG="+r.configPath(),
+		"INFERENCERIG_CONTROL_TOKEN="+r.token,
+		"PATH="+engineDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"HOME="+r.home,
+	)
 	if dir := coverDir(r.t); dir != "" {
 		env = append(env, "GOCOVERDIR="+dir)
 	}

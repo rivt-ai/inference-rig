@@ -82,6 +82,24 @@ jobs:
           )
           PY
 
+      # mlx_lm server's HTTP bind calls Python's socket.getfqdn(host), which
+      # reverse-resolves the bound address over DNS regardless of whether that
+      # address is "127.0.0.1" or "localhost". This runner's network has no
+      # working reverse-DNS path for loopback, so that call hangs (forward
+      # lookups, e.g. huggingface.co above, are unaffected). sitecustomize.py
+      # is auto-imported by every interpreter start in this venv, so patching
+      # getfqdn there neutralizes the hang without touching the pinned mlx-lm
+      # package itself.
+      - name: Disable reverse-DNS lookup in the MLX venv
+        shell: bash
+        run: |
+          set -euo pipefail
+          site_packages="$("$RUNNER_TEMP/mlx-venv/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+          cat > "$site_packages/sitecustomize.py" <<'PY'
+          import socket
+          socket.getfqdn = lambda name="": name or socket.gethostname()
+          PY
+
       # Recorded so a green run states what it actually proved, rather than
       # leaving the reader to infer it from the runner label.
       - name: Record environment
