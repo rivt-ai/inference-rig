@@ -31,6 +31,12 @@ webui:
 coverage:
 	GO_COVERAGE_MIN=$(GO_COVERAGE_MIN) ./scripts/go-coverage.sh
 
+# Provision the pinned llama.cpp build and GGUF model, then run the compiled
+# process E2E against them. Provisioning failure is fatal by design.
+e2e:
+	eval "$$(./scripts/provision-e2e-llamacpp.sh)" && \
+		go test -tags=e2e ./test/e2e -count=1 -timeout=15m
+
 e2e-live:
 	go test -tags=live ./test/live -count=1 -timeout=10m
 

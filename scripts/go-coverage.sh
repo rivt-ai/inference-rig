@@ -39,12 +39,28 @@ coverpkg=$(echo "$scored" | paste -sd, -)
 echo "go-coverage: measuring $(echo "$scored" | wc -l | tr -d ' ') packages"
 go test -covermode=atomic -coverpkg="$coverpkg" -coverprofile="$RAW" ./... >/dev/null
 
+inputs="$RAW"
+
+# System coverage from the process E2E. Its instrumented child binaries write
+# GOCOVERDIR data rather than a text profile, so it is converted and merged in
+# on the same terms as the package suite: a statement a compiled binary actually
+# executed is covered, whichever suite drove it. Absent when `make e2e` has not
+# run, which is why the floor is calibrated to the package suite alone.
+E2E_COVERDATA=${GO_COVERAGE_E2E_DIR:-$OUT_DIR/e2e}
+if [ -d "$E2E_COVERDATA" ] && [ -n "$(ls -A "$E2E_COVERDATA" 2>/dev/null)" ]; then
+	if go tool covdata textfmt -i="$E2E_COVERDATA" -o="$OUT_DIR/e2e.out" 2>/dev/null; then
+		echo "go-coverage: including process E2E coverage from $E2E_COVERDATA"
+		inputs="$inputs $OUT_DIR/e2e.out"
+	fi
+fi
+
 # Merge: every test binary emits the full instrumented block set, so the same
 # block appears once per binary. A block is covered when any binary executed it.
 # Blocks belonging to an excluded package are dropped here too, because
 # -coverpkg only bounds instrumentation, not what the profile reports.
+# shellcheck disable=SC2086 # inputs is a deliberate list of profile paths
 awk -v exclude="$EXCLUDE_RE" '
-	NR == 1 && $0 ~ /^mode:/ { next }
+	/^mode:/ { next }
 	{
 		# <file>:<start>,<end> <numstmt> <count>
 		block = $1
@@ -63,7 +79,7 @@ awk -v exclude="$EXCLUDE_RE" '
 			print parts[1], parts[2], (key in covered) ? 1 : 0
 		}
 	}
-' "$RAW" >"$PROFILE"
+' $inputs >"$PROFILE"
 
 go tool cover -html="$PROFILE" -o "$HTML"
 
