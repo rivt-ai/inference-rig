@@ -4,7 +4,7 @@ package e2e
 
 import (
 	"os"
-	"strconv"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -19,20 +19,11 @@ import (
 // materialization, supervisor, PID handling, and a real llama.cpp process
 // still fit together.
 func TestCLIControlLifecycle(t *testing.T) {
-	rig := newRig(t)
+	rig := newLlamacppRig(t)
 	daemon := rig.startControl()
 
 	// 1. The daemon answers the three commands every other command depends on.
-	if health := rig.cliJSON("health"); health["ok"] != true {
-		t.Fatalf("health = %v", health)
-	}
-	if backends := rig.cli("backend", "list"); !strings.Contains(backends, "llamacpp") {
-		t.Fatalf("backend list did not report llamacpp: %s", backends)
-	}
-	info := rig.cliJSON("info")
-	if build, _ := info["build"].(map[string]any); build["version"] == nil || info["backends"] == nil {
-		t.Fatalf("info = %v", info)
-	}
+	assertDaemonIntrospection(t, rig)
 
 	// 2. Create a real profile from a YAML file, through the CLI.
 	port := freePort(t)
@@ -60,17 +51,11 @@ func TestCLIControlLifecycle(t *testing.T) {
 
 	// 5. The generated models.ini is what pointed the engine at the model, so
 	// its content is part of the contract this test covers.
-	generated, err := os.ReadFile(rig.home + "/generated/llamacpp/models.ini")
-	if err != nil {
-		t.Fatalf("read generated models.ini: %v", err)
-	}
-	if !strings.Contains(string(generated), "[e2e]") || !strings.Contains(string(generated), rig.modelPath) {
-		t.Fatalf("generated models.ini = %s", generated)
-	}
+	assertGeneratedINI(t, rig)
 
 	// 6. The assertion the old live tests were missing: readiness is not
 	// inference. Require actual generated tokens.
-	if reply := chatCompletion(t, "http://127.0.0.1:"+strconv.Itoa(port), "e2e"); strings.TrimSpace(reply) == "" {
+	if reply := chatCompletion(t, "http://127.0.0.1:"+itoa(port), "e2e"); strings.TrimSpace(reply) == "" {
 		t.Fatal("engine returned an empty completion")
 	}
 
@@ -88,6 +73,37 @@ func TestCLIControlLifecycle(t *testing.T) {
 
 	// 9. A clean shutdown must leave nothing behind for the next run to trip on.
 	daemon.stop(t)
+	assertCleanShutdown(t, rig)
+}
+
+func assertDaemonIntrospection(t *testing.T, rig *rig) {
+	t.Helper()
+	if health := rig.cliJSON("health"); health["ok"] != true {
+		t.Fatalf("health = %v", health)
+	}
+	if backends := rig.cli("backend", "list"); !strings.Contains(backends, "llamacpp") {
+		t.Fatalf("backend list did not report llamacpp: %s", backends)
+	}
+	info := rig.cliJSON("info")
+	if build, _ := info["build"].(map[string]any); build["version"] == nil || info["backends"] == nil {
+		t.Fatalf("info = %v", info)
+	}
+}
+
+func assertGeneratedINI(t *testing.T, rig *rig) {
+	t.Helper()
+	path := filepath.Join(rig.home, "generated", "llamacpp", "models.ini")
+	generated, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read generated models.ini: %v", err)
+	}
+	if !strings.Contains(string(generated), "[e2e]") || !strings.Contains(string(generated), rig.modelPath) {
+		t.Fatalf("generated models.ini = %s", generated)
+	}
+}
+
+func assertCleanShutdown(t *testing.T, rig *rig) {
+	t.Helper()
 	if fileExists(rig.socketPath()) {
 		t.Errorf("control socket %s survived shutdown", rig.socketPath())
 	}

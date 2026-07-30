@@ -1,0 +1,77 @@
+name: E2E
+
+# Every pull request runs the compiled binaries against a real, pinned
+# llama.cpp build and a real, pinned GGUF model, and must generate tokens. This
+# replaces the previous "live" job, which reported success while both of its
+# tests skipped.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E (llama.cpp) and coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      # Keyed on the pin manifest itself, so a changed pin can never be served
+      # a stale artifact.
+      - name: Cache pinned E2E fixtures
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/inferencerig-e2e
+          key: e2e-fixtures-${{ hashFiles('scripts/e2e-fixtures.env') }}
+
+      - name: Install web dependencies
+        run: cd webui && pnpm install --frozen-lockfile
+
+      # Provisioning is part of the test, not a best-effort step: a failure here
+      # fails the job rather than degrading into a skip.
+      - name: Real llama.cpp process E2E
+        run: make e2e
+
+      # The published figure combines the package suite with the coverage the
+      # compiled child processes produced above, so system paths count as
+      # covered only when a real process actually executed them.
+      - name: Scoped Go coverage
+        run: make coverage GO_COVERAGE_MIN=65
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage
+          path: artifacts/coverage/
+
+      - name: Upload E2E logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: /tmp/Test*/**/logs/
+          if-no-files-found: ignore

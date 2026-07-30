@@ -1,4 +1,4 @@
-//go:build e2e
+//go:build e2e || e2emlx
 
 // Package e2e drives compiled InferenceRig binaries against a real, pinned
 // llama.cpp build and a real, pinned GGUF model.
@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -37,11 +38,27 @@ const (
 	cliTimeout   = 60 * time.Second
 )
 
-// Environment contract, resolved by scripts/provision-e2e-llamacpp.sh.
+// Environment contract, resolved by scripts/provision-e2e-llamacpp.sh for the
+// llama.cpp suite and by the MLX workflow for the Apple Silicon suite.
 const (
 	engineBinEnv = "INFERENCERIG_E2E_LLAMACPP_BIN"
 	modelEnv     = "INFERENCERIG_E2E_MODEL"
+	mlxPythonEnv = "INFERENCERIG_LIVE_MLX_PYTHON"
+	mlxModelEnv  = "INFERENCERIG_LIVE_MLX_MODEL"
 )
+
+// requireEnv resolves a provisioned fixture path. A missing fixture fails the
+// run; it is never a skip, because a skipped engine test and a passing engine
+// test are indistinguishable in a green check, and that ambiguity is exactly
+// what this suite exists to remove.
+func requireEnv(t *testing.T, key string) string {
+	t.Helper()
+	value := os.Getenv(key)
+	if value == "" {
+		t.Fatalf("%s is unset; the job must provision this fixture before running the suite", key)
+	}
+	return value
+}
 
 // binary is the coverage-instrumented inferencerig binary, built once for the
 // whole package.
@@ -57,14 +74,6 @@ func TestMain(m *testing.M) {
 }
 
 func run(m *testing.M) (int, error) {
-	// A missing fixture is a setup failure, never a skip: a skipped engine test
-	// and a passing engine test look identical in a green check, which is
-	// exactly the signal this suite exists to remove.
-	for _, key := range []string{engineBinEnv, modelEnv} {
-		if os.Getenv(key) == "" {
-			return 0, fmt.Errorf("%s is unset; run scripts/provision-e2e-llamacpp.sh (make e2e does this for you)", key)
-		}
-	}
 	dir, err := os.MkdirTemp("", "inferencerig-e2e-bin")
 	if err != nil {
 		return 0, err
@@ -116,27 +125,27 @@ type rig struct {
 	env         []string
 }
 
-func newRig(t *testing.T) *rig {
+// newRig builds an isolated installation whose PATH resolves the engine binary
+// from engineDir, so the daemon finds the engine exactly the way it finds a
+// user's installed one rather than through a test-only hook.
+func newRig(t *testing.T, engineDir string) *rig {
 	t.Helper()
-	home := t.TempDir()
 	r := &rig{
 		t:           t,
-		home:        home,
+		home:        t.TempDir(),
 		gatewayPort: freePort(t),
 		token:       "e2e-test-token",
 	}
-	r.modelPath = r.installModel()
 	r.writeConfig()
-	r.env = r.buildEnv()
+	r.env = r.buildEnv(engineDir)
 	return r
 }
 
 // installModel gives every rig its own model file under the rig's model storage
 // dir, so the engine resolves it through the same directory the daemon
 // configures rather than through a path only the test knows.
-func (r *rig) installModel() string {
+func (r *rig) installModel(source string) string {
 	r.t.Helper()
-	source := os.Getenv(modelEnv)
 	dir := filepath.Join(r.home, "models")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		r.t.Fatal(err)
@@ -145,11 +154,13 @@ func (r *rig) installModel() string {
 	// A hard link keeps a ~100 MB fixture free per rig; it falls back to a copy
 	// when the cache and the temp dir are on different filesystems.
 	if err := os.Link(source, dest); err == nil {
+		r.modelPath = dest
 		return dest
 	}
 	if err := copyFile(source, dest); err != nil {
 		r.t.Fatal(err)
 	}
+	r.modelPath = dest
 	return dest
 }
 
@@ -181,12 +192,10 @@ func (r *rig) writeConfig() {
 
 func (r *rig) configPath() string { return filepath.Join(r.home, "config.yaml") }
 
-// buildEnv puts the provisioned llama-server first on PATH, so the daemon
-// resolves the engine exactly the way it resolves a user's installed one —
-// through the default executable name — instead of through a test-only hook.
-func (r *rig) buildEnv() []string {
+// buildEnv layers the rig's private locations over the ambient environment and
+// puts the provisioned engine first on PATH.
+func (r *rig) buildEnv(engineDir string) []string {
 	r.t.Helper()
-	engineDir := filepath.Dir(os.Getenv(engineBinEnv))
 	env := []string{
 		"INFERENCERIG_HOME=" + r.home,
 		"INFERENCERIG_CONFIG=" + r.configPath(),
@@ -353,11 +362,17 @@ func (r *rig) cliJSON(args ...string) map[string]any {
 	return decoded
 }
 
+// profileYAML renders a canonical llama.cpp profile pointing at this rig's
+// model copy.
+func (r *rig) profileYAML(name string, port int) string {
+	return fmt.Sprintf("version: 1\nname: %s\nbackend: llamacpp\nmodel:\n  source: %s\nlisten:\n  host: 127.0.0.1\n  port: %d\nengine_args:\n  ctx-size: 512\n",
+		name, r.modelPath, port)
+}
+
 // writeProfile writes a canonical profile YAML file and returns its path.
 func (r *rig) writeProfile(name string, port int) string {
 	r.t.Helper()
-	yaml := fmt.Sprintf("version: 1\nname: %s\nbackend: llamacpp\nmodel:\n  source: %s\nlisten:\n  host: 127.0.0.1\n  port: %d\nengine_args:\n  ctx-size: 512\n",
-		name, r.modelPath, port)
+	yaml := r.profileYAML(name, port)
 	path := filepath.Join(r.home, name+".yaml")
 	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
 		r.t.Fatal(err)
@@ -473,6 +488,8 @@ func httpGet(t *testing.T, url string, headers map[string]string) (int, string) 
 	body, _ := io.ReadAll(response.Body)
 	return response.StatusCode, string(body)
 }
+
+func itoa(n int) string { return strconv.Itoa(n) }
 
 func fileExists(path string) bool {
 	_, err := os.Stat(path)

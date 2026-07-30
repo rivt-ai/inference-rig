@@ -33,7 +33,11 @@ coverage:
 
 # Provision the pinned llama.cpp build and GGUF model, then run the compiled
 # process E2E against them. Provisioning failure is fatal by design.
-e2e:
+#
+# The web app is a prerequisite because the gateway test asserts the real built
+# shell is served; a conditional assertion there would be the same silent skip
+# this suite exists to remove.
+e2e: webui
 	eval "$$(./scripts/provision-e2e-llamacpp.sh)" && \
 		go test -tags=e2e ./test/e2e -count=1 -timeout=15m
 
