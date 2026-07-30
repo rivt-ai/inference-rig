@@ -1,4 +1,4 @@
-//go:build e2e || e2emlx || e2ebrowser
+//go:build e2e || e2emlx
 
 // Package e2e drives compiled InferenceRig binaries against a real, pinned
 // llama.cpp build and a real, pinned GGUF model.
@@ -117,9 +117,11 @@ func repoRoot() (string, error) {
 // so tests are parallel-safe and a developer's real ~/.inferencerig is never
 // touched.
 type rig struct {
-	t           *testing.T
-	home        string
-	modelPath   string
+	t    *testing.T
+	home string
+	// modelPath is set by the llama.cpp fixture; the MLX suite points its
+	// profile at a snapshot directory instead.
+	modelPath   string //nolint:unused // set by the llama.cpp fixture only
 	gatewayPort int
 	token       string
 	env         []string
@@ -139,46 +141,6 @@ func newRig(t *testing.T, engineDir string) *rig {
 	r.writeConfig()
 	r.env = r.buildEnv(engineDir)
 	return r
-}
-
-// installModel gives every rig its own model file under the rig's model storage
-// dir, so the engine resolves it through the same directory the daemon
-// configures rather than through a path only the test knows.
-func (r *rig) installModel(source string) string {
-	r.t.Helper()
-	dir := filepath.Join(r.home, "models")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		r.t.Fatal(err)
-	}
-	dest := filepath.Join(dir, filepath.Base(source))
-	// A hard link keeps a ~100 MB fixture free per rig; it falls back to a copy
-	// when the cache and the temp dir are on different filesystems.
-	if err := os.Link(source, dest); err == nil {
-		r.modelPath = dest
-		return dest
-	}
-	if err := copyFile(source, dest); err != nil {
-		r.t.Fatal(err)
-	}
-	r.modelPath = dest
-	return dest
-}
-
-func copyFile(source, dest string) error {
-	in, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = in.Close() }()
-	out, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		_ = out.Close()
-		return err
-	}
-	return out.Close()
 }
 
 func (r *rig) writeConfig() {
@@ -323,12 +285,6 @@ func (r *rig) startControl() *process {
 	return daemon
 }
 
-func (r *rig) socketPath() string { return filepath.Join(r.home, "run", "control.sock") }
-
-func (r *rig) pidPath(name string) string {
-	return filepath.Join(r.home, "run", name+".pid")
-}
-
 // cli runs a compiled CLI command and fails the test on a non-zero exit.
 func (r *rig) cli(args ...string) string {
 	r.t.Helper()
@@ -360,24 +316,6 @@ func (r *rig) cliJSON(args ...string) map[string]any {
 		r.t.Fatalf("inferencerig %s: decode %q: %v", strings.Join(args, " "), output, err)
 	}
 	return decoded
-}
-
-// profileYAML renders a canonical llama.cpp profile pointing at this rig's
-// model copy.
-func (r *rig) profileYAML(name string, port int) string {
-	return fmt.Sprintf("version: 1\nname: %s\nbackend: llamacpp\nmodel:\n  source: %s\nlisten:\n  host: 127.0.0.1\n  port: %d\nengine_args:\n  ctx-size: 512\n",
-		name, r.modelPath, port)
-}
-
-// writeProfile writes a canonical profile YAML file and returns its path.
-func (r *rig) writeProfile(name string, port int) string {
-	r.t.Helper()
-	yaml := r.profileYAML(name, port)
-	path := filepath.Join(r.home, name+".yaml")
-	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
-		r.t.Fatal(err)
-	}
-	return path
 }
 
 // waitFor polls condition until it holds, failing with the child's captured
@@ -468,27 +406,6 @@ func chatCompletion(t *testing.T, baseURL, model string) string {
 	return decoded.Choices[0].Message.Content
 }
 
-// httpGet is a small helper for the plain (non-Connect) gateway routes.
-func httpGet(t *testing.T, url string, headers map[string]string) (int, string) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for key, value := range headers {
-		request.Header.Set(key, value)
-	}
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatalf("GET %s: %v", url, err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	body, _ := io.ReadAll(response.Body)
-	return response.StatusCode, string(body)
-}
-
 // runtimeState pulls the state out of any response carrying a runtime status.
 func runtimeState(response map[string]any) string {
 	status, _ := response["status"].(map[string]any)
@@ -496,37 +413,4 @@ func runtimeState(response map[string]any) string {
 	return state
 }
 
-// startGateway launches `inferencerig web` and waits until it serves.
-func (r *rig) startGateway() *process {
-	r.t.Helper()
-	gateway := r.start("web", "web")
-	waitFor(r.t, "gateway health", func() bool {
-		// A soft probe: before the listener is up a dial simply fails, which is
-		// the normal state being polled for, not a test failure.
-		response, err := http.Get(r.gatewayURL() + "/health") //nolint:noctx // bounded by waitFor
-		if err != nil {
-			return false
-		}
-		_ = response.Body.Close()
-		return response.StatusCode == http.StatusOK
-	}, gateway)
-	return gateway
-}
-
-func (r *rig) gatewayURL() string {
-	return "http://127.0.0.1:" + itoa(r.gatewayPort)
-}
-
 func itoa(n int) string { return strconv.Itoa(n) }
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}

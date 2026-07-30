@@ -4,7 +4,7 @@ CUSTOM_LINT ?= ./custom-golangci-lint
 
 # Minimum scoped coverage over hand-written Go production code. Ratchet this
 # value rather than editing scripts/go-coverage.sh.
-GO_COVERAGE_MIN ?= 60
+GO_COVERAGE_MIN ?= 65
 
 custom-golangci-lint: .custom-gcl.yml
 	golangci-lint custom
@@ -45,7 +45,7 @@ e2e: webui
 # `make e2e` because it additionally needs Playwright's browser download.
 e2e-browser: webui
 	eval "$$(./scripts/provision-e2e-llamacpp.sh)" && \
-		go test -tags=e2ebrowser ./test/e2e -count=1 -timeout=20m
+		go test -tags="e2e e2ebrowser" ./test/e2e -run TestBrowserProfileLifecycle -count=1 -timeout=20m
 
 # Apple Silicon hardware validation. It lives behind its own target and build
 # tag so selecting it can never turn the llama.cpp suite into a skip, or the

@@ -1,4 +1,4 @@
-//go:build e2ebrowser
+//go:build e2e && e2ebrowser
 
 package e2e
 
@@ -11,6 +11,9 @@ import (
 
 // TestBrowserProfileLifecycle runs the Chromium workflow against this package's
 // process harness rather than against a mock.
+//
+// It layers the e2ebrowser tag on top of e2e rather than replacing it, so the
+// harness compiles as one consistent whole and -run selects this test alone.
 //
 // The Go side owns the environment — compiled binaries, a private home, the
 // control socket, the gateway, the pinned engine and model, a reserved port —

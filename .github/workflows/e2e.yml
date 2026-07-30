@@ -59,7 +59,7 @@ jobs:
       # compiled child processes produced above, so system paths count as
       # covered only when a real process actually executed them.
       - name: Scoped Go coverage
-        run: make coverage GO_COVERAGE_MIN=65
+        run: make coverage GO_COVERAGE_MIN=68
 
       - name: Upload coverage report
         if: always()

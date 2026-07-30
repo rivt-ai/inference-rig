@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	goruntime "runtime"
 	"strings"
@@ -37,9 +38,12 @@ func TestMLXInference(t *testing.T) {
 
 	port := freePort(t)
 	profile := filepath.Join(rig.home, "mlx.yaml")
-	writeFile(t, profile, fmt.Sprintf(
+	yaml := fmt.Sprintf(
 		"version: 1\nname: mlx\nbackend: mlx\nmodel:\n  source: %s\nlisten:\n  host: 127.0.0.1\n  port: %d\n",
-		model, port))
+		model, port)
+	if err := os.WriteFile(profile, []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	rig.cli("profile", "create", "mlx", profile)
 
 	if state := runtimeState(rig.cliJSON("runtime", "start", "mlx")); state != "running" {
