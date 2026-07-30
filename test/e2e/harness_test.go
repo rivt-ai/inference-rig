@@ -489,7 +489,21 @@ func httpGet(t *testing.T, url string, headers map[string]string) (int, string) 
 	return response.StatusCode, string(body)
 }
 
+// runtimeState pulls the state out of any response carrying a runtime status.
+func runtimeState(response map[string]any) string {
+	status, _ := response["status"].(map[string]any)
+	state, _ := status["state"].(string)
+	return state
+}
+
 func itoa(n int) string { return strconv.Itoa(n) }
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func fileExists(path string) bool {
 	_, err := os.Stat(path)

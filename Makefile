@@ -1,4 +1,4 @@
-.PHONY: build test lint lint-ci verify generate webui coverage e2e e2e-live e2e-live-mlx
+.PHONY: build test lint lint-ci verify generate webui coverage e2e e2e-live-mlx
 
 CUSTOM_LINT ?= ./custom-golangci-lint
 
@@ -41,8 +41,11 @@ e2e: webui
 	eval "$$(./scripts/provision-e2e-llamacpp.sh)" && \
 		go test -tags=e2e ./test/e2e -count=1 -timeout=15m
 
-e2e-live:
-	go test -tags=live ./test/live -count=1 -timeout=10m
+# Apple Silicon hardware validation. It lives behind its own target and build
+# tag so selecting it can never turn the llama.cpp suite into a skip, or the
+# reverse.
+e2e-live-mlx:
+	go test -tags=e2emlx ./test/e2e -count=1 -timeout=15m
 
 analyze:
 	go tool sizeanalyzer -html report.html

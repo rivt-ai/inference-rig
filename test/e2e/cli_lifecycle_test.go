@@ -112,13 +112,6 @@ func assertCleanShutdown(t *testing.T, rig *rig) {
 	}
 }
 
-// runtimeState pulls the state out of any response carrying a runtime status.
-func runtimeState(response map[string]any) string {
-	status, _ := response["status"].(map[string]any)
-	state, _ := status["state"].(string)
-	return state
-}
-
 // assertAuditSequence checks that the named actions were recorded in order,
 // tolerating other events interleaved between them.
 func assertAuditSequence(t *testing.T, rig *rig, actions ...string) {
