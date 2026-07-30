@@ -50,7 +50,7 @@ e2e-browser: webui
 # Apple Silicon hardware validation. It lives behind its own target and build
 # tag so selecting it can never turn the llama.cpp suite into a skip, or the
 # reverse.
-e2e-live-mlx:
+e2e-live-mlx: webui
 	go test -tags=e2emlx ./test/e2e -count=1 -timeout=15m
 
 analyze:

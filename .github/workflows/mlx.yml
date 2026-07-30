@@ -44,6 +44,19 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      - name: Install web dependencies
+        run: cd webui && pnpm install --frozen-lockfile
+
       # Cached by repository and revision. The Python environment is always
       # rebuilt: a cached interpreter is executable content, and restoring it
       # would mean running code the pin no longer describes.
