@@ -126,20 +126,29 @@ func (w *Wizard) collect(ctx context.Context, paths Paths, input io.Reader, outp
 	if err := w.ensureBackend(ctx, input, output, selected); err != nil {
 		return Answers{}, err
 	}
-	if (&config.Config{ListenAddr: answers.ListenAddr}).AllowsNonLoopback() {
-		// A remote-capable bind may now serve unauthenticated; the answer is
-		// honored and the exposure is warned about at load time instead.
-		if answers.DisableAuth {
-			if err := requireConfirm(ctx, input, output, "Remote-capable bind without authentication — anyone who can reach "+answers.ListenAddr+" gets full control. Continue?"); err != nil {
-				return Answers{}, err
-			}
-		} else if os.Getenv(answers.AuthTokenEnv) == "" {
-			if err := requireConfirm(ctx, input, output, "Remote-capable bind without a populated token environment — continue anyway?"); err != nil {
-				return Answers{}, err
-			}
+	if prompt := remoteBindWarning(answers); prompt != "" {
+		if err := requireConfirm(ctx, input, output, prompt); err != nil {
+			return Answers{}, err
 		}
 	}
 	return answers, nil
+}
+
+// remoteBindWarning returns the confirmation prompt for a remote-capable bind,
+// or "" when the bind is loopback-only or no confirmation is warranted. A
+// remote-capable bind may serve unauthenticated; the answer is honored and
+// the exposure is warned about at load time instead of rejected here.
+func remoteBindWarning(answers Answers) string {
+	if !(&config.Config{ListenAddr: answers.ListenAddr}).AllowsNonLoopback() {
+		return ""
+	}
+	if answers.DisableAuth {
+		return "Remote-capable bind without authentication — anyone who can reach " + answers.ListenAddr + " gets full control. Continue?"
+	}
+	if os.Getenv(answers.AuthTokenEnv) == "" {
+		return "Remote-capable bind without a populated token environment — continue anyway?"
+	}
+	return ""
 }
 
 func (w *Wizard) ensureBackend(ctx context.Context, input io.Reader, output io.Writer, backend *controlv1.BackendInfo) error {
