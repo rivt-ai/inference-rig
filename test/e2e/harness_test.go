@@ -1,4 +1,4 @@
-//go:build e2e || e2emlx
+//go:build e2e || e2emlx || e2ebrowser
 
 // Package e2e drives compiled InferenceRig binaries against a real, pinned
 // llama.cpp build and a real, pinned GGUF model.
@@ -494,6 +494,27 @@ func runtimeState(response map[string]any) string {
 	status, _ := response["status"].(map[string]any)
 	state, _ := status["state"].(string)
 	return state
+}
+
+// startGateway launches `inferencerig web` and waits until it serves.
+func (r *rig) startGateway() *process {
+	r.t.Helper()
+	gateway := r.start("web", "web")
+	waitFor(r.t, "gateway health", func() bool {
+		// A soft probe: before the listener is up a dial simply fails, which is
+		// the normal state being polled for, not a test failure.
+		response, err := http.Get(r.gatewayURL() + "/health") //nolint:noctx // bounded by waitFor
+		if err != nil {
+			return false
+		}
+		_ = response.Body.Close()
+		return response.StatusCode == http.StatusOK
+	}, gateway)
+	return gateway
+}
+
+func (r *rig) gatewayURL() string {
+	return "http://127.0.0.1:" + itoa(r.gatewayPort)
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }

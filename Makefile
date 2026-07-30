@@ -1,4 +1,4 @@
-.PHONY: build test lint lint-ci verify generate webui coverage e2e e2e-live-mlx
+.PHONY: build test lint lint-ci verify generate webui coverage e2e e2e-browser e2e-live-mlx
 
 CUSTOM_LINT ?= ./custom-golangci-lint
 
@@ -40,6 +40,12 @@ coverage:
 e2e: webui
 	eval "$$(./scripts/provision-e2e-llamacpp.sh)" && \
 		go test -tags=e2e ./test/e2e -count=1 -timeout=15m
+
+# One Chromium workflow against the same real harness. Kept separate from
+# `make e2e` because it additionally needs Playwright's browser download.
+e2e-browser: webui
+	eval "$$(./scripts/provision-e2e-llamacpp.sh)" && \
+		go test -tags=e2ebrowser ./test/e2e -count=1 -timeout=20m
 
 # Apple Silicon hardware validation. It lives behind its own target and build
 # tag so selecting it can never turn the llama.cpp suite into a skip, or the

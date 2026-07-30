@@ -75,3 +75,53 @@ jobs:
           name: e2e-logs
           path: /tmp/Test*/**/logs/
           if-no-files-found: ignore
+
+  browser:
+    # A separate check so a browser failure names the browser layer rather than
+    # the process layer. Chromium only: cross-browser coverage is not justified
+    # until a browser-specific defect appears.
+    name: E2E (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      - name: Cache pinned E2E fixtures
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/inferencerig-e2e
+          key: e2e-fixtures-${{ hashFiles('scripts/e2e-fixtures.env') }}
+
+      - name: Install web dependencies
+        run: cd webui && pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: cd webui && pnpm exec playwright install --with-deps chromium
+
+      - name: Browser workflow
+        run: make e2e-browser
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            webui/playwright-report/
+            webui/test-results/
+          if-no-files-found: ignore

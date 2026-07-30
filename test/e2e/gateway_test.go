@@ -95,27 +95,6 @@ func TestPublicGateway(t *testing.T) {
 	waitFor(t, "gateway PID cleanup", func() bool { return !fileExists(rig.pidPath("web")) })
 }
 
-// startGateway launches `inferencerig web` and waits until it serves.
-func (r *rig) startGateway() *process {
-	r.t.Helper()
-	gateway := r.start("web", "web")
-	waitFor(r.t, "gateway health", func() bool {
-		// A soft probe: before the listener is up a dial simply fails, which is
-		// the normal state being polled for, not a test failure.
-		response, err := http.Get(r.gatewayURL() + "/health") //nolint:noctx // bounded by waitFor
-		if err != nil {
-			return false
-		}
-		_ = response.Body.Close()
-		return response.StatusCode == http.StatusOK
-	}, gateway)
-	return gateway
-}
-
-func (r *rig) gatewayURL() string {
-	return "http://127.0.0.1:" + itoa(r.gatewayPort)
-}
-
 // bearer attaches the gateway token the way the web app does.
 func bearer(token string) connect.Interceptor {
 	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
