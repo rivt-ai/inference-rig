@@ -17,8 +17,12 @@ import (
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
 
-// dialTimeout bounds every control-socket dial the CLI makes.
-const dialTimeout = 30 * time.Second
+// dialTimeout bounds every control-socket dial the CLI makes. It must exceed
+// the runtime supervisor's readiness timeout (core/runtime.defaultReadinessTimeout)
+// with margin: a runtime-start call blocks server-side for up to that long, and
+// a client timeout equal to or shorter than it races the server and reports a
+// generic deadline-exceeded instead of the real readiness error.
+const dialTimeout = 60 * time.Second
 
 type dialer func(string, time.Duration) (controlv1connect.ControlServiceClient, error)
 type call func(context.Context, controlv1connect.ControlServiceClient, []string) (proto.Message, error)

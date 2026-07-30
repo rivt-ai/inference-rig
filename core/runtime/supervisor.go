@@ -24,7 +24,7 @@ import (
 // never defaulted and stay whatever the caller supplied.
 const (
 	defaultStopTimeout       = 10 * time.Second
-	defaultReadinessTimeout  = 30 * time.Second
+	defaultReadinessTimeout  = 45 * time.Second
 	defaultReadinessInterval = 250 * time.Millisecond
 	// defaultLoopbackHost is used when probing readiness of a wildcard bind.
 	defaultLoopbackHost = "127.0.0.1"
