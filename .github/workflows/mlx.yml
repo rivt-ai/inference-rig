@@ -3,12 +3,22 @@ name: MLX validation
 # Apple Silicon hardware validation. Ordinary PRs are already gated on real
 # llama.cpp inference by the E2E workflow, so this job does not block them; it
 # proves the MLX backend can load a real model and generate on real hardware.
+# It also runs on PRs that touch the MLX backend or the control/RPC layers it
+# depends on, so a regression there is caught before merge rather than at the
+# next nightly run.
 on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
   push:
     tags: ["v*"]
+  pull_request:
+    paths:
+      - "backends/mlx/**"
+      - "core/control/**"
+      - "core/rpc/**"
+      - "test/e2e/mlx_live_test.go"
+      - ".github/workflows/mlx.yml"
 
 permissions:
   contents: read
