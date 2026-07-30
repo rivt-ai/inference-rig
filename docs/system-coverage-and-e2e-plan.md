@@ -31,9 +31,9 @@ coverage blocks and excluding generated RPC code, `backends/backendtest`, and
 
 ## Goals
 
-1. Make every PR run a hermetic test through compiled InferenceRig processes,
-   the control socket, real CLI commands, the public gateway, and a disposable
-   fixture engine.
+1. Make every PR run through compiled InferenceRig processes, the control
+   socket, real CLI commands, the public gateway, a pinned llama.cpp binary,
+   and a tiny real GGUF model.
 2. Cover one complete browser workflow against those real processes.
 3. Turn hardware validation into an honest signal: a selected live job either
    provisions its prerequisites and runs an inference or fails.
@@ -56,9 +56,9 @@ coverage blocks and excluding generated RPC code, `backends/backendtest`, and
 | Layer | Runs | Purpose |
 | --- | --- | --- |
 | Package tests | Every PR | Exhaustive branches, parsers, state machines, and error mapping |
-| Hermetic process E2E | Every PR | Prove compiled binaries and user-facing transports work together |
+| Real llama.cpp process E2E | Every PR | Prove compiled binaries, a supported engine, a model, and user-facing transports work together |
 | Browser E2E | Every PR | Prove one critical UI workflow against the real gateway |
-| Live engine validation | Scheduled, manual, and release | Prove supported engines can load a real model and infer |
+| Apple Silicon MLX validation | Scheduled, manual, and release | Prove the MLX backend can load a real model and infer |
 
 ## Phase 1: honest Go coverage
 
@@ -94,30 +94,34 @@ report even when the threshold fails.
 - The initial gate passes at the measured baseline and fails below 60%.
 - Raise the floor to **65%** after Phases 2 and 3 land.
 
-## Phase 2: hermetic compiled-process E2E
+## Phase 2: real-engine compiled-process E2E
 
-### Fixture engine
+### Pinned llama.cpp and model
 
-Add a tiny Go program under `test/fixtures/engine`.
+Add `scripts/provision-e2e-llamacpp.sh`. It downloads and verifies:
 
-It should:
+- official llama.cpp CPU build `b9637`,
+  `llama-b9637-bin-ubuntu-x64.tar.gz`, SHA-256
+  `a50ee14f021a9d8e92e30f622f7e3be1318ee1125bb9a9ba8d2025388df48743`;
+- `mradermacher/SmolLM2-135M-Instruct-GGUF` at revision
+  `34d6b157ff9fb55285116fa8524deb0d90a4982e`, file
+  `SmolLM2-135M-Instruct.Q4_K_M.gguf` (about 101 MB), SHA-256
+  `ee1bbe2dd452b84feaf94a02150c04f10ba13f6840c389bab0f70f99c21ed02a`.
 
-- accept and ignore unknown engine arguments;
-- read `--host` and `--port`;
-- serve `/health` and `/v1/models`;
-- expose a minimal OpenAI-compatible inference endpoint returning a fixed,
-  recognizable response;
-- shut down on SIGINT/SIGTERM;
-- write no state outside its assigned temporary directory.
+Keep these pins in one versioned manifest consumed by the script and CI cache
+key. Download to a user or CI cache, verify before extraction/use, and expose
+the resolved `llama-server` and model paths to the test. Never fall back to
+`latest`, and never silently skip when provisioning fails.
 
-The fixture is a process-boundary test double, not a third backend. Production
-packages must not import or register it.
+This is deliberately a real supported engine and model. Do not add an
+InferenceRig-specific fake server.
 
 ### Harness
 
 Add `test/e2e/harness_test.go` to:
 
-- build coverage-instrumented InferenceRig and fixture-engine binaries;
+- build coverage-instrumented InferenceRig binaries;
+- require the provisioned llama.cpp executable and GGUF paths;
 - allocate ports by binding listeners rather than guessing;
 - give every test its own `INFERENCERIG_HOME`, config, socket, PATH, logs, and
   model file;
@@ -138,24 +142,27 @@ Add `TestCLIControlLifecycle`:
 2. Verify `health`, `backend list`, and `info` through the compiled CLI.
 3. Create a llama.cpp profile from a YAML file through `profile create`.
 4. Resolve the model and verify a single-file plan.
-5. Start the profile through `runtime start`; the fixture engine must become
-   ready.
+5. Start the profile through `runtime start`; the real `llama-server` process
+   must load the GGUF model and become ready.
 6. Verify status and generated `models.ini`.
-7. Restart, stop, and verify stopped status.
-8. Verify the audit event sequence and clean shutdown.
+7. Send a deterministic, short inference request and assert at least one
+   generated token.
+8. Restart, stop, and verify stopped status.
+9. Verify the audit event sequence and clean shutdown.
 
 Use the existing unit/integration suite for malformed profiles and backend
 matrix coverage. The process E2E needs one representative backend path.
 
 ### Acceptance
 
-- Runs on a stock GitHub Ubuntu runner with no network after dependencies are
-  downloaded.
+- Runs on a stock GitHub Ubuntu runner. After a warm cache, no external
+  downloads are required.
 - Exercises the compiled root command, CLI adapter, control socket, RPC service,
-  profile store, materialization, supervisor, PID handling, and fixture process.
-- Finishes in under 20 seconds on CI.
+  profile store, materialization, supervisor, PID handling, real llama.cpp
+  process, model loading, and inference.
+- Finishes in under 45 seconds on a warm CI runner.
 - A broken command registration, socket path, argument render, readiness probe,
-  or shutdown path makes the test fail.
+  inference request, or shutdown path makes the test fail.
 
 ## Phase 3: public gateway and browser
 
@@ -184,7 +191,7 @@ Connect client.
 Keep one browser scenario:
 
 1. Load the application and authenticate.
-2. Create a profile for the fixture engine.
+2. Create a profile for the provisioned llama.cpp engine and GGUF model.
 3. Start it and observe running status.
 4. Stop it and observe stopped status.
 5. Confirm a destructive profile action before deletion.
@@ -195,24 +202,23 @@ browser-specific defect appears.
 ### Acceptance
 
 - The browser test uses the real built Svelte app, public HTTP server, Connect
-  transport, control daemon, and fixture process.
+  transport, control daemon, llama.cpp process, and model.
 - No network request escapes localhost.
 - Failure includes Playwright trace and screenshot artifacts.
 - `verify:web` remains the fast component/unit gate; browser E2E is a separate
   target.
 
-## Phase 4: real engine validation
+## Phase 4: Apple Silicon backend validation
 
-Replace the single misleading live job with explicit jobs:
+Phase 2 already makes real llama.cpp CPU inference a required PR check. Replace
+the remaining misleading live job with an explicit MLX job.
 
 ### llama.cpp
 
-- Linux runner.
-- Provision a pinned, checksummed llama.cpp binary and a tiny pinned GGUF model,
-  or run on a maintained self-hosted runner containing them.
-- Run only the llama.cpp live test.
-- Start through the same control/RPC path used by the application.
-- Make a real inference request and assert a non-empty response.
+- `make e2e` provisions the pinned binary/model and runs real inference on
+  every PR.
+- Reuse that same test on nightly and release workflows; do not create a second
+  direct-backend test that bypasses control/RPC.
 
 ### MLX
 
@@ -265,18 +271,18 @@ group to this repository, run it as an unprivileged account, and do not expose
 it to code from fork pull requests. A paid `macos-15-xlarge` runner is not
 needed for the selected 278 MB model.
 
-Missing prerequisites must be a workflow setup failure, not `t.Skip`. Split
-the Make targets (`e2e-live-llamacpp`, `e2e-live-mlx`) so selecting one engine
-does not create a skip for the other.
+Missing prerequisites must be a workflow setup failure, not `t.Skip`. Keep MLX
+in its own `e2e-live-mlx` target so selecting it cannot create a skip for
+llama.cpp or vice versa.
 
-Run these jobs on:
+Run the MLX job on:
 
 - nightly schedule;
 - manual dispatch;
 - release tags.
 
-They may also run on labeled PRs when hardware capacity is available, but
-should not block ordinary PRs.
+It may also run on labeled PRs when hardware capacity is available, but should
+not block ordinary PRs.
 
 ### Acceptance
 
@@ -314,9 +320,8 @@ Add these stable entry points:
 ```text
 make test                 # existing fast Go suite
 make coverage             # scoped report and threshold
-make e2e                  # hermetic compiled-process tests
+make e2e                  # provision and test real llama.cpp inference
 pnpm test:e2e             # browser test against a supplied/running harness
-make e2e-live-llamacpp    # provisioned real engine
 make e2e-live-mlx         # provisioned real engine
 ```
 
@@ -324,7 +329,7 @@ PR CI order:
 
 1. existing Go and web verification;
 2. scoped coverage;
-3. hermetic process E2E;
+3. real llama.cpp process E2E;
 4. Chromium E2E.
 
 Keep each as a separate check so failures identify the broken layer.
@@ -332,10 +337,11 @@ Keep each as a separate check so failures identify the broken layer.
 ## Delivery sequence
 
 1. Coverage script, report artifact, and 60% non-regression floor.
-2. Fixture engine, process harness, and CLI/runtime lifecycle.
+2. Pinned llama.cpp/model provisioning, process harness, real inference, and
+   CLI/runtime lifecycle.
 3. Gateway/auth/MCP test and 65% coverage ratchet.
 4. One Chromium workflow.
-5. Split, provisioned live-engine workflows with inference assertions.
+5. Provisioned MLX workflow with an inference assertion.
 6. Targeted gap tests only where the resulting report still shows critical
    uncovered behavior.
 
@@ -347,7 +353,7 @@ Each step should be independently reviewable and leave `make test` and
 Coverage is considered good enough for this phase when:
 
 - every PR proves one real compiled application lifecycle and one real browser
-  lifecycle without external engines;
+  lifecycle using pinned llama.cpp and a pinned GGUF model;
 - generated code is excluded from the published 65%+ Go result;
 - critical control/runtime/storage packages stay above 70%;
 - scheduled/release live jobs cannot pass by skipping;
