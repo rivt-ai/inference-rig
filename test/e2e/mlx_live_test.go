@@ -38,8 +38,12 @@ func TestMLXInference(t *testing.T) {
 
 	port := freePort(t)
 	profile := filepath.Join(rig.home, "mlx.yaml")
+	// mlx_lm server's HTTP bind calls Python's socket.getfqdn(host), which
+	// reverse-resolves a literal IP over the network (gethostbyaddr) but fails
+	// fast on a non-IP hostname. "127.0.0.1" made that reverse lookup hang on
+	// the CI runner's network; "localhost" avoids it entirely.
 	yaml := fmt.Sprintf(
-		"version: 1\nname: mlx\nbackend: mlx\nmodel:\n  source: %s\nlisten:\n  host: 127.0.0.1\n  port: %d\n",
+		"version: 1\nname: mlx\nbackend: mlx\nmodel:\n  source: %s\nlisten:\n  host: localhost\n  port: %d\n",
 		model, port)
 	if err := os.WriteFile(profile, []byte(yaml), 0o600); err != nil {
 		t.Fatal(err)
@@ -49,7 +53,7 @@ func TestMLXInference(t *testing.T) {
 	if state := runtimeState(rig.cliJSON("runtime", "start", "mlx")); state != "running" {
 		t.Fatalf("mlx runtime did not start: %s", state)
 	}
-	if reply := chatCompletion(t, "http://127.0.0.1:"+itoa(port), model); strings.TrimSpace(reply) == "" {
+	if reply := chatCompletion(t, "http://localhost:"+itoa(port), model); strings.TrimSpace(reply) == "" {
 		t.Fatal("MLX returned an empty completion")
 	}
 	rig.cli("runtime", "stop", "mlx")
