@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -136,14 +137,26 @@ func ValidateStartupServices(services []string) error {
 	return nil
 }
 
-// ValidateSecurity rejects security settings that contradict the bind address.
-// Disabling auth is a local-only convenience, so pairing it with a bind that
-// reaches the network is a configuration error rather than a warning.
+// ValidateSecurity checks security settings against the bind address. Disabling
+// auth on a bind that reaches the network is permitted but never silent: it
+// warns rather than rejecting, so an operator can deliberately expose a
+// single-user install without editing the binary.
+//
+// ponytail: warn-only by request. Restore the hard error here if an exposed
+// unauthenticated gateway should be unreachable by configuration alone.
 func (c *Config) ValidateSecurity() error {
-	if c.Security.DisableAuth && c.AllowsNonLoopback() {
-		return fmt.Errorf("security.disable_auth requires a loopback listen_addr, got %q", c.ListenAddr)
-	}
+	c.WarnIfExposed()
 	return nil
+}
+
+// WarnIfExposed logs a warning when auth is disabled on a non-loopback bind.
+// Safe to call repeatedly; it is the single place that decides the posture is
+// unsafe, so every entry point that loads config inherits the warning.
+func (c *Config) WarnIfExposed() {
+	if c.Security.DisableAuth && c.AllowsNonLoopback() {
+		slog.Warn("serving without authentication on a non-loopback address",
+			"listen_addr", c.ListenAddr, "setting", "security.disable_auth")
+	}
 }
 
 // AllowsNonLoopback reports whether ListenAddr binds beyond the local host,

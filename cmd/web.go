@@ -34,9 +34,8 @@ func webCommand() *cobra.Command {
 			}
 			var token string
 			if cfg.Security.DisableAuth {
-				// Load rejects this alongside a non-loopback bind, so reaching
-				// here means the gateway is local-only and the operator asked
-				// for it. Say so once: an open gateway must never be silent.
+				// An open gateway must never be silent. A non-loopback bind is
+				// permitted here but also warns via config.WarnIfExposed.
 				command.Printf("security.disable_auth is set; serving %s without authentication\n\n", cfg.ListenAddr)
 			} else {
 				generated := false

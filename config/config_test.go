@@ -1,6 +1,11 @@
 package config
 
-import "testing"
+import (
+	"bytes"
+	"log/slog"
+	"strings"
+	"testing"
+)
 
 func TestParseDefaults(t *testing.T) {
 	cfg, err := Parse([]byte("listen_addr: \"127.0.0.1:9000\"\n"))
@@ -39,13 +44,43 @@ func TestParseRejectsNegativeRetention(t *testing.T) {
 	}
 }
 
-func TestParseRejectsDisableAuthOnRemoteBind(t *testing.T) {
-	if _, err := Parse([]byte("listen_addr: \"0.0.0.0:7000\"\nsecurity: {disable_auth: true}\n")); err == nil {
-		t.Fatal("expected error for disable_auth with a non-loopback bind")
+func TestParseAllowsDisableAuthOnRemoteBind(t *testing.T) {
+	// A non-loopback bind without auth is permitted and warned about rather
+	// than rejected, so the setting must survive parsing intact.
+	cfg, err := Parse([]byte("listen_addr: \"0.0.0.0:7000\"\nsecurity: {disable_auth: true}\n"))
+	if err != nil || !cfg.Security.DisableAuth {
+		t.Fatalf("remote disable_auth = %v, %v", cfg.Security.DisableAuth, err)
 	}
-	cfg, err := Parse([]byte("listen_addr: \"127.0.0.1:7000\"\nsecurity: {disable_auth: true}\n"))
+	cfg, err = Parse([]byte("listen_addr: \"127.0.0.1:7000\"\nsecurity: {disable_auth: true}\n"))
 	if err != nil || !cfg.Security.DisableAuth {
 		t.Fatalf("loopback disable_auth = %v, %v", cfg.Security.DisableAuth, err)
+	}
+}
+
+// TestWarnIfExposedOnlyWhenExposed is the runnable check on the warn condition:
+// it must fire for disabled auth on a remote bind and stay silent otherwise.
+func TestWarnIfExposedOnlyWhenExposed(t *testing.T) {
+	cases := []struct {
+		addr    string
+		disable bool
+		want    bool
+	}{
+		{"0.0.0.0:7000", true, true},
+		{"192.168.1.5:7000", true, true},
+		{"0.0.0.0:7000", false, false},
+		{"127.0.0.1:7000", true, false},
+		{"localhost:7000", true, false},
+	}
+	for _, tc := range cases {
+		var buf bytes.Buffer
+		cfg := &Config{ListenAddr: tc.addr, Security: SecurityConfig{DisableAuth: tc.disable}}
+		prev := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+		cfg.WarnIfExposed()
+		slog.SetDefault(prev)
+		if got := strings.Contains(buf.String(), "without authentication"); got != tc.want {
+			t.Errorf("WarnIfExposed(%q, disable=%v) warned = %v, want %v", tc.addr, tc.disable, got, tc.want)
+		}
 	}
 }
 
