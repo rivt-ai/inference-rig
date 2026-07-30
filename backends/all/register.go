@@ -2,6 +2,8 @@
 package all
 
 import (
+	"runtime"
+
 	"inferencerig/backends"
 	"inferencerig/backends/llamacpp"
 	"inferencerig/backends/mlx"
@@ -12,10 +14,16 @@ type Options struct {
 	ModelStorageDir string
 }
 
-// Register adds every built-in backend to registry.
+// Register adds every built-in backend that can run on this host. MLX is
+// registered only on Apple silicon: elsewhere its installer and its runtime
+// both fail by construction, so offering it only produces a backend the user
+// can select but never start.
 func Register(registry *backends.Registry, options Options) error {
 	if err := registry.Register(llamacpp.New(llamacpp.Options{ModelStorageDir: options.ModelStorageDir})); err != nil {
 		return err
+	}
+	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
+		return nil
 	}
 	return registry.Register(mlx.New(mlx.Options{ModelStorageDir: options.ModelStorageDir}))
 }

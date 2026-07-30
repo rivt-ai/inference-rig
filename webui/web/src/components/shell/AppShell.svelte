@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import Activity from '@lucide/svelte/icons/activity';
   import Box from '@lucide/svelte/icons/box';
+  import Cpu from '@lucide/svelte/icons/cpu';
   import Gauge from '@lucide/svelte/icons/gauge';
   import Moon from '@lucide/svelte/icons/moon';
   import ScrollText from '@lucide/svelte/icons/scroll-text';
@@ -91,6 +92,11 @@
     </Sidebar.Content>
     <Sidebar.Footer>
       <Sidebar.Menu>
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton tooltipContent={`Backend: ${app.selectedBackend || 'none'}`} class="pointer-events-none">
+            <Cpu /> <span class="truncate">{app.selectedBackend || 'no backend'}</span>
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
         <Sidebar.MenuItem>
           <Sidebar.MenuButton tooltipContent={`Runtime: ${app.runtimeStatus.status}`}>
             <Activity /> <span class={`size-2 rounded-full ${statusDot(app.runtimeStatus.status)}`}></span>
