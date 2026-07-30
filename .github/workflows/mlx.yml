@@ -95,6 +95,10 @@ jobs:
         env:
           INFERENCERIG_LIVE_MLX_PYTHON: ${{ runner.temp }}/mlx-venv/bin/python3
           INFERENCERIG_LIVE_MLX_MODEL: ${{ runner.temp }}/mlx-model
+          # A cold mlx_lm start (Python import plus first Metal/JIT compile) is
+          # slower than the 30s default assumes. Only this job raises it; local
+          # runs and the llama.cpp suite keep the tighter default.
+          INFERENCERIG_READINESS_TIMEOUT_SECONDS: "90"
         run: make e2e-live-mlx
 
       - name: Upload MLX logs

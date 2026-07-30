@@ -28,15 +28,27 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"inferencerig/core/runtime"
 )
 
 // Bounds on every wait in the suite. They are generous enough for a cold CI
 // runner and short enough that a hang fails rather than eating the job budget.
+//
+// cliTimeout must exceed the CLI's own control-socket dial timeout (which
+// tracks runtime.ReadinessTimeout, see adapters/cli.dialTimeout), or the
+// harness would kill a slow-but-legitimate CLI call before the CLI's own
+// timeout could fire. Deriving it from the same runtime.ReadinessTimeoutEnv
+// keeps that margin under a CI override such as mlx.yml's.
 const (
-	readyTimeout = 90 * time.Second
-	pollInterval = 200 * time.Millisecond
-	cliTimeout   = 60 * time.Second
+	readyTimeout     = 90 * time.Second
+	pollInterval     = 200 * time.Millisecond
+	cliTimeoutMargin = 60 * time.Second
 )
+
+func cliTimeout() time.Duration {
+	return runtime.ReadinessTimeout() + cliTimeoutMargin
+}
 
 // Environment contract, resolved by scripts/provision-e2e-llamacpp.sh for the
 // llama.cpp suite and by the MLX workflow for the Apple Silicon suite.
@@ -296,7 +308,7 @@ func (r *rig) cli(args ...string) string {
 }
 
 func (r *rig) tryCLI(args ...string) (stdout, stderr string, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), cliTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), cliTimeout())
 	defer cancel()
 	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Env = r.env
