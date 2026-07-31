@@ -62,17 +62,12 @@ type Dependencies struct {
 	Config         ConfigStore
 }
 
-type runtimeSlot struct {
-	process Runtime
-	profile string
-}
-
 // Manager is the canonical in-process control plane used by RPC and later
 // adapters. It coordinates only neutral interfaces.
 type Manager struct {
 	registry  *backends.Registry
-	profiles  ProfileStore
 	downloads modeldownload.Downloader
+	profiles  ProfileStore
 	signals   signals.Collector
 	events    *EventStore
 	audit     AuditSink
@@ -80,8 +75,12 @@ type Manager struct {
 	catalog   ModelCatalog
 	config    ConfigStore
 
-	mu       sync.Mutex
-	runtimes map[string]runtimeSlot
+	// mu guards slot and ops, and is held only to reserve or commit a
+	// transition — never across a stop, a spawn or a readiness probe. See
+	// slot.go for the state machine those reservations drive.
+	mu   sync.Mutex
+	slot *runtimeSlot
+	ops  uint64
 }
 
 // NewManager creates a control manager.
@@ -101,7 +100,7 @@ func NewManager(deps Dependencies) *Manager {
 	return &Manager{
 		registry: deps.Registry, profiles: deps.Profiles, downloads: deps.Downloads,
 		signals: deps.Signals, events: events, audit: audit, factory: factory,
-		catalog: deps.Catalog, config: deps.Config, runtimes: map[string]runtimeSlot{},
+		catalog: deps.Catalog, config: deps.Config,
 	}
 }
 
@@ -254,9 +253,18 @@ func (m *Manager) BackendInstallStatus(ctx context.Context, name string) (backen
 }
 
 // StartRuntime materializes all relevant profiles and starts the selected
-// backend through the shared supervisor. One runtime slot per backend also
-// implements single-active-profile switching without engine-name branches.
-func (m *Manager) StartRuntime(ctx context.Context, name string) (result coreruntime.CommandResult, err error) {
+// backend through the shared supervisor.
+//
+// The slot is reserved under the lock, every blocking step — stopping a
+// replaced process, spawning, probing readiness, activating — runs with the
+// lock released, and the result is committed under the lock again. A cold
+// engine start therefore blocks neither a status call nor a lifecycle call for
+// another profile: the latter gets a typed conflict immediately.
+//
+// replace is the caller stating it accepts the running profile being stopped.
+// Without it, an exclusive backend that is already serving another profile
+// returns a conflict rather than killing an engine nobody asked it to.
+func (m *Manager) StartRuntime(ctx context.Context, name string, replace bool) (result coreruntime.CommandResult, err error) {
 	defer m.recording(ctx, "runtime.start", &err)()
 	doc, backend, err := m.profileBackend(ctx, name)
 	if err != nil {
@@ -273,21 +281,66 @@ func (m *Manager) StartRuntime(ctx context.Context, name string) (result corerun
 	if err != nil {
 		return result, CoreError(ErrorInvalidInput, err.Error(), err)
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if current, ok := m.runtimes[backend.Name()]; ok {
-		if _, err := current.process.Stop(ctx); err != nil {
-			return result, mapRuntimeError(err)
+	plan, err := m.reserveStart(backend, name, replace)
+	if err != nil {
+		return result, err
+	}
+	result = coreruntime.CommandResult{Action: "start"}
+	if plan.stop != nil {
+		m.transition(ctx, plan.op, coreruntime.Stopping, nil)
+		if _, stopErr := plan.stop.Stop(ctx); stopErr != nil {
+			return result, m.fail(ctx, plan.op, mapRuntimeError(stopErr), true)
 		}
 	}
-	process := m.factory(spec)
-	result, err = process.Start(ctx)
-	if err != nil {
-		delete(m.runtimes, backend.Name())
-		return result, mapRuntimeError(err)
+	var process Runtime
+	if plan.spawn {
+		m.transition(ctx, plan.op, coreruntime.Starting, nil)
+		process = m.factory(spec)
+		if result, err = process.Start(ctx); err != nil {
+			return result, m.fail(ctx, plan.op, mapRuntimeError(err), false)
+		}
 	}
-	m.runtimes[backend.Name()] = runtimeSlot{process: process, profile: name}
+	m.transition(ctx, plan.op, coreruntime.Activating, nil)
 	activate(ctx, backend, doc.Effective, &result)
+	m.commitStart(ctx, plan.op, process)
+	return result, nil
+}
+
+// ResetRuntimes stops every runtime and clears the active backend, which is how
+// a host switches from one backend to another. It is not a daemon restart: the
+// daemon holds no engine state of its own, and restarting it would take the
+// gateway and TUI down for no isolation a stop does not already give.
+//
+// Reset is also the escape hatch out of a failed or orphaned slot, so it accepts
+// any settled state — only a transition already in flight turns it away.
+func (m *Manager) ResetRuntimes(ctx context.Context) (result coreruntime.CommandResult, err error) {
+	defer m.recording(ctx, "runtime.reset", &err)()
+	result = coreruntime.CommandResult{Action: "reset"}
+	m.mu.Lock()
+	if m.slot == nil {
+		m.mu.Unlock()
+		return result, nil
+	}
+	if m.slot.op != "" {
+		defer m.mu.Unlock()
+		return result, m.slot.conflict()
+	}
+	process := m.slot.process
+	op := m.reserveLocked("", m.slot.backend, coreruntime.Stopping)
+	m.mu.Unlock()
+
+	m.transition(ctx, op, coreruntime.Stopping, nil)
+	if process != nil {
+		if result, err = process.Stop(ctx); err != nil {
+			return result, m.fail(ctx, op, mapRuntimeError(err), true)
+		}
+	}
+	m.mu.Lock()
+	if m.slot != nil && m.slot.op == op.id {
+		m.slot = nil
+	}
+	m.mu.Unlock()
+	m.transition(ctx, op, coreruntime.Stopped, nil)
 	return result, nil
 }
 
@@ -309,55 +362,73 @@ func activate(ctx context.Context, backend backends.Backend, p profiles.Profile,
 	}
 }
 
-// StopRuntime stops the backend slot selected by profile.
+// StopRuntime stops the runtime serving profile. On a router backend holding
+// several profiles it only drops this one from the slot: the process belongs to
+// the others too, so stopping it would take them down with it.
 func (m *Manager) StopRuntime(ctx context.Context, name string) (result coreruntime.CommandResult, err error) {
 	defer m.recording(ctx, "runtime.stop", &err)()
 	_, backend, err := m.profileBackend(ctx, name)
 	if err != nil {
 		return result, err
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	slot, ok := m.runtimes[backend.Name()]
-	if !ok || slot.profile != name {
-		return coreruntime.CommandResult{Action: "stop"}, nil
+	result = coreruntime.CommandResult{Action: "stop"}
+	plan, err := m.reserveStop(backend.Name(), name)
+	if err != nil || plan.op.id == "" {
+		return result, err
 	}
-	result, err = slot.process.Stop(ctx)
-	if err == nil {
-		delete(m.runtimes, backend.Name())
+	if plan.process != nil {
+		m.transition(ctx, plan.op, coreruntime.Stopping, nil)
+		if result, err = plan.process.Stop(ctx); err != nil {
+			return result, m.fail(ctx, plan.op, mapRuntimeError(err), true)
+		}
 	}
-	return result, mapRuntimeError(err)
+	m.commitStop(ctx, plan.op)
+	return result, nil
 }
 
-// RuntimeStatus reports the selected backend slot.
+// RuntimeStatus reports the state of the runtime serving profile.
+//
+// The slot's own state answers everything but a settled runtime, so a status
+// call during a cold start returns "starting" straight away instead of queueing
+// behind the supervisor lock the start is holding.
 func (m *Manager) RuntimeStatus(ctx context.Context, name string) (coreruntime.Status, error) {
 	_, backend, err := m.profileBackend(ctx, name)
 	if err != nil {
 		return coreruntime.Status{}, err
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	slot, ok := m.runtimes[backend.Name()]
-	if !ok || slot.profile != name {
-		return coreruntime.Status{State: coreruntime.Stopped, CheckedAt: time.Now().UTC()}, nil
+	slot := m.slot
+	var state coreruntime.State
+	var process Runtime
+	if slot != nil && slot.backend == backend.Name() && slot.holds(name) {
+		state, process = slot.state, slot.process
 	}
-	status, err := slot.process.Status(ctx)
+	m.mu.Unlock()
+	switch {
+	case state == "":
+		return coreruntime.Status{State: coreruntime.Stopped, CheckedAt: time.Now().UTC()}, nil
+	case state != coreruntime.Running || process == nil:
+		return coreruntime.Status{
+			State: state, Detail: name + " is " + string(state), CheckedAt: time.Now().UTC(),
+		}, nil
+	}
+	status, err := process.Status(ctx)
 	return status, mapRuntimeError(err)
 }
 
-// StopAllRuntimes stops every active backend slot during daemon shutdown.
+// StopAllRuntimes stops the active runtime during daemon shutdown.
 func (m *Manager) StopAllRuntimes(ctx context.Context) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	var errs []error
-	for name, slot := range m.runtimes {
-		if _, err := slot.process.Stop(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("stop backend %q runtime: %w", name, err))
-			continue
-		}
-		delete(m.runtimes, name)
+	slot := m.slot
+	m.slot = nil
+	m.mu.Unlock()
+	if slot == nil || slot.process == nil {
+		return nil
 	}
-	return errors.Join(errs...)
+	if _, err := slot.process.Stop(ctx); err != nil {
+		return fmt.Errorf("stop backend %q runtime: %w", slot.backend, err)
+	}
+	return nil
 }
 
 // ResolveProfileModel resolves and plans the selected profile through its

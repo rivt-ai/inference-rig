@@ -52,9 +52,10 @@ var tools = []map[string]any{
 	{"name": "download_cancel", "description": "Cancel a model download", "inputSchema": fieldsSchema("id")},
 	{"name": "download_apply", "description": "Apply a model download to a profile", "inputSchema": fieldsSchema("profile", "id")},
 	{"name": "runtime_status", "description": "Get profile runtime status", "inputSchema": profileSchema()},
-	{"name": "runtime_start", "description": "Start a profile runtime", "inputSchema": profileSchema()},
+	{"name": "runtime_start", "description": "Start a profile runtime", "inputSchema": startSchema()},
 	{"name": "runtime_stop", "description": "Stop a profile runtime", "inputSchema": profileSchema()},
 	{"name": "runtime_restart", "description": "Restart a profile runtime", "inputSchema": profileSchema()},
+	{"name": "runtime_reset", "description": "Stop every runtime and clear the active backend", "inputSchema": objectSchema()},
 	{"name": "info_get", "description": "Get daemon information", "inputSchema": objectSchema()},
 	{"name": "signals_get", "description": "Get host signals", "inputSchema": objectSchema()},
 	{"name": "events_list", "description": "List control events", "inputSchema": objectSchema()},
@@ -198,7 +199,12 @@ var toolCalls = map[string]func(context.Context, controlv1connect.ControlService
 		return client.GetRuntimeStatus(ctx, &controlv1.GetRuntimeStatusRequest{Profile: stringArg(params, "profile")})
 	},
 	"runtime_start": func(ctx context.Context, client controlv1connect.ControlServiceClient, params callParams) (proto.Message, error) {
-		return client.StartRuntime(ctx, &controlv1.StartRuntimeRequest{Profile: stringArg(params, "profile")})
+		return client.StartRuntime(ctx, &controlv1.StartRuntimeRequest{
+			Profile: stringArg(params, "profile"), Replace: boolArg(params, "replace"),
+		})
+	},
+	"runtime_reset": func(ctx context.Context, client controlv1connect.ControlServiceClient, _ callParams) (proto.Message, error) {
+		return client.ResetRuntimes(ctx, &controlv1.ResetRuntimesRequest{})
 	},
 	"runtime_stop": func(ctx context.Context, client controlv1connect.ControlServiceClient, params callParams) (proto.Message, error) {
 		return client.StopRuntime(ctx, &controlv1.StopRuntimeRequest{Profile: stringArg(params, "profile")})
@@ -253,6 +259,19 @@ func profileSchema() map[string]any {
 	return map[string]any{
 		"type": "object", "required": []string{"profile"},
 		"properties": map[string]any{"profile": map[string]string{"type": "string"}},
+	}
+}
+
+// startSchema is profileSchema plus the optional replace flag. An MCP client is
+// a client like any other: it cannot terminate a running engine without saying
+// so, and this is where it says so.
+func startSchema() map[string]any {
+	return map[string]any{
+		"type": "object", "required": []string{"profile"},
+		"properties": map[string]any{
+			"profile": map[string]string{"type": "string"},
+			"replace": map[string]string{"type": "boolean"},
+		},
 	}
 }
 

@@ -114,10 +114,18 @@ func TestManagerControlsProfilesRuntimeInstallAndDownloads(t *testing.T) {
 	if profiles, err := manager.ListProfiles(ctx); err != nil || len(profiles) != 2 {
 		t.Fatalf("profiles = %#v, err = %v", profiles, err)
 	}
-	if _, err := manager.StartRuntime(ctx, "one"); err != nil {
+	if _, err := manager.StartRuntime(ctx, "one", false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.StartRuntime(ctx, "two"); err != nil {
+	// The backend serves one profile at a time, so switching is the caller's
+	// decision to make: without replace the running engine stays up.
+	if _, err := manager.StartRuntime(ctx, "two", false); Kind(err) != ErrorConflict {
+		t.Fatalf("start without replace = %v, want a conflict", err)
+	}
+	if len(runtimes) != 1 || runtimes[0].stops != 0 {
+		t.Fatalf("refused start touched the running runtime: %#v", runtimes)
+	}
+	if _, err := manager.StartRuntime(ctx, "two", true); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtimes) != 2 || runtimes[0].stops != 1 {
@@ -249,7 +257,7 @@ func startWithActivator(t *testing.T, backend backends.Backend) (coreruntime.Com
 	if _, err := manager.PutProfile(ctx, "one", profileYAML("one", "https://example.test/m"), true); err != nil {
 		t.Fatal(err)
 	}
-	return manager.StartRuntime(ctx, "one")
+	return manager.StartRuntime(ctx, "one", false)
 }
 
 // A router-style engine starts serving no model at all, so the manager must ask

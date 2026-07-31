@@ -148,8 +148,21 @@ func (s *ControlService) GetBackendInstallStatus(ctx context.Context, req *contr
 }
 
 func (s *ControlService) StartRuntime(ctx context.Context, req *controlv1.StartRuntimeRequest) (*controlv1.StartRuntimeResponse, error) {
-	result, status, err := s.runtimeAction(ctx, req.GetProfile(), s.manager.StartRuntime)
+	result, status, err := s.runtimeAction(ctx, req.GetProfile(),
+		func(ctx context.Context, profile string) (coreruntime.CommandResult, error) {
+			return s.manager.StartRuntime(ctx, profile, req.GetReplace())
+		})
 	return &controlv1.StartRuntimeResponse{Ok: err == nil, Result: result, Status: status}, err
+}
+
+// ResetRuntimes stops every runtime and clears the active backend so a host can
+// switch to a different one.
+func (s *ControlService) ResetRuntimes(ctx context.Context, _ *controlv1.ResetRuntimesRequest) (*controlv1.ResetRuntimesResponse, error) {
+	result, err := s.manager.ResetRuntimes(ctx)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &controlv1.ResetRuntimesResponse{Ok: true, Result: commandResultProto(result)}, nil
 }
 
 func (s *ControlService) StopRuntime(ctx context.Context, req *controlv1.StopRuntimeRequest) (*controlv1.StopRuntimeResponse, error) {
@@ -589,7 +602,7 @@ func (s *ControlService) GetInfo(ctx context.Context, _ *controlv1.GetInfoReques
 	return &controlv1.GetInfoResponse{
 		Ok: true, Profiles: int32(info.Profiles), Backends: int32(info.Backends),
 		RunningProfiles: info.RunningProfiles, AutostartProfiles: info.AutostartProfiles,
-		StartupServices: info.StartupServices,
+		StartupServices: info.StartupServices, ActiveBackend: info.ActiveBackend,
 		Build: &controlv1.BuildInfo{
 			Version: buildinfo.Version, Commit: buildinfo.Commit, CommitTime: buildinfo.CommitTime,
 		},
@@ -880,5 +893,7 @@ func eventProto(event control.Event) *controlv1.Event {
 	return &controlv1.Event{
 		Id: event.ID, Time: event.Time, Action: event.Action,
 		Success: event.Success, ErrorKind: string(event.ErrorKind), Duration: event.Duration,
+		OperationId: event.OperationID, Profile: event.Profile,
+		Backend: event.Backend, State: string(event.State),
 	}
 }
