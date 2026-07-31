@@ -75,6 +75,7 @@ func (b *Backend) Plan(r backends.ResolvedModel) (backends.ArtifactPlan, error) 
 			Filename:   a.Name,
 			TargetPath: filepath.Join(storage, a.Name),
 			SizeBytes:  a.SizeBytes,
+			SHA256:     a.SHA256,
 		})
 		plan.TotalBytes += a.SizeBytes
 	}

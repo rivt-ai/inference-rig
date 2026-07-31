@@ -252,6 +252,7 @@ type Paths struct {
 	CatalogCache  string
 	ModelStorage  string
 	ControlSocket string
+	DownloadState string
 }
 
 // ResolvePaths resolves every standard location in one step.
@@ -271,6 +272,7 @@ func ResolvePaths() (Paths, error) {
 		CatalogCache:  filepath.Join(home, "cache", "hf-catalog"),
 		ModelStorage:  filepath.Join(home, "models"),
 		ControlSocket: filepath.Join(home, "run", "control.sock"),
+		DownloadState: filepath.Join(home, "state", "downloads"),
 	}, nil
 }
 
