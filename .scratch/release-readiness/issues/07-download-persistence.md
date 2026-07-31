@@ -1,7 +1,7 @@
 # 07 — Persist downloads and recover partial artifacts
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: none
 Milestone: A
 Roadmap: P1 #7
