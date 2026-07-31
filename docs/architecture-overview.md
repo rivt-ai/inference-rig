@@ -54,6 +54,11 @@ feature surface; `grep '^func (m \*Manager)' core/control/*.go` is the fastest
 inventory. Extra method groups live in `operations.go`, `catalogdownload.go`,
 `localmodels.go`, `fit.go`.
 
+`core/control/slot.go` owns the **runtime slot**: the one runtime the manager
+holds, its explicit state machine, and the reserve/commit discipline that keeps
+the manager mutex off every blocking engine call. Read it before changing
+anything in the start/stop/reset path — the vocabulary is in `CONTEXT.md`.
+
 `bootstrap/service.go` is the only place these are wired for real, including the
 accelerator-telemetry probe assembled from whichever backends implement the
 optional `hostResourceProber` facet.
