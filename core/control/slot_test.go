@@ -347,6 +347,36 @@ func TestRouterBackendSharesOneProcessAcrossProfiles(t *testing.T) {
 	}
 }
 
+// The router's process is bound to the address of whichever profile started it,
+// so a profile listening somewhere else cannot join it. Activating it there
+// would report a runtime serving an address nothing is listening on — the exact
+// class of lie the explicit state machine exists to remove — so it takes a
+// replace, like an exclusive backend does.
+func TestRouterProfileOnAnotherAddressNeedsTheProcessReplaced(t *testing.T) {
+	engine := newBlockingRuntime()
+	close(engine.startGate)
+	close(engine.stopGate)
+	manager, _ := lifecycleManager(t, &routerBackend{Fake: backendtest.New("test")}, engine, "one")
+	ctx := context.Background()
+	elsewhere := profileYAMLOnPort("two", "https://example.test/m", 8081)
+	if _, err := manager.PutProfile(ctx, "two", elsewhere, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.StartRuntime(ctx, "one", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.StartRuntime(ctx, "two", false); Kind(err) != ErrorConflict {
+		t.Fatalf("start on another address = %v, want a conflict", err)
+	}
+	if _, err := manager.StartRuntime(ctx, "two", true); err != nil {
+		t.Fatalf("replace: %v", err)
+	}
+	info, err := manager.GetInfo(ctx)
+	if err != nil || len(info.RunningProfiles) != 1 || info.RunningProfiles[0] != "two" {
+		t.Fatalf("info = %#v, err = %v", info, err)
+	}
+}
+
 // The active backend is what a front end renders to explain why another
 // backend's profiles cannot start, and a reset is what clears it.
 func TestResetClearsTheActiveBackend(t *testing.T) {

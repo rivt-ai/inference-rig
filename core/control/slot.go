@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"inferencerig/backends"
@@ -22,8 +23,12 @@ import (
 // whether a process object exists, because both are true long before the engine
 // is serving and stay true while it is being torn down.
 type runtimeSlot struct {
-	backend  string
-	process  Runtime
+	backend string
+	process Runtime
+	// address is where the process actually listens. A router is launched bound
+	// to the address of whichever profile started it, so a second profile can
+	// only join that process if it names the same one.
+	address  string
 	profiles []string
 	state    coreruntime.State
 	// op is the ID of the transition currently owning the slot, empty when the
@@ -84,16 +89,16 @@ type startPlan struct {
 	spawn bool
 }
 
-// reserveStart claims the slot for starting profile in backend and returns the
-// work to do. Every rejection here is a typed conflict: no call waits for
-// another, so concurrent lifecycle calls on one slot resolve deterministically
-// in the order they reach the lock.
-func (m *Manager) reserveStart(backend backends.Backend, profile string, replace bool) (startPlan, error) {
+// reserveStart claims the slot for starting profile in backend, at the address
+// its launch spec binds, and returns the work to do. Every rejection here is a
+// typed conflict: no call waits for another, so concurrent lifecycle calls on
+// one slot resolve deterministically in the order they reach the lock.
+func (m *Manager) reserveStart(backend backends.Backend, profile, address string, replace bool) (startPlan, error) {
 	name := backend.Name()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.slot == nil {
-		m.slot = &runtimeSlot{backend: name, profiles: []string{profile}}
+		m.slot = &runtimeSlot{backend: name, address: address, profiles: []string{profile}}
 		return startPlan{op: m.reserveLocked(profile, name, coreruntime.Starting), spawn: true}, nil
 	}
 	if !m.slot.settled() {
@@ -103,9 +108,12 @@ func (m *Manager) reserveStart(backend backends.Backend, profile string, replace
 		return startPlan{}, Errorf(ErrorConflict,
 			"backend %q is active; reset the runtime before starting %q profile %q", m.slot.backend, name, profile)
 	}
-	if !backend.Capabilities().SingleActiveProfile {
-		// Router backend: the running process takes another profile, so there is
-		// nothing to stop and nothing to spawn.
+	// A router holds several profiles in one process, but that process is bound
+	// to the address of whichever profile started it. A profile listening
+	// somewhere else cannot join it — activating it there would report a runtime
+	// as serving an address nothing is listening on — so it needs the process
+	// replaced like an exclusive backend does.
+	if !backend.Capabilities().SingleActiveProfile && m.slot.address == address {
 		if !m.slot.holds(profile) {
 			m.slot.profiles = append(m.slot.profiles, profile)
 		}
@@ -116,13 +124,14 @@ func (m *Manager) reserveStart(backend backends.Backend, profile string, replace
 			return startPlan{}, Errorf(ErrorConflict, "profile %q is already running", profile)
 		}
 		return startPlan{}, Errorf(ErrorConflict,
-			"profile %q is running on backend %q; retry with replace to stop it first", m.slot.profiles[0], name)
+			"backend %q is serving %s on %s; retry with replace to stop it first",
+			name, strings.Join(m.slot.profiles, ", "), m.slot.address)
 	}
-	// Exclusive backend: the slot's one profile becomes this one, and its process
-	// is stopped before the replacement spawns. A failure below drops the slot,
-	// so a half-finished replace never leaves the backend claimed.
+	// The slot's profiles become this one, and the running process is stopped
+	// before the replacement spawns. A failure below drops the slot, so a
+	// half-finished replace never leaves the backend claimed.
 	plan := startPlan{op: m.reserveLocked(profile, name, coreruntime.Stopping), stop: m.slot.process, spawn: true}
-	m.slot.profiles = []string{profile}
+	m.slot.address, m.slot.profiles = address, []string{profile}
 	return plan, nil
 }
 

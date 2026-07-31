@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -167,8 +168,12 @@ func TestManagerControlsProfilesRuntimeInstallAndDownloads(t *testing.T) {
 }
 
 func profileYAML(name, source string) string {
+	return profileYAMLOnPort(name, source, 8080)
+}
+
+func profileYAMLOnPort(name, source string, port int) string {
 	return "version: 1\nname: " + name + "\nbackend: test\nmodel:\n  source: " + source +
-		"\nlisten:\n  host: 127.0.0.1\n  port: 8080\n"
+		"\nlisten:\n  host: 127.0.0.1\n  port: " + strconv.Itoa(port) + "\n"
 }
 
 func waitDownload(t *testing.T, manager *Manager, id string) modeldownload.Job {

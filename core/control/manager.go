@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -281,7 +283,7 @@ func (m *Manager) StartRuntime(ctx context.Context, name string, replace bool) (
 	if err != nil {
 		return result, CoreError(ErrorInvalidInput, err.Error(), err)
 	}
-	plan, err := m.reserveStart(backend, name, replace)
+	plan, err := m.reserveStart(backend, name, net.JoinHostPort(spec.Host, strconv.Itoa(spec.Port)), replace)
 	if err != nil {
 		return result, err
 	}
