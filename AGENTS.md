@@ -30,7 +30,13 @@ is what the Reuse-First Checklist below asks of you.
 
 ## Quality Guard
 
+- Commit early and often — one small, self-contained commit per coherent
+  change, not one commit at the end of a task. Small commits stay reviewable
+  and keep a broken step from burying the working ones.
 - Run `make test` and `make lint` before committing.
+- `make test` and `make lint` must **pass** before pushing. A local commit may
+  be a work-in-progress; a pushed branch may not. Never push a red branch, and
+  never skip, disable, or weaken a test to make the gate go green.
 - One exported `New*` constructor per concrete type; no `With` constructor
   variants (enforced by `constructor_guard_test.go`).
 - Before adding logic, inspect existing packages and reuse the existing owner.
