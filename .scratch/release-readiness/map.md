@@ -77,6 +77,15 @@ do not.
   `allow_exposed_without_auth`; posture shown in startup log, `/health`, TUI
   badge and a non-loopback-only web banner; redact credentials only, not paths
   or argv; `AllowedOrigin` becomes a list, no `X-Forwarded-*` trust.
+- [03 — Decide backend concurrency semantics](issues/03-backend-concurrency-semantics.md)
+  — No new contract surface: `SingleActiveProfile` + `RuntimeActivator` already
+  distinguish exclusive (MLX) from router (llama.cpp) backends, and the manager
+  simply starts honouring them. One backend active at a time globally; the
+  active backend is tracked, cross-backend starts conflict, and an explicit
+  reset (not a daemon restart) switches. At most one
+  `runtimeSlot{process, profiles}` keyed by backend. No client can kill a
+  running engine implicitly — conflict unless `replace: true`. Non-active
+  backend profiles stay listed but render unstartable with the reason.
 
 ## Not yet specified
 

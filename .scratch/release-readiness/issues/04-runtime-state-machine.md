@@ -15,8 +15,18 @@ These are one change, not two: both rewrite how `core/control` owns a runtime
 slot, and doing them separately means the second agent redesigns the first's
 work.
 
+**Read ticket 03's `## Answer` first — it is the spec for the slot model.** In
+short: one active backend globally, at most one `runtimeSlot{process, profiles}`
+keyed by backend, exclusive versus router behaviour derived from
+`SingleActiveProfile` + `RuntimeActivator`, no implicit kills.
+
 States: `stopped`, `reconciling`, `starting`, `activating`, `running`,
 `stopping`, `failed`, `orphaned`.
+
+Proto changes this ticket owns (run `make generate`): a `replace` field on
+`StartRuntimeRequest`, `active_backend` on the info message, and one new reset
+RPC that stops every runtime and clears the active backend. Plus the registry
+guard from ticket 03 §1.
 
 Do:
 
