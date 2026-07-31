@@ -80,7 +80,14 @@ research tickets do not.
   `allow_exposed_without_auth`; posture shown in startup log, `/health`, TUI
   badge and a non-loopback-only web banner; redact credentials only, not paths
   or argv; `AllowedOrigin` becomes a list, no `X-Forwarded-*` trust.
-- [03 — Decide backend concurrency semantics](issues/03-backend-concurrency-semantics.md)
+- [02 — Fail fast on invalid configuration](issues/02-fail-fast-config.md)
+  — One new function, `config.LoadOrDefault()`: defaults on `fs.ErrNotExist`
+  alone, every other error fails startup. Replaces the error-swallowing loads in
+  `bootstrap/service.go`, `cmd/web.go` and the TUI's `autostartServices` (whose
+  `os.IsNotExist` guard never fired against a wrapped error). Strict decoding
+  already existed. `inferencerig config validate` calls the same function, so it
+  agrees with startup by construction, and dials nothing. The invalid-security
+  combination is left to ticket 09, which owns making it an error at all.
   — No new contract surface: `SingleActiveProfile` + `RuntimeActivator` already
   distinguish exclusive (MLX) from router (llama.cpp) backends, and the manager
   simply starts honouring them. One backend active at a time globally; the
