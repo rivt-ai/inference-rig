@@ -100,6 +100,17 @@ research tickets do not.
   Apache-derived is in the tree — only `llamarig`/`mlxrig` licensing is left to
   confirm. `release.yml` already does more than expected, so ticket 14 shrinks.
 
+- [07 — Persist downloads and recover partial artifacts](issues/07-download-persistence.md)
+  — Job records persist atomically to `<home>/state/downloads` and
+  `Manager.Recover` reconciles at startup (re-queue, complete, or discard a
+  `.part`, each logged); a partial resumes only on a `206` whose
+  `Content-Range` matches, otherwise the transfer restarts; `ArtifactItem`
+  carries a SHA-256 that is verified before finalize and removes the artifact
+  on mismatch; MLX pins snapshot URIs to the repository commit
+  (`ArtifactPlan.Revision`) while llama.cpp's network-free `Resolve` stays
+  unpinned; scheme, host allowlist, redirect count and a max transfer size are
+  enforced on redirects as well as the first request.
+
 ## Not yet specified
 
 Milestone C (operational quality) is in scope but not yet sharp — each item
