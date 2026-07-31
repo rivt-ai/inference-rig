@@ -19,6 +19,7 @@ import type {
 import { FitLevel } from '../gen/inferencerig/control/v1/control_pb';
 import type { EngineArgRow, ProfileApplyPreview } from '../types';
 import type { RuntimeHistorySample } from '../runtimeHistory';
+import { CONTROL_LOG_SERVICE, ENGINE_LOG_SERVICE } from '../logs';
 
 export function createInferenceRigState() {
   const state = $state({
@@ -84,8 +85,12 @@ export function createInferenceRigState() {
     logText: '',
     // A free-form service name, matching the proto: which services exist
     // depends on which backends are installed, so this is not a closed union.
-    logService: 'control',
-    logServices: ['control'] as string[],
+    logService: CONTROL_LOG_SERVICE,
+    // The engine tab's service. Backends write their runtime output under this
+    // name, kept apart from the control daemon's own structured log.
+    engineLogService: ENGINE_LOG_SERVICE,
+    engineLogText: '',
+    logServices: [CONTROL_LOG_SERVICE, ENGINE_LOG_SERVICE] as string[],
     logLines: 500,
     logPaused: false,
     logArchives: [] as LogArchive[],

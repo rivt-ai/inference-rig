@@ -37,6 +37,15 @@ const (
 	StartupServiceControl = "control"
 	// StartupServiceWeb is the public HTTP/GUI/MCP gateway.
 	StartupServiceWeb = "web"
+
+	// LogServiceControl names the control daemon's own log. The daemon is
+	// detached under ProjectName, and a service log is named after the process
+	// that writes it, so the two must stay equal.
+	LogServiceControl = ProjectName
+	// LogServiceEngine names the supervised backend runtime's log. Engine
+	// output is kept out of LogServiceControl so each stream stays readable on
+	// its own terms: structured records here, raw engine chatter there.
+	LogServiceEngine = "engine"
 )
 
 // DefaultStartupServices starts both the control daemon and the web gateway.

@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"inferencerig/platform/audit"
 	"inferencerig/platform/pidfile"
 )
 
@@ -75,6 +76,12 @@ type LaunchSpec struct {
 	// PIDDir is the directory the PID file is written to. It is required; the
 	// supervisor never guesses an engine-specific location.
 	PIDDir string
+	// LogName, when set, gives the process its own service log instead of
+	// inheriting the parent's stdout and stderr. Engine output is high volume
+	// and in the engine's own format, so interleaving it with the control
+	// daemon's structured log leaves neither readable; a separate name also
+	// makes the stream addressable by the logs RPC and rotated on each start.
+	LogName string
 	// BuildErr lets a backend defer a command-render failure so it surfaces at
 	// Start (as invalid input) instead of launching a bad process.
 	BuildErr error
@@ -147,6 +154,16 @@ func (s *Supervisor) start(ctx context.Context) (CommandResult, error) {
 	cmd := exec.Command(command.Executable, command.Argv...)
 	cmd.Env = append(os.Environ(), envList(s.spec.Env)...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if s.spec.LogName != "" {
+		// The child inherits a dup of the file descriptor, so the parent's copy
+		// is closed as soon as the process is started.
+		closeLog, logErr := audit.AttachLogs(cmd, s.spec.LogName)
+		if logErr != nil {
+			err = NewError(ErrorRuntime, fmt.Sprintf("open %s log failed", s.displayName()), logErr)
+			return s.commandResult("start", start, 1, "", err), err
+		}
+		defer closeLog()
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		err = NewError(ErrorRuntime, fmt.Sprintf("start %s failed", s.displayName()), err)

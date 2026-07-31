@@ -137,11 +137,11 @@ func diskLabel(label string) string {
 
 type activityPage struct {
 	active int
-	views  [3]tuikit.SearchView
+	views  [4]tuikit.SearchView
 }
 
 func newActivityPage() activityPage {
-	return activityPage{views: [3]tuikit.SearchView{tuikit.NewSearchView(), tuikit.NewSearchView(), tuikit.NewSearchView()}}
+	return activityPage{views: [4]tuikit.SearchView{tuikit.NewSearchView(), tuikit.NewSearchView(), tuikit.NewSearchView(), tuikit.NewSearchView()}}
 }
 
 func (p *activityPage) CapturingInput() bool { return p.views[p.active].Searching() }
@@ -171,9 +171,17 @@ func (p *activityPage) View(width, height int, data snapshot) string {
 	}
 	p.views[0].SetLines(events)
 	p.views[1].SetLines(colorLog(data.controlLog))
-	p.views[2].SetLines(colorLog(data.webLog))
-	titles := []string{fmt.Sprintf("Events (%d)", len(events)), fmt.Sprintf("Control + Runtime (%d)", len(data.controlLog)), fmt.Sprintf("Web (%d)", len(data.webLog))}
-	accents := []color.Color{cyan, green, blue}
+	// Engine output keeps the backend's own formatting: colorLog matches slog
+	// levels, which no engine emits, so styling it would only mislead.
+	p.views[2].SetLines(mutedLog(data.engineLog))
+	p.views[3].SetLines(colorLog(data.webLog))
+	titles := []string{
+		fmt.Sprintf("Events (%d)", len(events)),
+		fmt.Sprintf("Control (%d)", len(data.controlLog)),
+		fmt.Sprintf("Engine (%d)", len(data.engineLog)),
+		fmt.Sprintf("Web (%d)", len(data.webLog)),
+	}
+	accents := []color.Color{cyan, green, yellow, blue}
 	bodyHeight := max(1, height-7)
 	body := p.views[p.active].View(width-4, bodyHeight)
 	tabbed := theme.TabbedPanel(titles, accents, p.active, width, height-3, body)
@@ -191,7 +199,7 @@ func (p *activityPage) View(width, height int, data snapshot) string {
 	return lipgloss.JoinVertical(lipgloss.Left, tabbed, panel(muted, false, width, 2, status))
 }
 
-func readLogs() ([]string, []string) {
+func readLogs() (control, engine, web []string) {
 	read := func(name string) []string {
 		text, err := audit.TailLogLines(name, 2000)
 		if err != nil {
@@ -203,7 +211,15 @@ func readLogs() ([]string, []string) {
 		}
 		return lines
 	}
-	return read(config.ProjectName), read(config.StartupServiceWeb)
+	return read(config.LogServiceControl), read(config.LogServiceEngine), read(config.StartupServiceWeb)
+}
+
+func mutedLog(lines []string) []string {
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, mutedStyle.Render(line))
+	}
+	return out
 }
 
 func colorLog(lines []string) []string {

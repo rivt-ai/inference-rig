@@ -1,7 +1,9 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"inferencerig/config"
 	"inferencerig/platform/pidfile"
 )
 
@@ -35,6 +38,10 @@ func TestMain(m *testing.M) {
 
 func runFakeChild() {
 	mode := os.Getenv("IR_FAKE_MODE")
+	if banner := os.Getenv("IR_FAKE_STDOUT"); banner != "" {
+		fmt.Println(banner)
+		fmt.Fprintln(os.Stderr, banner+"-stderr")
+	}
 	if mode == "server" || mode == "ignore" {
 		startFakeListener(os.Getenv("IR_FAKE_ADDR"), os.Getenv("IR_FAKE_PATH"))
 	}
@@ -324,5 +331,60 @@ func TestSupervisorReadinessRequiresSuccessStatus(t *testing.T) {
 	status = http.StatusNoContent
 	if err := sup.probeReady(context.Background()); err != nil {
 		t.Fatalf("204 readiness response rejected: %v", err)
+	}
+}
+
+// Engine output used to be inherited from the daemon's stdout, which meant the
+// control daemon's own structured log and the engine's raw chatter shared one
+// file and neither view could be read on its own. LogName gives the child its
+// own service log; without it the parent's stdout is still inherited.
+func TestSupervisorLogNameDivertsChildOutputToItsOwnLog(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(config.ProjectHomeEnv, home)
+
+	spec := fakeSpec(t, "server", "")
+	spec.LogName = "engine"
+	spec.Env["IR_FAKE_STDOUT"] = "engine-banner"
+	sup := NewSupervisor(spec)
+
+	if _, err := sup.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _, _ = sup.Stop(context.Background()) })
+
+	logPath := filepath.Join(home, "run", "engine.log")
+	var data []byte
+	for range 40 {
+		if read, err := os.ReadFile(logPath); err == nil && bytes.Contains(read, []byte("engine-banner")) {
+			data = read
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if !bytes.Contains(data, []byte("engine-banner")) {
+		t.Fatalf("engine log %q missing child stdout, got %q", logPath, data)
+	}
+	if !bytes.Contains(data, []byte("engine-banner-stderr")) {
+		t.Fatalf("engine log missing child stderr, got %q", data)
+	}
+}
+
+// A spec without LogName must keep inheriting the parent's stdout, so backends
+// that have not opted in are unaffected and no stray log file appears.
+func TestSupervisorWithoutLogNameWritesNoServiceLog(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(config.ProjectHomeEnv, home)
+
+	spec := fakeSpec(t, "server", "")
+	spec.Env["IR_FAKE_STDOUT"] = "inherited-banner"
+	sup := NewSupervisor(spec)
+	if _, err := sup.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _, _ = sup.Stop(context.Background()) })
+
+	entries, err := os.ReadDir(filepath.Join(home, "run"))
+	if err == nil && len(entries) > 0 {
+		t.Fatalf("unexpected service logs written: %v", entries)
 	}
 }

@@ -35,7 +35,7 @@ type snapshot struct {
 	signals            *controlv1.GetSignalsResponse
 	events             *controlv1.ListEventsResponse
 	downloads          []*controlv1.ModelDownload
-	controlLog, webLog []string
+	controlLog, engineLog, webLog []string
 	// webReachable reports that the configured gateway address answers, which
 	// is how a gateway this TUI did not start is detected. The PID file only
 	// records gateways started here, so trusting it alone reports a serving
@@ -283,7 +283,7 @@ func (d *dashboard) applyPoll(result pollResult) {
 		next.downloads = current.downloads
 	}
 	if !result.ok["logs"] {
-		next.controlLog, next.webLog = current.controlLog, current.webLog
+		next.controlLog, next.engineLog, next.webLog = current.controlLog, current.engineLog, current.webLog
 	}
 	d.data, d.refreshing = next, false
 }
@@ -461,7 +461,7 @@ func (p *poller) downloads() error {
 }
 
 func (p *poller) logs() error {
-	p.result.value.controlLog, p.result.value.webLog = readLogs()
+	p.result.value.controlLog, p.result.value.engineLog, p.result.value.webLog = readLogs()
 	return nil
 }
 

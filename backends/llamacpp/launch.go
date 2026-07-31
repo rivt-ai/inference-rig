@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"inferencerig/backends"
+	"inferencerig/config"
 	"inferencerig/core/profiles"
 	"inferencerig/core/runtime"
 )
@@ -27,6 +28,7 @@ func (b *Backend) LaunchSpec(p profiles.Profile, _ backends.Materialization) (ru
 		Host:          p.Listen.Host,
 		Port:          p.Listen.Port,
 		ReadinessPath: readinessPath,
+		LogName:       config.LogServiceEngine,
 	}
 	iniPath, err := b.generatedININPath()
 	if err != nil {

@@ -9,6 +9,7 @@ import { modelProfile, nextFreePort, templateProfile, type ProfileTemplate } fro
 import { createInferenceRigState } from '../state/createInferenceRigState.svelte';
 import { isProfileActive as selectIsProfileActive } from '../state/selectors';
 import { appendRuntimeSample } from '../runtimeHistory';
+import { CONTROL_LOG_SERVICE, ENGINE_LOG_SERVICE } from '../logs';
 import {
   ProfileSchema,
   type CatalogModel,
@@ -297,13 +298,24 @@ export function createInferenceRigClient() {
   }
 
   const activeLogRequests = new Set<string>();
+  // Control and engine are separate files, so both are fetched. A service with
+  // no log yet is a 404 from GetLogs; that is the normal state before a runtime
+  // has ever started and must leave the other pane's content alone.
   async function refreshLogs() {
-    const service = state.logService;
-    if (activeLogRequests.has(service)) return;
+    await Promise.all([
+      fetchLog(state.logService, (text) => (state.logText = text)),
+      fetchLog(state.engineLogService, (text) => (state.engineLogText = text))
+    ]);
+  }
+
+  async function fetchLog(service: string, assign: (text: string) => void) {
+    if (!service || activeLogRequests.has(service)) return;
     activeLogRequests.add(service);
     try {
       const data = await api.getLogs(service, state.logLines);
-      state.logText = data.text || '';
+      assign(data.text || '');
+    } catch {
+      assign('');
     } finally {
       activeLogRequests.delete(service);
     }
@@ -323,7 +335,11 @@ export function createInferenceRigClient() {
     state.logArchives = data.archives;
     // The archive list is the only place the set of live services is
     // discoverable, since the proto deliberately leaves it open-ended.
-    const services = new Set(['control', ...data.archives.map((archive) => archive.service).filter(Boolean)]);
+    const services = new Set([
+      CONTROL_LOG_SERVICE,
+      ENGINE_LOG_SERVICE,
+      ...data.archives.map((archive) => archive.service).filter(Boolean)
+    ]);
     state.logServices = Array.from(services);
   }
 

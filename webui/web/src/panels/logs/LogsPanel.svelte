@@ -39,7 +39,16 @@
   const statusClass = (event: ServerEvent) =>
     event.success ? 'bg-success/15 text-success border-success/30' : 'bg-destructive/15 text-destructive border-destructive/30';
 
+  // Each tab reads its own service log now, so the split is by file rather
+  // than by guessing which lines of one interleaved file came from which
+  // process. Control lines are structured; engine output stays verbatim.
   const parsed = $derived(parseLogText(appState.logText));
+  const engineLines = $derived(
+    appState.engineLogText
+      .split('\n')
+      .filter((line) => line.trim())
+      .map((text) => ({ text }))
+  );
 
   let daemonSearch = $state('');
   let daemonLevel = $state('all');
@@ -58,7 +67,7 @@
   // backend's runtime output can land here and there is no severity format the
   // client can assume across all of them.
   let rawSearch = $state('');
-  const rawRows = $derived(parsed.raw.filter((line) => line.text.toLowerCase().includes(rawSearch.toLowerCase())));
+  const rawRows = $derived(engineLines.filter((line) => line.text.toLowerCase().includes(rawSearch.toLowerCase())));
 
   const levelClass = (level: string) =>
     level === 'warn'
@@ -138,7 +147,7 @@
 <Card.Root>
   <Card.Header>
     <Card.Title>Logs</Card.Title>
-    <Card.Description>Operations, structured service log, and raw runtime output.</Card.Description>
+    <Card.Description>Operations, the control daemon log, and the runtime engine log.</Card.Description>
     <Card.Action>
       <Button size="sm" variant="outline" onclick={refreshActive}><RefreshCw /> Refresh</Button>
     </Card.Action>
@@ -147,16 +156,18 @@
     <Tabs.Root bind:value={activeTab} class="space-y-4">
       <Tabs.List>
         <Tabs.Trigger value="events">Events</Tabs.Trigger>
-        <Tabs.Trigger value="daemon">Daemon <Badge variant="secondary">{parsed.daemon.length}</Badge></Tabs.Trigger>
-        <Tabs.Trigger value="raw">Runtime <Badge variant="secondary">{parsed.raw.length}</Badge></Tabs.Trigger>
+        <Tabs.Trigger value="daemon">Control <Badge variant="secondary">{parsed.daemon.length}</Badge></Tabs.Trigger>
+        <Tabs.Trigger value="raw">Engine <Badge variant="secondary">{engineLines.length}</Badge></Tabs.Trigger>
         <Tabs.Trigger value="archives" onclick={app.loadLogArchives}>Archives <Badge variant="secondary">{appState.logArchives.length}</Badge></Tabs.Trigger>
       </Tabs.List>
 
       {#if fileTab || activeTab === 'archives'}
         <div class="flex flex-wrap items-center gap-2">
-          {#if fileTab}
+          {#if activeTab === 'daemon'}
+            <!-- The engine tab is pinned to the engine service; only the
+                 control tab picks among the other service logs. -->
             <span class="text-xs text-muted-foreground">Service</span>
-            {#each appState.logServices as service}
+            {#each appState.logServices.filter((service) => service !== appState.engineLogService) as service}
               <Button size="sm" variant={appState.logService === service ? 'secondary' : 'ghost'} onclick={() => selectService(service)}>{service}</Button>
             {/each}
           {/if}
@@ -210,7 +221,7 @@
 
       <Tabs.Content value="daemon" class="space-y-3">
         <div class="flex flex-wrap items-center gap-2">
-          <Input class="h-8 max-w-xs" placeholder="Search daemon log…" bind:value={daemonSearch} />
+          <Input class="h-8 max-w-xs" placeholder="Search control log…" bind:value={daemonSearch} />
           {#each daemonLevels as level}
             <Button size="sm" variant={daemonLevel === level ? 'secondary' : 'ghost'} onclick={() => (daemonLevel = level)}>{level === 'all' ? 'All' : level}</Button>
           {/each}
@@ -235,14 +246,14 @@
               {/each}
             </div>
           {:else}
-            <Empty.Root class="py-12"><Empty.Header><Empty.Title>No daemon log</Empty.Title><Empty.Description>Lines appear once the {appState.logService} service writes structured output.</Empty.Description></Empty.Header></Empty.Root>
+            <Empty.Root class="py-12"><Empty.Header><Empty.Title>No control log</Empty.Title><Empty.Description>Lines appear once the {appState.logService} service writes structured output.</Empty.Description></Empty.Header></Empty.Root>
           {/if}
         </ScrollArea>
       </Tabs.Content>
 
       <Tabs.Content value="raw" class="space-y-3">
         <div class="flex flex-wrap items-center gap-2">
-          <Input class="h-8 max-w-xs" placeholder="Search runtime output…" bind:value={rawSearch} />
+          <Input class="h-8 max-w-xs" placeholder="Search engine output…" bind:value={rawSearch} />
         </div>
         <ScrollArea
           class="panel-scroll rounded-md border"
@@ -256,7 +267,7 @@
               {/each}
             </div>
           {:else}
-            <Empty.Root class="py-12"><Empty.Header><Empty.Title>No runtime output</Empty.Title><Empty.Description>Output appears once a profile is running.</Empty.Description></Empty.Header></Empty.Root>
+            <Empty.Root class="py-12"><Empty.Header><Empty.Title>No engine output</Empty.Title><Empty.Description>Output appears once a profile is running.</Empty.Description></Empty.Header></Empty.Root>
           {/if}
         </ScrollArea>
       </Tabs.Content>

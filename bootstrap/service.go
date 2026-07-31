@@ -20,7 +20,6 @@ import (
 	"inferencerig/core/profiles"
 	"inferencerig/core/rpc"
 	"inferencerig/core/signals"
-	"inferencerig/platform/audit"
 	"inferencerig/platform/pidfile"
 )
 
@@ -124,7 +123,7 @@ func NewService() (*Service, error) {
 		Registry: registry, Profiles: store,
 		Downloads: modeldownload.New(modeldownload.Options{}),
 		Signals:   telemetry(registry, modelStorageDir),
-		Audit:     audit.NewSink(slog.Default()),
+		Audit:     control.NewSlogSink(slog.Default()),
 		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: paths.CatalogCache, CacheTTL: time.Hour}),
 		Config:    configstore.NewFileStore(paths.Config, 0),
 	})

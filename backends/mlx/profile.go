@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"inferencerig/backends"
+	"inferencerig/config"
 	"inferencerig/core/profiles"
 	"inferencerig/core/runtime"
 )
@@ -43,6 +44,7 @@ func (b *Backend) LaunchSpec(p profiles.Profile, _ backends.Materialization) (ru
 		Host:          p.Listen.Host,
 		Port:          p.Listen.Port,
 		ReadinessPath: defaultReadinessURL,
+		LogName:       config.LogServiceEngine,
 	}
 	command, err := buildCommand(b.executable(), p)
 	if err != nil {
