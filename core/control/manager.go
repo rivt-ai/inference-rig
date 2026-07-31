@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -286,7 +287,26 @@ func (m *Manager) StartRuntime(ctx context.Context, name string) (result corerun
 		return result, mapRuntimeError(err)
 	}
 	m.runtimes[backend.Name()] = runtimeSlot{process: process, profile: name}
+	activate(ctx, backend, doc.Effective, &result)
 	return result, nil
+}
+
+// activate runs the backend's optional post-start step, which for a router-style
+// engine is what makes the started process serve this profile rather than sit
+// idle until the first request.
+//
+// A failure here is reported but does not fail the start: the process is up and
+// healthy, and an engine that could not be told which model to load will still
+// load it on demand. Turning that into a start failure would stop a runtime
+// that actually works.
+func activate(ctx context.Context, backend backends.Backend, p profiles.Profile, result *coreruntime.CommandResult) {
+	activator, ok := backend.(backends.RuntimeActivator)
+	if !ok {
+		return
+	}
+	if err := activator.ActivateRuntime(ctx, p); err != nil {
+		result.Stderr = strings.TrimSpace(result.Stderr + "\nactivate " + p.Name + ": " + err.Error())
+	}
 }
 
 // StopRuntime stops the backend slot selected by profile.

@@ -2,10 +2,12 @@ package control
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -208,5 +210,75 @@ func TestRecordingCapturesErrorKind(t *testing.T) {
 	events := store.List()
 	if len(events) != 1 || events[0].Success || events[0].ErrorKind != ErrorNotFound {
 		t.Fatalf("events = %#v", events)
+	}
+}
+
+// activatingBackend records the post-start activation the manager drives
+// through the optional backends.RuntimeActivator facet.
+type activatingBackend struct {
+	*backendtest.Fake
+	activated []string
+	err       error
+}
+
+func (b *activatingBackend) Materialize(profiles.Profile) (backends.Materialization, error) {
+	return backends.Materialization{Summary: "test command"}, nil
+}
+
+func (b *activatingBackend) ActivateRuntime(_ context.Context, p profiles.Profile) error {
+	b.activated = append(b.activated, p.Name)
+	return b.err
+}
+
+func startWithActivator(t *testing.T, backend backends.Backend) (coreruntime.CommandResult, error) {
+	t.Helper()
+	registry := backends.NewRegistry()
+	if err := registry.Register(backend); err != nil {
+		t.Fatal(err)
+	}
+	store := profiles.NewFileStore(t.TempDir(), 0, registry.BackendLookup())
+	manager := NewManager(Dependencies{
+		Registry: registry, Profiles: store,
+		RuntimeFactory: func(coreruntime.LaunchSpec) Runtime { return &fakeRuntime{} },
+	})
+	ctx := context.Background()
+	if _, err := manager.PutProfile(ctx, "one", profileYAML("one", "https://example.test/m"), true); err != nil {
+		t.Fatal(err)
+	}
+	return manager.StartRuntime(ctx, "one")
+}
+
+// A router-style engine starts serving no model at all, so the manager must ask
+// the backend to activate the started profile rather than leaving it idle until
+// the first request arrives.
+func TestStartRuntimeActivatesTheStartedProfile(t *testing.T) {
+	backend := &activatingBackend{Fake: backendtest.New("test")}
+	if _, err := startWithActivator(t, backend); err != nil {
+		t.Fatalf("StartRuntime: %v", err)
+	}
+	if len(backend.activated) != 1 || backend.activated[0] != "one" {
+		t.Fatalf("activated = %#v, want [one]", backend.activated)
+	}
+}
+
+// The process is up and healthy whether or not activation lands, and an engine
+// that was not told which model to load still loads it on demand. Failing the
+// start would stop a runtime that actually works.
+func TestStartRuntimeReportsActivationFailureWithoutFailingTheStart(t *testing.T) {
+	backend := &activatingBackend{Fake: backendtest.New("test"), err: errors.New("router refused")}
+	result, err := startWithActivator(t, backend)
+	if err != nil {
+		t.Fatalf("activation failure failed the start: %v", err)
+	}
+	if !strings.Contains(result.Stderr, "router refused") {
+		t.Fatalf("result.Stderr = %q, want the activation failure reported", result.Stderr)
+	}
+}
+
+// A backend whose engine loads its model at startup implements no activation
+// facet, and must start exactly as before.
+func TestStartRuntimeWithoutActivatorIsUnchanged(t *testing.T) {
+	if _, err := startWithActivator(t, backendtest.New("test")); err != nil {
+		t.Fatalf("StartRuntime without activator: %v", err)
 	}
 }

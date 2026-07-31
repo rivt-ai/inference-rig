@@ -64,6 +64,23 @@ type Backend interface {
 	CatalogPolicy() modelcatalog.CatalogPolicy
 }
 
+// RuntimeActivator is the optional facet a backend implements when a started
+// process is not yet serving the profile's model. It is deliberately outside
+// Backend: an engine that loads its model at startup needs no such step, and
+// requiring an empty method of every backend would suggest otherwise.
+//
+// llama.cpp's router is the case that motivates it. It is launched with every
+// profile as a preset and loads one only when a request for it arrives, so
+// starting a profile otherwise leaves the engine idle and the first caller pays
+// the whole model-load latency. Activation makes "started" mean what the UI
+// already implies: this profile is the one being loaded.
+type RuntimeActivator interface {
+	// ActivateRuntime asks the running process to begin serving p. It is called
+	// after the supervisor reports readiness. Implementations should be
+	// idempotent, since a profile already active is a success, not a conflict.
+	ActivateRuntime(ctx context.Context, p profiles.Profile) error
+}
+
 // Compile-time proof that the backend contract satisfies the profile store's
 // validator interface, so a registered Backend can validate profiles directly.
 var _ profiles.BackendValidator = (Backend)(nil)
