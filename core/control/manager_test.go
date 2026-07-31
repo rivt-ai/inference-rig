@@ -232,6 +232,10 @@ func (b *activatingBackend) ActivateRuntime(_ context.Context, p profiles.Profil
 
 func startWithActivator(t *testing.T, backend backends.Backend) (coreruntime.CommandResult, error) {
 	t.Helper()
+	// Materialized files carry relative paths, so they land in the working
+	// directory: without this the suite writes generated config into the
+	// package source tree.
+	t.Chdir(t.TempDir())
 	registry := backends.NewRegistry()
 	if err := registry.Register(backend); err != nil {
 		t.Fatal(err)
