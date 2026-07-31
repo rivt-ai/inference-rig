@@ -56,6 +56,12 @@ is what the Reuse-First Checklist below asks of you.
 
 Issues and specs live as markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
 
+### Claiming a ticket
+
+Picking up parallelizable work from the active map: see
+`docs/agents/claiming-tickets.md`. Claim with a pushed commit before starting,
+branch from `phase-01-bootstrap`, and never target `main`.
+
 ### Domain docs
 
 Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

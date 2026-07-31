@@ -38,6 +38,10 @@ Do:
   contributor needs must live in `CONTEXT.md`, `docs/adr/` or the architecture
   overview — not in `.scratch/`, which is planning scratch and not permanent
   documentation.
+- **Remove `docs/agents/claiming-tickets.md`** and its pointer in `AGENTS.md`.
+  It describes how to work *this* map against `phase-01-bootstrap`; once that
+  branch is merged the instructions are actively wrong. Keep it only if it is
+  first rewritten to be effort-agnostic.
 - **Decide what happens to `.scratch/release-readiness/`**: archive it in the
   repo or delete it once its decisions are folded in. Either is fine; leaving a
   resolved map lying around as if it were live is not.

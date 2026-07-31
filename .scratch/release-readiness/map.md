@@ -55,10 +55,12 @@ Skills: `/ponytail` always; `/grilling` + `/domain-modeling` on grilling
 tickets; `/tdd` where the behaviour is testable; `/research` on research
 tickets.
 
-**Picking a ticket:** the frontier is every file in `issues/` whose `Status:` is
-`open` and whose `Blocked by:` tickets are all `Status: resolved`. Lowest number
-wins. Grilling tickets need the effort owner present; task and research tickets
-do not.
+**Picking a ticket:** see `docs/agents/claiming-tickets.md` — the frontier is
+every file in `issues/` whose `Status:` is `open` and whose `Blocked by:`
+tickets are all `Status: resolved`. Lowest number wins. Claim with a **pushed**
+commit before starting, or concurrent agents cannot see the claim. Grilling
+tickets and tasks marked `(HITL)` need the effort owner present; plain task and
+research tickets do not.
 
 ## Decisions so far
 
