@@ -12,7 +12,8 @@ platform, engine and model it was proved on.
 Reached when a tagged GitHub Release ships Linux amd64, Linux arm64 and macOS
 arm64 artifacts with checksums, SBOM, provenance and an install script, backed
 by green llama.cpp E2E, browser E2E, an MLX CI job that really infers, and
-signed-off manual TUI + web UI passes.
+signed-off manual TUI + web UI passes — and `phase-01-bootstrap` is merged to
+`main` with the planning docs pruned (ticket 19, the effort's last).
 
 ## Notes
 
@@ -86,6 +87,16 @@ do not.
   `runtimeSlot{process, profiles}` keyed by backend. No client can kill a
   running engine implicitly — conflict unless `replace: true`. Non-active
   backend profiles stay listed but render unstartable with the reason.
+- [12 — Decide release identity, channels and signing](issues/12-release-identity.md)
+  — Repo goes public before the first tag (it is private today, which would
+  break the install one-liner and bill the macOS MLX job); first release is
+  `v0.1.0` with the workflow regex relaxed to accept stable SemVer; signing is
+  GitHub build-provenance attestation only, no cosign and no maintainer key;
+  `stable`/`dev` read the existing release list rather than adding publishing
+  infrastructure; every automated gate including MLX hard-blocks a release,
+  and the human dispatching it is the manual-QA sign-off. Nothing
+  Apache-derived is in the tree — only `llamarig`/`mlxrig` licensing is left to
+  confirm. `release.yml` already does more than expected, so ticket 14 shrinks.
 
 ## Not yet specified
 
