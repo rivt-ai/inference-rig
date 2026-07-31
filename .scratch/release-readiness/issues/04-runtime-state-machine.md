@@ -1,7 +1,7 @@
 # 04 — Explicit runtime state machine with non-blocking transitions
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: 03
 Milestone: A
 Roadmap: P1 #8 + P1 #6
