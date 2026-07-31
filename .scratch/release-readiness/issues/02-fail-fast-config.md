@@ -1,7 +1,7 @@
 # 02 — Fail fast on invalid configuration
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: none
 Milestone: A
 Roadmap: P0 #3
