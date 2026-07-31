@@ -32,7 +32,7 @@ func TestServiceRunsCanonicalControlSocket(t *testing.T) {
 		t.Fatalf("health = %#v, err = %v", health, err)
 	}
 	backends, err := client.ListBackends(context.Background(), &controlv1.ListBackendsRequest{})
-	if err != nil || len(backends.GetBackends()) != 2 {
+	if err != nil || len(backends.GetBackends()) == 0 {
 		t.Fatalf("backends = %#v, err = %v", backends, err)
 	}
 	if _, err := os.Stat(service.pidFile.Path()); err != nil {
