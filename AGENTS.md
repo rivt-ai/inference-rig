@@ -3,6 +3,13 @@
 InferenceRig is a neutral control plane merged from two upstream references
 (llamarig, mlxrig).
 
+## Start here (required)
+
+Read `docs/architecture-overview.md` before touching code. It maps the layers,
+the import direction, and the entry-point file for each area, so you land in the
+package that already owns the behavior instead of adding a parallel one — which
+is what the Reuse-First Checklist below asks of you.
+
 ## Neutrality (non-negotiable)
 
 - Shared packages must not import, name, or reference `llamarig`/`mlxrig`, or
@@ -36,3 +43,13 @@ InferenceRig is a neutral control plane merged from two upstream references
 2. Which existing types/functions can be reused or extended?
 3. Why is new logic necessary?
 4. What can be removed or consolidated?
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
