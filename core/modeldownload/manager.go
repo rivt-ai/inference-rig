@@ -256,18 +256,9 @@ func (m *Manager) downloadItem(ctx context.Context, id string, item backends.Art
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	switch {
-	case offset > 0 && resp.StatusCode == http.StatusPartialContent && resumesAt(resp, offset):
-		m.log("resuming artifact download", "job", id, "uri", item.URI, "offset", offset)
-		m.addProgress(id, offset)
-	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		if offset > 0 {
-			m.log("restarting artifact download: no usable range support",
-				"job", id, "uri", item.URI, "status", resp.StatusCode)
-			offset = 0
-		}
-	default:
-		return fmt.Errorf("download artifact: status %d", resp.StatusCode)
+	offset, err = m.resumeOffset(id, item.URI, resp, offset)
+	if err != nil {
+		return err
 	}
 	if resp.ContentLength > 0 && offset+resp.ContentLength > m.maxBytes {
 		return fmt.Errorf("%w: artifact is larger than the %d byte limit", ErrInvalidInput, m.maxBytes)
@@ -281,6 +272,26 @@ func (m *Manager) downloadItem(ctx context.Context, id string, item backends.Art
 		return fmt.Errorf("artifact size %d differs from expected %d", total, item.SizeBytes)
 	}
 	return verifyDigest(destination, item.SHA256)
+}
+
+// resumeOffset reports where the transfer continues: offset when the server
+// answered the range request with a matching 206, and zero when the artifact
+// has to be fetched again from the start.
+func (m *Manager) resumeOffset(id, uri string, resp *http.Response, offset int64) (int64, error) {
+	switch {
+	case offset > 0 && resp.StatusCode == http.StatusPartialContent && resumesAt(resp, offset):
+		m.log("resuming artifact download", "job", id, "uri", uri, "offset", offset)
+		m.addProgress(id, offset)
+		return offset, nil
+	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+		if offset > 0 {
+			m.log("restarting artifact download: no usable range support",
+				"job", id, "uri", uri, "status", resp.StatusCode)
+		}
+		return 0, nil
+	default:
+		return 0, fmt.Errorf("download artifact: status %d", resp.StatusCode)
+	}
 }
 
 // get issues the artifact request under the host, scheme and redirect policy,
