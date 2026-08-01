@@ -1,4 +1,4 @@
-import { sessionApiBaseKey, sessionTokenKey } from './project';
+import { projectName, sessionApiBaseKey, sessionTokenKey } from './project';
 
 export type SessionState = {
   apiBase: string;
@@ -38,4 +38,23 @@ export function saveApiBase(storage: Storage, apiBase: string) {
 
 export function saveToken(storage: Storage, token: string) {
   storage.setItem(sessionTokenKey, token);
+}
+
+// The insecure-exposure banner is dismissible, but the dismissal is recorded
+// per host rather than globally. The warning is about *this* address being
+// reachable without a credential, so acknowledging it on one host says nothing
+// about the next: a laptop that moves networks, or a gateway later bound
+// somewhere new, has to raise it again. A single global flag would silence the
+// warning permanently on the first click, which is how a security notice
+// becomes decorative.
+function insecureDismissKey(host: string) {
+  return `${projectName}.insecureBannerDismissed.${host}`;
+}
+
+export function loadInsecureDismissed(storage: Storage, host = window.location.host): boolean {
+  return storage.getItem(insecureDismissKey(host)) === 'true';
+}
+
+export function saveInsecureDismissed(storage: Storage, host = window.location.host) {
+  storage.setItem(insecureDismissKey(host), 'true');
 }

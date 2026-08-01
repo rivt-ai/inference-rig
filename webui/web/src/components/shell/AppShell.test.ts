@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { loadInsecureDismissed } from '$lib/session';
 import { createInferenceRigState } from '../../lib/state/createInferenceRigState.svelte';
 import Harness from '../../test/AppShellHarness.svelte';
 
@@ -62,8 +63,9 @@ describe('AppShell', () => {
   });
 
   // Someone running an exposed unauthenticated gateway must never be able to
-  // believe they are protected, so the warning is a permanent part of the page
-  // rather than a toast they can miss or dismiss.
+  // believe they are protected, so the warning is a standing part of the page
+  // rather than a toast that disappears on its own. It can be dismissed
+  // deliberately, but only for the host it is warning about — see below.
   it('names what is exposed when the gateway serves unauthenticated over the network', () => {
     const app = createInferenceRigState();
     app.insecureExposed = true;
@@ -77,5 +79,35 @@ describe('AppShell', () => {
     render(Harness, { app });
 
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('stays dismissed once the operator acknowledges it', async () => {
+    const app = createInferenceRigState();
+    app.insecureExposed = true;
+    const first = render(Harness, { app });
+
+    await userEvent.click(screen.getByRole('button', { name: /Dismiss this warning/ }));
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    // The acknowledgement has to survive a reload, or it is not a dismissal.
+    first.unmount();
+    const next = createInferenceRigState();
+    next.insecureExposed = true;
+    render(Harness, { app: next });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  // The warning is about *this* address being reachable without a credential,
+  // so acknowledging it on one host says nothing about the next. A laptop that
+  // moves networks has to be told again.
+  it('warns again when reached at a different host', async () => {
+    const app = createInferenceRigState();
+    app.insecureExposed = true;
+    render(Harness, { app });
+    await userEvent.click(screen.getByRole('button', { name: /Dismiss this warning/ }));
+
+    expect(loadInsecureDismissed(localStorage, window.location.host)).toBe(true);
+    expect(loadInsecureDismissed(localStorage, 'somewhere-else.local:7000')).toBe(false);
   });
 });

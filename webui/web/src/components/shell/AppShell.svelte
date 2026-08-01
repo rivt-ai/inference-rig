@@ -20,6 +20,8 @@
   import LogoSmall from './LogoSmall.svelte';
   import LogoWide from './LogoWide.svelte';
   import { loadPrimaryColors, resetPrimaryColors, savePrimaryColors } from '$lib/theme';
+  import { loadInsecureDismissed, saveInsecureDismissed } from '$lib/session';
+  import X from '@lucide/svelte/icons/x';
   import { Separator } from '$lib/components/ui/separator';
   import * as Sheet from '$lib/components/ui/sheet';
   import * as Sidebar from '$lib/components/ui/sidebar';
@@ -38,6 +40,12 @@
 
   let { app, sections, sectionTitle, errorMessage, onSaveApiBase, onSaveToken, onTestConnection, children }: Props = $props();
   let primaryColors = $state(loadPrimaryColors(localStorage));
+  let insecureDismissed = $state(loadInsecureDismissed(localStorage));
+
+  function dismissInsecureBanner() {
+    saveInsecureDismissed(localStorage);
+    insecureDismissed = true;
+  }
 
   const icons = { runtime: Gauge, profiles: Server, models: Box, logs: ScrollText };
 
@@ -169,12 +177,23 @@
       </DropdownMenu.Root>
     </header>
 
-    {#if app.insecureExposed}
-      <div role="alert" class="border-b bg-destructive px-4 py-2 text-sm font-medium text-white md:px-6">
-        Authentication is disabled and this {projectDisplayName} is reachable over the network. Anyone who can
-        reach {window.location.host} can read every profile, model, log and audit record, and can start, stop or
-        delete runtimes — no credential required. Remove <code>security.disable_auth</code> from the config and
-        restart the gateway.
+    {#if app.insecureExposed && !insecureDismissed}
+      <div role="alert" class="flex items-start gap-3 border-b bg-destructive px-4 py-2 text-sm font-medium text-white md:px-6">
+        <p class="flex-1">
+          Authentication is disabled and this {projectDisplayName} is reachable over the network. Anyone who can
+          reach {window.location.host} can read every profile, model, log and audit record, and can start, stop or
+          delete runtimes — no credential required. Remove <code>security.disable_auth</code> from the config and
+          restart the gateway.
+        </p>
+        <button
+          type="button"
+          onclick={dismissInsecureBanner}
+          aria-label="Dismiss this warning for {window.location.host}"
+          title="Dismiss for {window.location.host}. It returns if you reach {projectDisplayName} at a different address."
+          class="-mr-1 shrink-0 rounded p-1 text-white/80 transition hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+        >
+          <X class="size-4" />
+        </button>
       </div>
     {/if}
 
