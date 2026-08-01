@@ -52,6 +52,7 @@ func (p *systemPage) View(width, height int, data snapshot) string {
 		tuikit.Field("Profiles", fmt.Sprint(data.info.GetProfiles())),
 		tuikit.Field("Backends", fmt.Sprint(data.info.GetBackends())),
 		tuikit.Field("Running", fmt.Sprint(len(data.info.GetRunningProfiles()))),
+		tuikit.Field("Models space used", modelsSpaceUsed(data.local.GetModels())),
 		tuikit.Field("Commit", build.GetCommit()),
 	}
 	// Grow both panels together so added GPU/disk rows stay inside the border.
@@ -64,6 +65,16 @@ func (p *systemPage) View(width, height int, data snapshot) string {
 	p.vp.SetHeight(height)
 	p.vp.SetContent(content)
 	return p.vp.View()
+}
+
+// modelsSpaceUsed reports what the downloaded models themselves occupy, which
+// is a different number from the model directory's filesystem usage above.
+func modelsSpaceUsed(models []*controlv1.LocalModel) string {
+	var total int64
+	for _, model := range models {
+		total += model.GetSizeBytes()
+	}
+	return fmt.Sprintf("%s (%d models)", tuikit.FormatBytes(total), len(models))
 }
 
 var meter = tuikit.NewMeter(20, green)
@@ -125,7 +136,7 @@ func diskRows(disks []*controlv1.Disk) []string {
 func diskLabel(label string) string {
 	switch label {
 	case "model_storage":
-		return "Models"
+		return "ModelDir"
 	case "root":
 		return "Root"
 	case "":

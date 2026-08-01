@@ -33,6 +33,7 @@
     return total ? (used / total) * 100 : 0;
   }
 
+  const localModelBytes = $derived(appState.localModels.reduce((sum, model) => sum + Number(model.sizeBytes), 0));
   const capturedAt = $derived(appState.signals?.capturedAt || '');
   const stale = $derived(!!appState.signalsLastError);
   const accelerators = $derived(appState.signals?.accelerators || []);
@@ -107,8 +108,9 @@
     <Card.Root size="sm" class="bg-card/70 shadow-sm">
       <Card.Content class="flex items-start justify-between gap-3">
         <div class="min-w-0 space-y-1.5">
-          <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Local models</p>
-          <p class="text-2xl font-semibold tabular-nums">{appState.localModels.length}</p>
+          <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Models space used</p>
+          <p class="text-2xl font-semibold tabular-nums">{formatBytes(localModelBytes)}</p>
+          <p class="truncate text-sm text-muted-foreground">{appState.localModels.length} local models</p>
           <Button size="sm" variant="link" class="h-auto p-0" onclick={() => (appState.activeSection = 'models')}>Manage models</Button>
         </div>
         {@render statIcon(Box)}
