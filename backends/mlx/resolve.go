@@ -22,7 +22,8 @@ type hfSibling struct {
 	Name string `json:"rfilename"`
 	Size int64  `json:"size"`
 	LFS  *struct {
-		Size int64 `json:"size"`
+		Size int64  `json:"size"`
+		OID  string `json:"oid"`
 	} `json:"lfs"`
 }
 
@@ -45,36 +46,48 @@ func (b *Backend) Resolve(ctx context.Context, p profiles.Profile) (backends.Res
 			Metadata:  map[string]string{"target_dir": safeTargetName(name)},
 		}, nil
 	}
-	siblings, err := b.fetchSiblings(ctx, owner, repo)
+	siblings, revision, err := b.fetchSiblings(ctx, owner, repo)
 	if err != nil {
 		return backends.ResolvedModel{}, err
 	}
-	artifacts, err := b.snapshotArtifacts(owner, repo, siblings)
+	artifacts, err := b.snapshotArtifacts(owner, repo, revision, siblings)
 	if err != nil {
 		return backends.ResolvedModel{}, err
+	}
+	metadata := map[string]string{"target_dir": filepath.Join(owner, repo)}
+	if revision != "" {
+		metadata["revision"] = revision
 	}
 	return backends.ResolvedModel{
 		Source: p.Model.Source, Reference: p.Model.Reference, MultiFile: true, Artifacts: artifacts,
-		Metadata: map[string]string{"target_dir": filepath.Join(owner, repo)},
+		Metadata: metadata,
 	}, nil
 }
 
-func (b *Backend) snapshotArtifacts(owner, repo string, siblings []hfSibling) ([]backends.ArtifactRef, error) {
+// snapshotArtifacts pins every file to revision, so a snapshot fetched over
+// many requests cannot straddle two versions of the repository, and carries the
+// repository's own digest for each file it publishes one for.
+func (b *Backend) snapshotArtifacts(owner, repo, revision string, siblings []hfSibling) ([]backends.ArtifactRef, error) {
 	artifacts := make([]backends.ArtifactRef, 0, len(siblings))
 	hasConfig, hasWeights := false, false
 	for _, sibling := range siblings {
 		if !safeRelativePath(sibling.Name) {
 			return nil, fmt.Errorf("unsafe snapshot path %q", sibling.Name)
 		}
-		size := sibling.Size
-		if sibling.LFS != nil && sibling.LFS.Size > 0 {
-			size = sibling.LFS.Size
+		size, digest := sibling.Size, ""
+		if sibling.LFS != nil {
+			if sibling.LFS.Size > 0 {
+				size = sibling.LFS.Size
+			}
+			digest = sibling.LFS.OID
 		}
 		name := strings.TrimPrefix(sibling.Name, "/")
 		artifacts = append(artifacts, backends.ArtifactRef{
-			Name:      name,
-			URI:       strings.TrimRight(b.opts.HuggingFaceURL, "/") + "/" + owner + "/" + repo + "/resolve/main/" + encodeSegments(name),
+			Name: name,
+			URI: strings.TrimRight(b.opts.HuggingFaceURL, "/") + "/" + owner + "/" + repo +
+				"/resolve/" + pinnedRevision(revision) + "/" + encodeSegments(name),
 			SizeBytes: size,
+			SHA256:    digest,
 		})
 		hasConfig = hasConfig || name == "config.json"
 		hasWeights = hasWeights || strings.EqualFold(filepath.Ext(name), ".safetensors")
@@ -85,28 +98,38 @@ func (b *Backend) snapshotArtifacts(owner, repo string, siblings []hfSibling) ([
 	return artifacts, nil
 }
 
-func (b *Backend) fetchSiblings(ctx context.Context, owner, repo string) ([]hfSibling, error) {
+// pinnedRevision falls back to the mutable default branch when the repository
+// reports no commit, which keeps an unversioned mirror usable.
+func pinnedRevision(revision string) string {
+	if revision == "" {
+		return "main"
+	}
+	return revision
+}
+
+func (b *Backend) fetchSiblings(ctx context.Context, owner, repo string) ([]hfSibling, string, error) {
 	endpoint := strings.TrimRight(b.opts.HuggingFaceURL, "/") + "/api/models/" +
 		url.PathEscape(owner) + "/" + url.PathEscape(repo) + "?blobs=true"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	resp, err := b.opts.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("resolve MLX snapshot: %w", err)
+		return nil, "", fmt.Errorf("resolve MLX snapshot: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("resolve MLX snapshot: %s", resp.Status)
+		return nil, "", fmt.Errorf("resolve MLX snapshot: %s", resp.Status)
 	}
 	var raw struct {
+		SHA      string      `json:"sha"`
 		Siblings []hfSibling `json:"siblings"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return raw.Siblings, nil
+	return raw.Siblings, raw.SHA, nil
 }
 
 // Plan creates a multi-file executor plan rooted at one snapshot directory.
@@ -125,7 +148,9 @@ func (b *Backend) Plan(r backends.ResolvedModel) (backends.ArtifactPlan, error) 
 	if !safeRelativePath(targetDir) {
 		return backends.ArtifactPlan{}, fmt.Errorf("unsafe snapshot target %q", targetDir)
 	}
-	plan := backends.ArtifactPlan{MultiFile: true, TargetRoot: filepath.Join(root, targetDir)}
+	plan := backends.ArtifactPlan{
+		MultiFile: true, TargetRoot: filepath.Join(root, targetDir), Revision: r.Metadata["revision"],
+	}
 	for _, artifact := range r.Artifacts {
 		if !safeRelativePath(artifact.Name) {
 			return backends.ArtifactPlan{}, fmt.Errorf("unsafe artifact path %q", artifact.Name)
@@ -134,6 +159,7 @@ func (b *Backend) Plan(r backends.ResolvedModel) (backends.ArtifactPlan, error) 
 			URI: artifact.URI, Filename: artifact.Name,
 			TargetPath: filepath.Join(root, targetDir, filepath.FromSlash(artifact.Name)),
 			SizeBytes:  artifact.SizeBytes,
+			SHA256:     artifact.SHA256,
 		})
 		plan.TotalBytes += artifact.SizeBytes
 	}

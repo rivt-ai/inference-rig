@@ -118,9 +118,15 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 	store := profiles.NewFileStore(paths.Profiles, 0, registry.BackendLookup())
+	downloads := modeldownload.New(modeldownload.Options{
+		StateDir: paths.DownloadState, Logger: slog.Default(),
+	})
+	if err := downloads.Recover(context.Background()); err != nil {
+		slog.Default().Warn("reconciling interrupted downloads failed", "error", err)
+	}
 	manager := control.NewManager(control.Dependencies{
 		Registry: registry, Profiles: store,
-		Downloads: modeldownload.New(modeldownload.Options{}),
+		Downloads: downloads,
 		Signals:   telemetry(registry, modelStorageDir),
 		Audit:     control.NewSlogSink(slog.Default()),
 		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: paths.CatalogCache, CacheTTL: time.Hour}),
