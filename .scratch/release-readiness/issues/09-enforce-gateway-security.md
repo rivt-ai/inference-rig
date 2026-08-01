@@ -1,7 +1,7 @@
 # 09 — Enforce the gateway security policy
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: 01
 Milestone: A
 Roadmap: P0 #5
