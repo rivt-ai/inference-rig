@@ -27,14 +27,15 @@ const (
 )
 
 type snapshot struct {
-	info               *controlv1.GetInfoResponse
-	backends           *controlv1.ListBackendsResponse
-	profiles           *controlv1.ListProfilesResponse
-	catalog            *controlv1.ListModelCatalogResponse
-	local              *controlv1.ListLocalModelsResponse
-	signals            *controlv1.GetSignalsResponse
-	events             *controlv1.ListEventsResponse
-	downloads          []*controlv1.ModelDownload
+	info                          *controlv1.GetInfoResponse
+	runtimes                      *controlv1.GetRuntimeStatusResponse
+	backends                      *controlv1.ListBackendsResponse
+	profiles                      *controlv1.ListProfilesResponse
+	catalog                       *controlv1.ListModelCatalogResponse
+	local                         *controlv1.ListLocalModelsResponse
+	signals                       *controlv1.GetSignalsResponse
+	events                        *controlv1.ListEventsResponse
+	downloads                     []*controlv1.ModelDownload
 	controlLog, engineLog, webLog []string
 	// webReachable reports that the configured gateway address answers, which
 	// is how a gateway this TUI did not start is detected. The PID file only
@@ -265,7 +266,7 @@ func (d *dashboard) applyCatalog(msg catalogMsg) {
 func (d *dashboard) applyPoll(result pollResult) {
 	current, next := d.data, result.value
 	if !result.ok["base"] {
-		next.info, next.backends, next.profiles = current.info, current.backends, current.profiles
+		next.info, next.runtimes, next.backends, next.profiles = current.info, current.runtimes, current.backends, current.profiles
 	}
 	next.catalogPending = !result.ok["catalog"]
 	// The catalog arrives on its own command, so a poll never carries one.
@@ -330,7 +331,9 @@ func (d *dashboard) runRPC(request rpcRequest) tea.Cmd {
 		msg := actionMsg{notice: request.notice}
 		switch request.kind {
 		case rpcStart:
-			_, msg.err = d.client.StartRuntime(d.ctx, &controlv1.StartRuntimeRequest{Profile: request.profile})
+			_, msg.err = d.client.StartRuntime(d.ctx, &controlv1.StartRuntimeRequest{Profile: request.profile, Replace: request.replace})
+		case rpcReset:
+			_, msg.err = d.client.ResetRuntimes(d.ctx, &controlv1.ResetRuntimesRequest{})
 		case rpcStop:
 			_, msg.err = d.client.StopRuntime(d.ctx, &controlv1.StopRuntimeRequest{Profile: request.profile})
 		case rpcRestart:
@@ -425,6 +428,9 @@ func (p *poller) base() (err error) {
 	if p.result.value.info, err = p.client.GetInfo(p.ctx, &controlv1.GetInfoRequest{}); err != nil {
 		return err
 	}
+	if p.result.value.runtimes, err = p.client.GetRuntimeStatus(p.ctx, &controlv1.GetRuntimeStatusRequest{}); err != nil {
+		return err
+	}
 	if p.result.value.backends, err = p.client.ListBackends(p.ctx, &controlv1.ListBackendsRequest{}); err != nil {
 		return err
 	}
@@ -473,6 +479,7 @@ type rpcKind int
 
 const (
 	rpcStart rpcKind = iota
+	rpcReset
 	rpcStop
 	rpcRestart
 	rpcAutostart
@@ -487,7 +494,7 @@ const (
 type rpcRequest struct {
 	kind                       rpcKind
 	profile, backend, path, id string
-	enabled                    bool
+	enabled, replace           bool
 	notice                     string
 }
 

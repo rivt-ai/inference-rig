@@ -168,6 +168,16 @@ func (p *modelsPage) enter(data snapshot) tea.Cmd {
 	case paneProfiles:
 		profile := p.selectedProfile(data)
 		if profile != nil && !running(data.info, profile.GetName()) {
+			if backendConflictReason(data.info, profile) != "" {
+				return p.profileStatus.Confirm("reset:"+profile.GetName(), false, func() tea.Cmd {
+					return requestCmd(rpcRequest{kind: rpcReset, notice: "runtimes reset"})
+				})
+			}
+			if startNeedsReplace(data, profile) {
+				return p.profileStatus.Confirm("replace:"+profile.GetName(), false, func() tea.Cmd {
+					return requestCmd(rpcRequest{kind: rpcStart, profile: profile.GetName(), replace: true, notice: "runtime started"})
+				})
+			}
 			return requestCmd(rpcRequest{kind: rpcStart, profile: profile.GetName(), notice: "runtime started"})
 		}
 	case paneDownloads:
@@ -244,7 +254,7 @@ func (p *modelsPage) View(width, height int, data snapshot) string {
 		p.search.SetLines(lines)
 		body = p.search.View(width-4, max(1, tabHeight-4))
 	}
-	body = p.statusRows(body)
+	body = p.statusRows(body, data)
 	tabbed := theme.TabbedPanel(titles, accents, int(p.active), width, tabHeight, body)
 	detail := p.detail(width, detailHeight, data)
 	help := tuikit.HelpLine(
@@ -284,11 +294,13 @@ func profileModel(item *controlv1.Profile) string {
 func (p *modelsPage) setRows(data snapshot) {
 	profiles := make([]table.Row, 0, len(data.profiles.GetProfiles()))
 	for _, item := range data.profiles.GetProfiles() {
-		state := "Stopped"
-		if running(data.info, item.GetName()) {
-			state = "Running"
+		row := table.Row{item.GetName(), item.GetBackend(), profileModel(item), profileRuntimeState(data.runtimes, item.GetName())}
+		if backendConflictReason(data.info, item) != "" {
+			for i := range row {
+				row[i] = mutedStyle.Render(row[i])
+			}
 		}
-		profiles = append(profiles, table.Row{item.GetName(), item.GetBackend(), profileModel(item), state})
+		profiles = append(profiles, row)
 	}
 	p.profiles.SetRows(profiles)
 	catalog := make([]table.Row, 0, len(data.catalog.GetModels()))
@@ -308,12 +320,19 @@ func (p *modelsPage) setRows(data snapshot) {
 	p.downloads.SetRows(downloads)
 }
 
-func (p *modelsPage) statusRows(body string) string {
+func (p *modelsPage) statusRows(body string, data snapshot) string {
 	rows := []string{body}
 	switch p.active {
 	case paneProfiles:
 		if pending := p.profileStatus.Pending(); pending != "" {
-			rows = append(rows, warningStyle.Render("Clean up "+pending+" and its unshared artifacts? Press d or y to confirm, Esc to cancel"))
+			switch {
+			case strings.HasPrefix(pending, "reset:"):
+				rows = append(rows, warningStyle.Render(backendConflictReason(data.info, p.selectedProfile(data))+". Press Enter again to reset, Esc to cancel"))
+			case strings.HasPrefix(pending, "replace:"):
+				rows = append(rows, warningStyle.Render("Starting "+strings.TrimPrefix(pending, "replace:")+" will stop the running profile. Press Enter again to replace, Esc to cancel"))
+			default:
+				rows = append(rows, warningStyle.Render("Clean up "+pending+" and its unshared artifacts? Press d or y to confirm, Esc to cancel"))
+			}
 		} else {
 			rows = p.profileStatus.AppendRows(theme, rows)
 		}
@@ -333,11 +352,11 @@ func (p *modelsPage) detail(width, height int, data snapshot) string {
 	switch p.active {
 	case paneProfiles:
 		if item := p.selectedProfile(data); item != nil {
-			state := "Stopped"
-			if running(data.info, item.GetName()) {
-				state = "Running"
-			}
+			state := profileRuntimeState(data.runtimes, item.GetName())
 			rows = []string{theme.StatusTitle(item.GetName(), state, accent, green, width), tuikit.Field("Backend", item.GetBackend()), tuikit.Field("Model", tuikit.TruncMiddle(profileModel(item), width-12)), tuikit.Field("Listen", fmt.Sprintf("%s:%d", item.GetHost(), item.GetPort()))}
+			if reason := backendConflictReason(data.info, item); reason != "" {
+				rows = append(rows, warningStyle.Render(reason))
+			}
 		}
 	case paneCatalog:
 		rows = append(rows, mutedStyle.Render("/: search catalog · i: install selected backend"))
@@ -351,6 +370,43 @@ func (p *modelsPage) detail(width, height int, data snapshot) string {
 		}
 	}
 	return panel(accent, false, width, height, lipgloss.JoinVertical(lipgloss.Left, rows...))
+}
+
+func backendConflictReason(info *controlv1.GetInfoResponse, profile *controlv1.Profile) string {
+	if profile == nil || info.GetActiveBackend() == "" || info.GetActiveBackend() == profile.GetBackend() {
+		return ""
+	}
+	return fmt.Sprintf("%s is active — reset to start %s profiles", info.GetActiveBackend(), profile.GetBackend())
+}
+
+func startNeedsReplace(data snapshot, target *controlv1.Profile) bool {
+	if target == nil || len(data.info.GetRunningProfiles()) == 0 {
+		return false
+	}
+	for _, backend := range data.backends.GetBackends() {
+		if backend.GetName() == target.GetBackend() && backend.GetCapabilities().GetSingleActiveProfile() {
+			return true
+		}
+	}
+	for _, name := range data.info.GetRunningProfiles() {
+		for _, profile := range data.profiles.GetProfiles() {
+			if profile.GetName() == name && (profile.GetHost() != target.GetHost() || profile.GetPort() != target.GetPort()) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func profileRuntimeState(runtimes *controlv1.GetRuntimeStatusResponse, name string) string {
+	state := "stopped"
+	for _, profile := range runtimes.GetProfiles() {
+		if profile.GetName() == name && profile.GetStatus().GetState() != "" {
+			state = profile.GetStatus().GetState()
+			break
+		}
+	}
+	return strings.ToUpper(state[:1]) + state[1:]
 }
 
 func (p *modelsPage) selectedProfile(data snapshot) *controlv1.Profile {

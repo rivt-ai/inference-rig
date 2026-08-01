@@ -3,6 +3,8 @@ package tui
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -27,7 +29,11 @@ func (c *dispatchClient) record(name string) error {
 }
 
 func (c *dispatchClient) StartRuntime(_ context.Context, r *controlv1.StartRuntimeRequest) (*controlv1.StartRuntimeResponse, error) {
-	return &controlv1.StartRuntimeResponse{}, c.record("start:" + r.GetProfile())
+	return &controlv1.StartRuntimeResponse{}, c.record(fmt.Sprintf("start:%s:%t", r.GetProfile(), r.GetReplace()))
+}
+
+func (c *dispatchClient) ResetRuntimes(context.Context, *controlv1.ResetRuntimesRequest) (*controlv1.ResetRuntimesResponse, error) {
+	return &controlv1.ResetRuntimesResponse{}, c.record("reset")
 }
 
 func (c *dispatchClient) StopRuntime(_ context.Context, r *controlv1.StopRuntimeRequest) (*controlv1.StopRuntimeResponse, error) {
@@ -81,7 +87,8 @@ func TestRunRPCDispatchesEveryActionToItsProcedure(t *testing.T) {
 		request rpcRequest
 		want    string
 	}{
-		{"start", rpcRequest{kind: rpcStart, profile: "demo"}, "start:demo"},
+		{"start", rpcRequest{kind: rpcStart, profile: "demo", replace: true}, "start:demo:true"},
+		{"reset", rpcRequest{kind: rpcReset}, "reset"},
 		{"stop", rpcRequest{kind: rpcStop, profile: "demo"}, "stop:demo"},
 		{"restart", rpcRequest{kind: rpcRestart, profile: "demo"}, "restart:demo"},
 		{"autostart", rpcRequest{kind: rpcAutostart, profile: "demo", enabled: true}, "autostart:demo"},
@@ -188,6 +195,68 @@ func TestModelsPageKeysRequestDownloadAndCancel(t *testing.T) {
 		}
 	} else {
 		t.Fatal("the cancel key produced no request for a running download")
+	}
+}
+
+func TestProfilesOnAnotherBackendOfferResetInline(t *testing.T) {
+	page := newModelsPage()
+	data := snapshot{
+		info:     &controlv1.GetInfoResponse{ActiveBackend: "mlx"},
+		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Name: "coder", Backend: "llamacpp"}}},
+	}
+
+	if cmd := page.Update(keyMsg("enter"), data); cmd != nil {
+		t.Fatal("the first Enter reset without confirmation")
+	}
+	if rows := page.statusRows("", data); !strings.Contains(rows, "mlx is active — reset to start llamacpp profiles") {
+		t.Fatalf("inline reset reason missing from %q", rows)
+	}
+	cmd := page.Update(keyMsg("enter"), data)
+	if cmd == nil {
+		t.Fatal("the confirmed reset produced no request")
+	}
+	if request := cmd().(rpcRequest); request.kind != rpcReset {
+		t.Fatalf("request = %#v, want reset", request)
+	}
+}
+
+func TestExclusiveBackendStartConfirmsThenReplaces(t *testing.T) {
+	page := newModelsPage()
+	data := snapshot{
+		info: &controlv1.GetInfoResponse{ActiveBackend: "mlx", RunningProfiles: []string{"chat"}},
+		backends: &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{
+			Name: "mlx", Capabilities: &controlv1.BackendCapabilities{SingleActiveProfile: true},
+		}}},
+		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{
+			{Name: "coder", Backend: "mlx"}, {Name: "chat", Backend: "mlx"},
+		}},
+	}
+
+	if cmd := page.Update(keyMsg("enter"), data); cmd != nil {
+		t.Fatal("the first Enter replaced without confirmation")
+	}
+	cmd := page.Update(keyMsg("enter"), data)
+	if cmd == nil {
+		t.Fatal("the confirmed replacement produced no request")
+	}
+	request := cmd().(rpcRequest)
+	if request.kind != rpcStart || !request.replace {
+		t.Fatalf("request = %#v, want replacing start", request)
+	}
+}
+
+func TestProfileRowsShowTransitionalRuntimeStates(t *testing.T) {
+	page := newModelsPage()
+	data := snapshot{
+		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Name: "coder", Backend: "mlx"}}},
+		runtimes: &controlv1.GetRuntimeStatusResponse{Profiles: []*controlv1.ProfileRuntimeStatus{{
+			Name: "coder", Status: &controlv1.RuntimeStatus{State: "activating"},
+		}}},
+	}
+
+	page.setRows(data)
+	if got := page.profiles.Rows()[0][3]; got != "Activating" {
+		t.Fatalf("state = %q, want Activating", got)
 	}
 }
 

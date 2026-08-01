@@ -25,6 +25,9 @@ func (testClient) ListProfiles(context.Context, *controlv1.ListProfilesRequest) 
 func (testClient) GetInfo(context.Context, *controlv1.GetInfoRequest) (*controlv1.GetInfoResponse, error) {
 	return &controlv1.GetInfoResponse{Backends: 2, Profiles: 1, RunningProfiles: []string{"demo"}}, nil
 }
+func (testClient) GetRuntimeStatus(context.Context, *controlv1.GetRuntimeStatusRequest) (*controlv1.GetRuntimeStatusResponse, error) {
+	return &controlv1.GetRuntimeStatusResponse{Profiles: []*controlv1.ProfileRuntimeStatus{{Name: "demo", Status: &controlv1.RuntimeStatus{State: "running"}}}}, nil
+}
 func (testClient) GetSignals(context.Context, *controlv1.GetSignalsRequest) (*controlv1.GetSignalsResponse, error) {
 	return &controlv1.GetSignalsResponse{Signals: &controlv1.Signals{TotalMemoryBytes: 16, AvailableMemoryBytes: 8, CpuUsedPercent: 25}}, nil
 }
