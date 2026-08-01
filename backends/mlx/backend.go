@@ -69,9 +69,6 @@ func New(opts Options) *Backend {
 	return b
 }
 
-// Register adds a default MLX backend to reg.
-func Register(reg *backends.Registry) error { return reg.Register(New(Options{})) }
-
 // Name returns the registry key.
 func (b *Backend) Name() string { return Name }
 

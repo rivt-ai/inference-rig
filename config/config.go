@@ -269,10 +269,6 @@ func ConfigPath() (string, error) {
 
 func DefaultModelStorageDir() (string, error) { return homePath("models") }
 
-func DefaultCatalogCacheDir() (string, error) { return homePath("cache", "hf-catalog") }
-
-func ProfilesDir() (string, error) { return homePath("profiles") }
-
 // GeneratedDir returns the directory holding a backend's generated (non
 // user-owned) runtime files: ${home}/generated/<backend>. The backend name is
 // a caller-supplied registry key; config carries no engine knowledge and only
