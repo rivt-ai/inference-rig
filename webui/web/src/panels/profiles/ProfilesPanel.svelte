@@ -53,6 +53,11 @@
   // single_active_profile backend, starting B stops A. Computed before the
   // click, so the confirmation names what is about to be stopped.
   const startWarning = $derived(app.startWarning(appState.selectedProfileName));
+  const blockedReason = $derived(
+    appState.currentProfile && appState.activeBackend && appState.activeBackend !== appState.currentProfile.backend
+      ? `${appState.activeBackend} is active — reset to start ${appState.currentProfile.backend} profiles`
+      : ''
+  );
 
   const kindOptions: { value: EngineArgKind; label: string }[] = [
     { value: 'string', label: 'text' },
@@ -140,7 +145,7 @@
     <Card.Root>
       <Card.Header>
         <Card.Title>Profiles</Card.Title>
-        <Card.Description>Select or manage a serving profile.</Card.Description>
+        <Card.Description>Select or manage a serving profile. <span>Active backend: {appState.activeBackend || 'none'}</span></Card.Description>
         <Card.Action><Button size="icon-sm" variant="outline" aria-label="Reload profiles" onclick={() => app.loadProfiles({ force: true })} disabled={appState.busy}><RefreshCw /></Button></Card.Action>
       </Card.Header>
       <Card.Content class="space-y-4">
@@ -200,10 +205,12 @@
         <ScrollArea class="panel-scroll pr-3">
           <Item.Group>
             {#each appState.profiles as profile (profile.name)}
+              {@const runtimeState = appState.profileRuntimeStates[profile.name] || 'stopped'}
+              {@const blocked = !!appState.activeBackend && appState.activeBackend !== profile.backend}
               <Item.Root
                 variant={appState.selectedProfileName === profile.name ? 'muted' : 'default'}
                 size="sm"
-                class={appState.selectedProfileName === profile.name ? 'border-primary/50 bg-primary/10 shadow-sm' : 'hover:bg-muted/50'}
+                class={`${appState.selectedProfileName === profile.name ? 'border-primary/50 bg-primary/10 shadow-sm' : 'hover:bg-muted/50'} ${blocked ? 'opacity-50' : ''}`}
               >
                 <Item.Content>
                   <Button variant="ghost" class="h-auto w-full cursor-pointer justify-start px-0 text-left hover:bg-transparent" aria-pressed={appState.selectedProfileName === profile.name} onclick={() => requestProfile(profile.name)}>
@@ -211,7 +218,7 @@
                     <Item.Description>{profile.backend} · {profileTarget(profile)}</Item.Description>
                   </Button>
                 </Item.Content>
-                {#if appState.activeProfileNames.includes(profile.name)}<Item.Actions><Badge class="bg-success/15 text-success border-success/30" variant="outline">active</Badge></Item.Actions>{/if}
+                {#if runtimeState !== 'stopped'}<Item.Actions><Badge class="bg-success/15 text-success border-success/30" variant="outline">{runtimeState}</Badge></Item.Actions>{/if}
                 {#if appState.autostartProfiles.includes(profile.name)}<Item.Actions><Badge variant="secondary">autostart</Badge></Item.Actions>{/if}
               </Item.Root>
             {:else}
@@ -358,6 +365,18 @@
           {/if}
 
           <div class="flex flex-wrap gap-2">
+            {#if blockedReason}
+              <div class="flex w-full flex-wrap items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning/10 p-3">
+                <p class="text-sm text-warning-foreground dark:text-warning">{blockedReason}</p>
+                <AlertDialog.Root>
+                  <AlertDialog.Trigger class={buttonVariants({ variant: 'destructive', size: 'sm' })} disabled={appState.busy}>Reset runtime</AlertDialog.Trigger>
+                  <AlertDialog.Content>
+                    <AlertDialog.Header><AlertDialog.Title>Reset the active backend?</AlertDialog.Title><AlertDialog.Description>This stops all active profiles before switching backends.</AlertDialog.Description></AlertDialog.Header>
+                    <AlertDialog.Footer><AlertDialog.Cancel>Cancel</AlertDialog.Cancel><AlertDialog.Action onclick={app.resetRuntimes}>Reset and switch backend</AlertDialog.Action></AlertDialog.Footer>
+                  </AlertDialog.Content>
+                </AlertDialog.Root>
+              </div>
+            {/if}
             {#if appState.dirty.rows}
               <AlertDialog.Root>
                 <AlertDialog.Trigger class={buttonVariants({ variant: 'outline', size: 'sm' })} disabled={appState.busy}>Reload</AlertDialog.Trigger>
@@ -370,7 +389,7 @@
 
             {#if startWarning || appState.dirty.rows}
               <AlertDialog.Root>
-                <AlertDialog.Trigger class={buttonVariants({ variant: 'outline', size: 'sm' })} disabled={appState.busy || invalidKeys.length > 0 || app.isProfileActive(appState.selectedProfileName)}>Start</AlertDialog.Trigger>
+                <AlertDialog.Trigger class={buttonVariants({ variant: 'outline', size: 'sm' })} disabled={appState.busy || !!blockedReason || invalidKeys.length > 0 || app.isProfileActive(appState.selectedProfileName)}>Start</AlertDialog.Trigger>
                 <AlertDialog.Content>
                   <AlertDialog.Header>
                     <AlertDialog.Title>{startWarning ? `Start ${appState.selectedProfileName} and stop the running profile?` : 'Start without saving?'}</AlertDialog.Title>
@@ -379,11 +398,11 @@
                       {#if appState.dirty.rows}{' '}Runtime will use saved profile content, not current editor changes.{/if}
                     </AlertDialog.Description>
                   </AlertDialog.Header>
-                  <AlertDialog.Footer><AlertDialog.Cancel>Cancel</AlertDialog.Cancel><AlertDialog.Action onclick={app.startSelectedProfile}>Start profile</AlertDialog.Action></AlertDialog.Footer>
+                  <AlertDialog.Footer><AlertDialog.Cancel>Cancel</AlertDialog.Cancel><AlertDialog.Action onclick={() => app.startSelectedProfile(!!startWarning)}>Start profile</AlertDialog.Action></AlertDialog.Footer>
                 </AlertDialog.Content>
               </AlertDialog.Root>
             {:else}
-              <Button size="sm" variant="outline" onclick={app.startSelectedProfile} disabled={appState.busy || invalidKeys.length > 0 || app.isProfileActive(appState.selectedProfileName)}>Start</Button>
+              <Button size="sm" variant="outline" onclick={() => app.startSelectedProfile()} disabled={appState.busy || !!blockedReason || invalidKeys.length > 0 || app.isProfileActive(appState.selectedProfileName)}>Start</Button>
             {/if}
 
             <AlertDialog.Root>

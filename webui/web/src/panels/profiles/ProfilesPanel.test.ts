@@ -25,6 +25,8 @@ function profile(name: string, overrides: Partial<Profile> = {}): Profile {
 function panel(options: {
   capabilities?: Partial<BackendCapabilities>;
   activeProfileNames?: string[];
+  activeBackend?: string;
+  runtimeStates?: Record<string, string>;
   overrides?: Partial<Record<string, unknown>>;
 } = {}) {
   const state = createInferenceRigState();
@@ -33,6 +35,8 @@ function panel(options: {
   state.currentProfile = profile('coder');
   state.profiles = [profile('coder'), profile('chat')];
   state.activeProfileNames = options.activeProfileNames ?? [];
+  state.activeBackend = options.activeBackend ?? '';
+  state.profileRuntimeStates = options.runtimeStates ?? {};
   const capabilities = { ...NO_CAPABILITIES, ...options.capabilities };
 
   const app = {
@@ -50,6 +54,7 @@ function panel(options: {
     saveProfile: vi.fn(),
     reloadSelectedProfile: vi.fn(),
     startSelectedProfile: vi.fn(),
+    resetRuntimes: vi.fn(),
     selectBackend: vi.fn(),
     ...options.overrides
   } as unknown as InferenceRigClient;
@@ -87,12 +92,35 @@ describe('ProfilesPanel', () => {
   // before the click, not shown a stopped profile afterwards. llama.cpp runs
   // profiles concurrently and must not show this at all.
   it('warns which profile a start will stop on a single_active_profile backend', async () => {
-    panel({ capabilities: { singleActiveProfile: true }, activeProfileNames: ['chat'] });
+    const startSelectedProfile = vi.fn();
+    panel({ capabilities: { singleActiveProfile: true }, activeProfileNames: ['chat'], overrides: { startSelectedProfile } });
 
     await userEvent.click(screen.getByRole('button', { name: 'Start' }));
 
     expect(screen.getByText('Start coder and stop the running profile?')).toBeInTheDocument();
     expect(screen.getByText(/chat will be stopped/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Start profile' }));
+    expect(startSelectedProfile).toHaveBeenCalledWith(true);
+  });
+
+  it('keeps another backend profiles visible but offers a confirmed reset inline', async () => {
+    const resetRuntimes = vi.fn();
+    panel({ activeBackend: 'llamacpp', overrides: { resetRuntimes } });
+
+    expect(screen.getByText('Active backend: llamacpp')).toBeInTheDocument();
+    expect(screen.getByText('llamacpp is active — reset to start mlx profiles')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /coder/ }).closest('[data-slot="item"]')).toHaveClass('opacity-50');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reset runtime' }));
+    expect(resetRuntimes).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Reset and switch backend' }));
+    expect(resetRuntimes).toHaveBeenCalledOnce();
+  });
+
+  it('shows the exact transitional state reported for a profile', () => {
+    panel({ runtimeStates: { coder: 'activating' } });
+    expect(screen.getByText('activating')).toBeInTheDocument();
   });
 
   it('starts without a stop warning on a backend that runs profiles concurrently', async () => {
