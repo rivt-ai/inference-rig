@@ -1,7 +1,7 @@
 # 06 — Make profile autostart operational
 
 Type: task
-Status: claimed
+Status: resolved
 Blocked by: 05
 Milestone: A
 Roadmap: P0 #2
@@ -41,3 +41,32 @@ Acceptance:
   plist is generated and validated (macOS execution can wait for the final
   hardware validation).
 - `make test` and `make lint` green.
+
+## Answer
+
+Resolved 2026-08-01.
+
+Bootstrap validates the complete configured set, reconciles surviving
+processes, and only then starts autostart profiles in lexical order. Validation
+rejects mixed backends, more than one profile on an exclusive backend, and
+router profiles with different listen addresses. Enabling autostart through the
+control API applies the same validation before rewriting config.
+
+Each profile gets three attempts with 250ms then 500ms backoff. An adopted
+profile is recognized through `RuntimeStatus` and is not restarted. Exhausting
+the budget leaves the daemon healthy and preserves ticket 04's failed-start
+policy: each attempt emits its `failed` transition and releases the empty slot.
+A final `runtime.autostart` event names the profile, attempt count and error;
+CLI event output receives it through the existing wire contract, while TUI and
+web event views render the profile and detail. A later profile still starts when
+an earlier one fails, so partial startup remains usable and visible.
+
+`inferencerig service generate systemd|launchd`, `service install`, and
+`service uninstall` use embedded native templates and the standard per-user
+locations. Install/reinstall/uninstall are idempotent around absent or already
+loaded registrations. The systemd unit uses bounded restart limiting; the
+LaunchAgent uses `RunAtLoad` without `KeepAlive`, avoiding an unbounded crash
+loop. Final validation passed `systemd-analyze verify`, XML parsing, the web
+build and 117 web tests, `make test`, and `make lint` at 12,264 production Go
+lines under the nearest 50-line ceiling of 12,300. macOS execution remains for
+the planned final hardware validation.
