@@ -19,6 +19,8 @@ import (
 type Fake struct {
 	name      string
 	installed bool
+	version   string
+	previous  string
 }
 
 // New returns a Fake registered under name.
@@ -134,12 +136,29 @@ func (f *Fake) Install(_ context.Context, opts backends.InstallOptions) (backend
 		version = "1.0.0"
 	}
 	changed := opts.Force || !f.installed
-	f.installed = true
+	if changed && f.installed {
+		f.previous = f.version
+	}
+	f.installed, f.version = true, version
 	return backends.InstallResult{
 		Version: version,
 		Path:    "/opt/fake/" + version,
 		Changed: changed,
 		Message: "fake engine ready",
+	}, nil
+}
+
+// Rollback swaps back to the version installed before the current one.
+func (f *Fake) Rollback(context.Context) (backends.InstallResult, error) {
+	if f.previous == "" {
+		return backends.InstallResult{}, backends.ErrNoPreviousInstall
+	}
+	f.version, f.previous = f.previous, f.version
+	return backends.InstallResult{
+		Version: f.version,
+		Path:    "/opt/fake/" + f.version,
+		Changed: true,
+		Message: "rolled back to fake " + f.version,
 	}, nil
 }
 
@@ -150,8 +169,8 @@ func (f *Fake) InstallStatus(context.Context) (backends.InstallStatus, error) {
 	return backends.InstallStatus{
 		Installed: true,
 		Managed:   true,
-		Version:   "1.0.0",
-		Path:      "/opt/fake/1.0.0",
+		Version:   f.version,
+		Path:      "/opt/fake/" + f.version,
 	}, nil
 }
 

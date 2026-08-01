@@ -2,6 +2,7 @@ package backendtest
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"inferencerig/backends"
@@ -19,6 +20,7 @@ func RunContractTests(t *testing.T, newBackend func() backends.Backend) {
 	t.Run("ResolvePlan", func(t *testing.T) { checkResolvePlan(t, newBackend()) })
 	t.Run("Fit", func(t *testing.T) { checkFit(t, newBackend()) })
 	t.Run("Install", func(t *testing.T) { checkInstall(t, newBackend()) })
+	t.Run("Rollback", func(t *testing.T) { checkRollback(t, newBackend()) })
 	t.Run("InstallStatus", func(t *testing.T) { checkInstallStatus(t, newBackend()) })
 	t.Run("Capabilities", func(t *testing.T) { checkCapabilities(t, newBackend()) })
 }
@@ -119,6 +121,20 @@ func checkInstall(t *testing.T, b backends.Backend) {
 	}
 	if second.Changed {
 		t.Fatal("Install is not idempotent: a repeat install reported Changed")
+	}
+}
+
+// checkRollback asserts the invariant every backend shares: with only one
+// installation recorded there is nothing to return to, and saying so is an
+// error, not a silent no-op. What a real rollback restores is engine-specific
+// and tested per backend.
+func checkRollback(t *testing.T, b backends.Backend) {
+	t.Helper()
+	if _, err := b.Install(context.Background(), backends.InstallOptions{}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	if _, err := b.Rollback(context.Background()); !errors.Is(err, backends.ErrNoPreviousInstall) {
+		t.Fatalf("Rollback with no previous install = %v, want ErrNoPreviousInstall", err)
 	}
 }
 
