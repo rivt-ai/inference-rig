@@ -1,6 +1,7 @@
 package pidfile
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,7 +22,9 @@ func (f File) Write(pid int) error {
 	return os.WriteFile(f.path, []byte(strconv.Itoa(pid)+"\n"), 0o600)
 }
 
-func (f File) Running() (int, bool, error) {
+// Read returns the recorded PID without changing the file or inferring whether
+// the process is alive. Callers doing reconciliation need that distinction.
+func (f File) Read() (int, bool, error) {
 	data, err := os.ReadFile(f.path)
 	if os.IsNotExist(err) {
 		return 0, false, nil
@@ -30,11 +33,19 @@ func (f File) Running() (int, bool, error) {
 		return 0, false, err
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil || !Alive(pid) {
+	if err != nil || pid <= 0 {
+		return 0, true, fmt.Errorf("invalid PID file %s", f.path)
+	}
+	return pid, true, nil
+}
+
+func (f File) Running() (int, bool, error) {
+	pid, exists, err := f.Read()
+	if err != nil || (exists && !Alive(pid)) {
 		_ = os.Remove(f.path)
 		return 0, false, nil
 	}
-	return pid, true, nil
+	return pid, exists, nil
 }
 
 func (f File) Remove(expectedPID int) error {
@@ -61,4 +72,3 @@ func (f File) Remove(expectedPID int) error {
 func Alive(pid int) bool {
 	return pid > 0 && syscall.Kill(pid, 0) == nil
 }
-

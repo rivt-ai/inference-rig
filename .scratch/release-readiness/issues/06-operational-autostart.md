@@ -1,7 +1,7 @@
 # 06 — Make profile autostart operational
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: 05
 Milestone: A
 Roadmap: P0 #2

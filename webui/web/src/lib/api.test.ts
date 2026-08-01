@@ -66,6 +66,24 @@ describe('createApiClient', () => {
     ]);
   });
 
+  it('encodes confirmed replacement and reset runtime calls', async () => {
+    const calls: Array<{ url: string; body: unknown }> = [];
+    const fetcher: typeof fetch = async (input, init) => {
+      const url = String(input);
+      calls.push({ url, body: JSON.parse(await new Request(new URL(url, 'http://localhost'), init).text()) });
+      return connectResponse();
+    };
+    const api = createApiClient(() => ({ apiBase: '', token: '' }), fetcher);
+
+    await api.startRuntime('coder', true);
+    await api.resetRuntimes();
+
+    expect(calls).toEqual([
+      { url: '/inferencerig.control.v1.ControlService/StartRuntime', body: { profile: 'coder', replace: true } },
+      { url: '/inferencerig.control.v1.ControlService/ResetRuntimes', body: {} }
+    ]);
+  });
+
   it('sends typed catalog query fields', async () => {
     let captured = '';
     let body = '';

@@ -288,6 +288,21 @@ func (p *process) stop(t *testing.T) {
 	}
 }
 
+// crash simulates an ungraceful daemon loss. Its supervised engine is in a
+// separate process group and must survive for the next daemon to reconcile.
+func (p *process) crash(t *testing.T) {
+	t.Helper()
+	select {
+	case <-p.exited:
+		return
+	default:
+	}
+	if err := p.cmd.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	<-p.exited
+}
+
 // startControl launches the control daemon and waits until it answers a real
 // RPC, not merely until its socket file appears.
 func (r *rig) startControl() *process {

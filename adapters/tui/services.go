@@ -200,6 +200,7 @@ func runtimeBox(width, height int, data snapshot, index int, focused bool) strin
 	// "running" is the state, not a countable noun: pluralising it read "0
 	// runnings" for the most common case on a fresh install.
 	rows := []string{theme.StatusTitle("Runtimes", fmt.Sprintf("%d running", len(profiles)), cyan, green, width)}
+	rows = append(rows, tuikit.Field("Active backend", data.info.GetActiveBackend()))
 	if len(profiles) == 0 {
 		rows = append(rows, mutedStyle.Render("No running profiles"))
 	} else {

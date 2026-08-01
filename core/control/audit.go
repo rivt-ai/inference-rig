@@ -23,6 +23,7 @@ type AuditEvent struct {
 	Profile     string
 	Backend     string
 	State       runtime.State
+	Recovery    runtime.RecoveryClassification
 }
 
 // AuditSink receives audit events. Implementations must be safe for concurrent

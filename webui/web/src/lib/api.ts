@@ -49,7 +49,8 @@ export function createApiClient(getSession: () => SessionState, fetcher: typeof 
       control().installBackend({ backend, ...options }),
 
     getRuntimeStatus: (profile = '') => control().getRuntimeStatus({ profile }),
-    startRuntime: (profile: string) => control().startRuntime({ profile }),
+    startRuntime: (profile: string, replace = false) => control().startRuntime({ profile, replace }),
+    resetRuntimes: () => control().resetRuntimes({}),
     stopRuntime: (profile = '') => control().stopRuntime({ profile }),
     restartRuntime: (profile: string) => control().restartRuntime({ profile }),
 

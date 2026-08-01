@@ -6,6 +6,36 @@ import (
 	"time"
 )
 
+// RecoveryClassification is the stable vocabulary used when reconciling a PID
+// file with a process that survived its control daemon.
+type RecoveryClassification string
+
+const (
+	RecoveryStalePIDFile         RecoveryClassification = "stale_pid_file"
+	RecoveryMismatchedExecutable RecoveryClassification = "mismatched_executable"
+	RecoveryOccupiedPort         RecoveryClassification = "occupied_port"
+	RecoveryUnhealthySurvivor    RecoveryClassification = "unhealthy_survivor"
+	RecoveryValidAdoptee         RecoveryClassification = "valid_adoptee"
+)
+
+// RecoveryError reports why a recorded process could not be safely adopted.
+type RecoveryError struct {
+	Classification RecoveryClassification
+	Message        string
+	Err            error
+}
+
+func (e *RecoveryError) Error() string { return e.Message }
+func (e *RecoveryError) Unwrap() error { return e.Err }
+
+// RecoveryClass returns the reconciliation classification carried by err.
+func RecoveryClass(err error) RecoveryClassification {
+	if recoveryErr, ok := errors.AsType[*RecoveryError](err); ok {
+		return recoveryErr.Classification
+	}
+	return ""
+}
+
 type State string
 
 // A supervised process reports Running, Stopped, Starting, Stopping or Failed.

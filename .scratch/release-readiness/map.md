@@ -110,6 +110,14 @@ research tickets do not.
   router profile listening on a different address than the running process needs
   `replace` too — ticket 03 had not spotted that the router binds the starting
   profile's address.
+- [05 — Runtime recovery and reconciliation](issues/05-runtime-recovery.md) —
+  Startup now reconciles existing supervisor PID files and adopts a survivor
+  without restart only after executable, process-group, listening-port and
+  readiness verification. Results use the one neutral classification set
+  (`stale_pid_file`, `mismatched_executable`, `occupied_port`,
+  `unhealthy_survivor`, `valid_adoptee`), rebuild ticket 04's slot through
+  `reconciling`/`orphaned`, and are exposed through audit/events, CLI, TUI and
+  web. A compiled-binary crash/restart E2E proves same-PID adoption and shutdown.
 - [12 — Decide release identity, channels and signing](issues/12-release-identity.md)
   — Repo goes public before the first tag (it is private today, which would
   break the install one-liner and bill the macOS MLX job); first release is
@@ -174,6 +182,11 @@ research tickets do not.
   0%-covered function on a required path" clause has never been audited. The
   enforced coverage gate is **68** (in `e2e.yml`), not the Makefile's 65.
   Nothing in the repo claims hardware validation; no runs are recorded.
+- [20 — Render the active backend and replace in the UIs](issues/20-active-backend-in-the-uis.md)
+  — TUI and web now show the active backend and exact slot states, keep
+  cross-backend profiles visible but dimmed, offer a confirmed inline reset,
+  and confirm exclusive or incompatible-address replacement before sending
+  `replace: true`.
 
 ## Not yet specified
 

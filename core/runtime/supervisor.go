@@ -17,6 +17,9 @@ import (
 
 	"inferencerig/platform/audit"
 	"inferencerig/platform/pidfile"
+
+	gopsnet "github.com/shirou/gopsutil/v4/net"
+	gopsprocess "github.com/shirou/gopsutil/v4/process"
 )
 
 // Neutral operational defaults for a supervised process. These are generic
@@ -107,12 +110,13 @@ type Supervisor struct {
 	pid, pgid int
 	now       func() time.Time
 	client    *http.Client
+	alive     func(int) bool
 }
 
 // NewSupervisor returns a Supervisor for spec, applying neutral timing defaults.
 func NewSupervisor(spec LaunchSpec) *Supervisor {
 	spec.applyDefaults()
-	return &Supervisor{spec: spec, now: time.Now, client: http.DefaultClient}
+	return &Supervisor{spec: spec, now: time.Now, client: http.DefaultClient, alive: pidfile.Alive}
 }
 
 func (s *Supervisor) Status(context.Context) (Status, error) {
@@ -131,6 +135,96 @@ func (s *Supervisor) Stop(ctx context.Context) (CommandResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.stop(ctx)
+}
+
+// Recover adopts the process recorded by spec's PID file only after its
+// executable, process group, listening port and readiness endpoint all match.
+func (s *Supervisor) Recover(ctx context.Context) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	file, err := s.pidFile()
+	if err != nil {
+		return false, err
+	}
+	pid, exists, err := file.Read()
+	if !exists {
+		return false, err
+	}
+	if err != nil {
+		_ = file.Remove(0)
+		return false, recoveryError(RecoveryStalePIDFile, "stale PID file", err)
+	}
+	if !s.alive(pid) {
+		_ = file.Remove(pid)
+		return false, recoveryError(RecoveryStalePIDFile, "stale PID file", nil)
+	}
+	pgid, err := syscall.Getpgid(pid)
+	if err != nil || pgid != pid {
+		return false, recoveryError(RecoveryMismatchedExecutable, "recorded process group does not match", err)
+	}
+	if err := s.matchExecutable(ctx, pid); err != nil {
+		return false, recoveryError(RecoveryMismatchedExecutable, "recorded executable does not match", err)
+	}
+	s.pid, s.pgid, s.cmd, s.done, s.err = pid, pgid, nil, nil, nil
+	ownsPort, err := processOwnsPort(ctx, pid, s.spec.Port)
+	if err != nil {
+		return false, recoveryError(RecoveryUnhealthySurvivor, "could not verify survivor port", err)
+	}
+	if !ownsPort {
+		if s.probeReady(ctx) == nil {
+			return false, recoveryError(RecoveryOccupiedPort, "expected port is occupied by another process", nil)
+		}
+		return false, recoveryError(RecoveryUnhealthySurvivor, "survivor is not listening on the expected port", nil)
+	}
+	if err := s.probeReady(ctx); err != nil {
+		return false, recoveryError(RecoveryUnhealthySurvivor, "survivor failed its readiness probe", err)
+	}
+	s.ready = true
+	return true, nil
+}
+
+func recoveryError(class RecoveryClassification, message string, err error) *RecoveryError {
+	return &RecoveryError{Classification: class, Message: message, Err: err}
+}
+
+func (s *Supervisor) matchExecutable(ctx context.Context, pid int) error {
+	expected, err := exec.LookPath(s.spec.Executable)
+	if err != nil {
+		return err
+	}
+	actualProcess, err := gopsprocess.NewProcess(int32(pid))
+	if err != nil {
+		return err
+	}
+	actual, err := actualProcess.ExeWithContext(ctx)
+	if err != nil {
+		return err
+	}
+	expectedInfo, err := os.Stat(expected)
+	if err != nil {
+		return err
+	}
+	actualInfo, err := os.Stat(actual)
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(expectedInfo, actualInfo) {
+		return fmt.Errorf("got %s, want %s", actual, expected)
+	}
+	return nil
+}
+
+func processOwnsPort(ctx context.Context, pid, port int) (bool, error) {
+	connections, err := gopsnet.ConnectionsPidWithContext(ctx, "tcp", int32(pid))
+	if err != nil {
+		return false, err
+	}
+	for _, connection := range connections {
+		if int(connection.Laddr.Port) == port && connection.Status == "LISTEN" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *Supervisor) start(ctx context.Context) (CommandResult, error) {

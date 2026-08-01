@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
 	"image/color"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -25,11 +27,11 @@ const (
 )
 
 type modelsPage struct {
-	active                              modelPane
-	backendIndex                        int
-	profiles, catalog, local, downloads table.Model
-	profileStatus, localStatus          tuikit.Status
-	search                              tuikit.SearchView
+	active                                  modelPane
+	backendIndex                            int
+	profiles, catalog, local, downloads     table.Model
+	profileStatus, startStatus, localStatus tuikit.Status
+	search                                  tuikit.SearchView
 }
 
 func newModelsPage() modelsPage {
@@ -52,13 +54,10 @@ func (p *modelsPage) backend(backends *controlv1.ListBackendsResponse) string {
 	if len(items) == 0 {
 		return ""
 	}
-	p.backendIndex %= len(items)
-	return items[p.backendIndex].GetName()
+	return items[p.backendIndex%len(items)].GetName()
 }
 
-func (p *modelsPage) CapturingInput() bool {
-	return p.active == paneCatalog && p.search.Searching()
-}
+func (p *modelsPage) CapturingInput() bool { return p.active == paneCatalog && p.search.Searching() }
 
 func (p *modelsPage) Update(msg tea.KeyPressMsg, data snapshot) tea.Cmd {
 	if p.CapturingInput() {
@@ -107,11 +106,11 @@ func (p *modelsPage) action(msg tea.KeyPressMsg, data snapshot) tea.Cmd {
 	case "enter":
 		return p.enter(data)
 	case "g":
-		if profile := p.selectedProfile(data); profile != nil {
+		if profile := selectedItem(data.profiles.GetProfiles(), p.profiles.Cursor()); profile != nil {
 			return requestCmd(rpcRequest{kind: rpcDownload, profile: profile.GetName(), notice: "download started"})
 		}
 	case "c":
-		if item := p.selectedDownload(data); item != nil && (item.GetState() == "queued" || item.GetState() == "running") {
+		if item := selectedItem(data.downloads, p.downloads.Cursor()); item != nil && (item.GetState() == "queued" || item.GetState() == "running") {
 			return requestCmd(rpcRequest{kind: rpcCancel, id: item.GetId(), notice: "download cancelled"})
 		}
 	case "i":
@@ -151,27 +150,28 @@ func (p *modelsPage) move(delta int) {
 }
 
 func (p *modelsPage) table() *table.Model {
-	switch p.active {
-	case paneCatalog:
-		return &p.catalog
-	case paneLocal:
-		return &p.local
-	case paneDownloads:
-		return &p.downloads
-	default:
-		return &p.profiles
-	}
+	return []*table.Model{&p.profiles, &p.catalog, &p.local, &p.downloads}[p.active]
 }
 
 func (p *modelsPage) enter(data snapshot) tea.Cmd {
 	switch p.active {
 	case paneProfiles:
-		profile := p.selectedProfile(data)
-		if profile != nil && !running(data.info, profile.GetName()) {
+		profile := selectedItem(data.profiles.GetProfiles(), p.profiles.Cursor())
+		if profile != nil && !slices.Contains(data.info.GetRunningProfiles(), profile.GetName()) {
+			if reason := backendConflictReason(data.info, profile); reason != "" {
+				return p.startStatus.Confirm(reason, false, func() tea.Cmd {
+					return requestCmd(rpcRequest{kind: rpcReset, notice: "runtimes reset"})
+				})
+			}
+			if startNeedsReplace(data, profile) {
+				return p.startStatus.Confirm("Starting "+profile.GetName()+" will stop the running profile.", false, func() tea.Cmd {
+					return requestCmd(rpcRequest{kind: rpcStart, profile: profile.GetName(), replace: true, notice: "runtime started"})
+				})
+			}
 			return requestCmd(rpcRequest{kind: rpcStart, profile: profile.GetName(), notice: "runtime started"})
 		}
 	case paneDownloads:
-		item := p.selectedDownload(data)
+		item := selectedItem(data.downloads, p.downloads.Cursor())
 		if item != nil && (item.GetState() == "completed" || item.GetState() == "already-downloaded") {
 			return requestCmd(rpcRequest{kind: rpcApply, profile: item.GetProfile(), id: item.GetId(), notice: "download applied"})
 		}
@@ -182,7 +182,7 @@ func (p *modelsPage) enter(data snapshot) tea.Cmd {
 func (p *modelsPage) destroy(data snapshot, confirm bool) tea.Cmd {
 	switch p.active {
 	case paneProfiles:
-		profile := p.selectedProfile(data)
+		profile := selectedItem(data.profiles.GetProfiles(), p.profiles.Cursor())
 		if profile == nil {
 			return nil
 		}
@@ -190,7 +190,7 @@ func (p *modelsPage) destroy(data snapshot, confirm bool) tea.Cmd {
 			return requestCmd(rpcRequest{kind: rpcCleanup, profile: profile.GetName(), notice: "profile cleaned up"})
 		})
 	case paneLocal:
-		item := p.selectedLocal(data)
+		item := selectedItem(data.local.GetModels(), p.local.Cursor())
 		if item == nil {
 			return nil
 		}
@@ -204,19 +204,16 @@ func (p *modelsPage) destroy(data snapshot, confirm bool) tea.Cmd {
 func requestCmd(request rpcRequest) tea.Cmd { return func() tea.Msg { return request } }
 
 func (p *modelsPage) disarm() {
-	p.profileStatus.Disarm()
-	p.localStatus.Disarm()
+	for _, status := range []*tuikit.Status{&p.profileStatus, &p.startStatus, &p.localStatus} {
+		status.Disarm()
+	}
 }
 
 func (p *modelsPage) complete(msg actionMsg) {
-	if msg.err != nil {
-		p.profileStatus.SetResult(msg.err, "")
-		p.localStatus.SetResult(msg.err, "")
-		return
-	}
-	if msg.notice != "" {
-		p.profileStatus.SetResult(nil, msg.notice)
-		p.localStatus.SetResult(nil, msg.notice)
+	if msg.err != nil || msg.notice != "" {
+		for _, status := range []*tuikit.Status{&p.profileStatus, &p.localStatus} {
+			status.SetResult(msg.err, msg.notice)
+		}
 	}
 }
 
@@ -244,7 +241,7 @@ func (p *modelsPage) View(width, height int, data snapshot) string {
 		p.search.SetLines(lines)
 		body = p.search.View(width-4, max(1, tabHeight-4))
 	}
-	body = p.statusRows(body)
+	body = p.statusRows(body, data)
 	tabbed := theme.TabbedPanel(titles, accents, int(p.active), width, tabHeight, body)
 	detail := p.detail(width, detailHeight, data)
 	help := tuikit.HelpLine(
@@ -274,21 +271,16 @@ func catalogTitle(data snapshot) string {
 // names a file inside a repository — while the source is what every profile
 // carries, so reading only the reference left the column blank for every
 // profile that points straight at a model.
-func profileModel(item *controlv1.Profile) string {
-	if reference := item.GetModelReference(); reference != "" {
-		return reference
-	}
-	return item.GetModelSource()
-}
-
 func (p *modelsPage) setRows(data snapshot) {
 	profiles := make([]table.Row, 0, len(data.profiles.GetProfiles()))
 	for _, item := range data.profiles.GetProfiles() {
-		state := "Stopped"
-		if running(data.info, item.GetName()) {
-			state = "Running"
+		row := table.Row{item.GetName(), item.GetBackend(), cmp.Or(item.GetModelReference(), item.GetModelSource()), profileRuntimeState(data.runtimes, item.GetName())}
+		if backendConflictReason(data.info, item) != "" {
+			for i := range row {
+				row[i] = mutedStyle.Render(row[i])
+			}
 		}
-		profiles = append(profiles, table.Row{item.GetName(), item.GetBackend(), profileModel(item), state})
+		profiles = append(profiles, row)
 	}
 	p.profiles.SetRows(profiles)
 	catalog := make([]table.Row, 0, len(data.catalog.GetModels()))
@@ -308,11 +300,13 @@ func (p *modelsPage) setRows(data snapshot) {
 	p.downloads.SetRows(downloads)
 }
 
-func (p *modelsPage) statusRows(body string) string {
+func (p *modelsPage) statusRows(body string, data snapshot) string {
 	rows := []string{body}
 	switch p.active {
 	case paneProfiles:
-		if pending := p.profileStatus.Pending(); pending != "" {
+		if pending := p.startStatus.Pending(); pending != "" {
+			rows = append(rows, warningStyle.Render(pending+" Press Enter again to confirm, Esc to cancel"))
+		} else if pending := p.profileStatus.Pending(); pending != "" {
 			rows = append(rows, warningStyle.Render("Clean up "+pending+" and its unshared artifacts? Press d or y to confirm, Esc to cancel"))
 		} else {
 			rows = p.profileStatus.AppendRows(theme, rows)
@@ -332,36 +326,59 @@ func (p *modelsPage) detail(width, height int, data snapshot) string {
 	rows := []string{theme.StatusTitle([]string{"Profile", "Catalog", "Local model", "Download"}[p.active], p.backend(data.backends), accent, muted, width)}
 	switch p.active {
 	case paneProfiles:
-		if item := p.selectedProfile(data); item != nil {
-			state := "Stopped"
-			if running(data.info, item.GetName()) {
-				state = "Running"
+		if item := selectedItem(data.profiles.GetProfiles(), p.profiles.Cursor()); item != nil {
+			state := profileRuntimeState(data.runtimes, item.GetName())
+			rows = []string{theme.StatusTitle(item.GetName(), state, accent, green, width), tuikit.Field("Backend", item.GetBackend()), tuikit.Field("Model", tuikit.TruncMiddle(cmp.Or(item.GetModelReference(), item.GetModelSource()), width-12)), tuikit.Field("Listen", fmt.Sprintf("%s:%d", item.GetHost(), item.GetPort()))}
+			if reason := backendConflictReason(data.info, item); reason != "" {
+				rows = append(rows, warningStyle.Render(reason))
 			}
-			rows = []string{theme.StatusTitle(item.GetName(), state, accent, green, width), tuikit.Field("Backend", item.GetBackend()), tuikit.Field("Model", tuikit.TruncMiddle(profileModel(item), width-12)), tuikit.Field("Listen", fmt.Sprintf("%s:%d", item.GetHost(), item.GetPort()))}
 		}
 	case paneCatalog:
 		rows = append(rows, mutedStyle.Render("/: search catalog · i: install selected backend"))
 	case paneLocal:
-		if item := p.selectedLocal(data); item != nil {
+		if item := selectedItem(data.local.GetModels(), p.local.Cursor()); item != nil {
 			rows = []string{theme.StatusTitle(item.GetFilename(), tuikit.FormatBytes(item.GetSizeBytes()), accent, green, width), tuikit.Field("Path", tuikit.TruncMiddle(item.GetPath(), width-12))}
 		}
 	case paneDownloads:
-		if item := p.selectedDownload(data); item != nil {
+		if item := selectedItem(data.downloads, p.downloads.Cursor()); item != nil {
 			rows = []string{theme.StatusTitle(item.GetProfile(), item.GetState(), accent, yellow, width), tuikit.Field("Target", tuikit.TruncMiddle(item.GetTargetPath(), width-12)), tuikit.Field("Progress", fmt.Sprintf("%.1f%%", item.GetPercent())), tuikit.Field("Error", item.GetError())}
 		}
 	}
 	return panel(accent, false, width, height, lipgloss.JoinVertical(lipgloss.Left, rows...))
 }
 
-func (p *modelsPage) selectedProfile(data snapshot) *controlv1.Profile {
-	item, _ := selected(data.profiles.GetProfiles(), p.profiles.Cursor())
-	return item
+func backendConflictReason(info *controlv1.GetInfoResponse, profile *controlv1.Profile) string {
+	if active := info.GetActiveBackend(); profile != nil && active != "" && active != profile.GetBackend() {
+		return fmt.Sprintf("%s is active — reset to start %s profiles", active, profile.GetBackend())
+	}
+	return ""
 }
-func (p *modelsPage) selectedLocal(data snapshot) *controlv1.LocalModel {
-	item, _ := selected(data.local.GetModels(), p.local.Cursor())
-	return item
+
+func startNeedsReplace(data snapshot, target *controlv1.Profile) bool {
+	if len(data.info.GetRunningProfiles()) == 0 {
+		return false
+	}
+	for _, backend := range data.backends.GetBackends() {
+		if backend.GetName() == target.GetBackend() && backend.GetCapabilities().GetSingleActiveProfile() {
+			return true
+		}
+	}
+	for _, profile := range data.profiles.GetProfiles() {
+		if slices.Contains(data.info.GetRunningProfiles(), profile.GetName()) && (profile.GetHost() != target.GetHost() || profile.GetPort() != target.GetPort()) {
+			return true
+		}
+	}
+	return false
 }
-func (p *modelsPage) selectedDownload(data snapshot) *controlv1.ModelDownload {
-	item, _ := selected(data.downloads, p.downloads.Cursor())
-	return item
+
+func profileRuntimeState(runtimes *controlv1.GetRuntimeStatusResponse, name string) string {
+	for _, profile := range runtimes.GetProfiles() {
+		if profile.GetName() == name && profile.GetStatus().GetState() != "" {
+			state := profile.GetStatus().GetState()
+			return strings.ToUpper(state[:1]) + state[1:]
+		}
+	}
+	return "Stopped"
 }
+
+func selectedItem[T any](items []T, index int) T { item, _ := selected(items, index); return item }

@@ -198,7 +198,7 @@
               {#each visibleEvents as event (event.id)}
                 <li class={`flex items-center gap-3 px-3 py-2 text-sm ${event.success ? '' : 'bg-destructive/5'}`}>
                   <span class="min-w-20 shrink-0 font-mono text-xs text-muted-foreground">{eventTime(event.time)}</span>
-                  <span class="min-w-0 flex-1 truncate font-medium">{event.action}</span>
+                  <span class="min-w-0 flex-1 truncate font-medium">{event.action}{event.recovery ? ` ${event.recovery}` : ''}</span>
                   <Badge variant="outline" class={`shrink-0 ${statusClass(event)}`}>{statusLabel(event)}</Badge>
                   <span class="ml-auto shrink-0 font-mono text-xs text-muted-foreground">{event.duration || ''}</span>
                 </li>

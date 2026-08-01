@@ -1,7 +1,7 @@
 # 20 — Render the active backend and replace in the TUI and web UI
 
 Type: task
-Status: claimed
+Status: resolved
 Blocked by: 04
 Milestone: A
 Roadmap: P2 #13
@@ -40,3 +40,19 @@ Acceptance:
 
 This must land before ticket 11 (Milestone A manual QA) can pass: the manual
 script drives both UIs against a real llama.cpp profile.
+
+## Answer
+
+Resolved 2026-08-01. Both UIs now render `GetInfo.active_backend`, keep profiles
+from other backends visible but dimmed and unstartable, explain the conflict,
+and offer the existing confirmed-destructive flow for `ResetRuntimes` inline.
+
+The TUI polls the all-profile `GetRuntimeStatus` form and renders each exact
+slot state. Enter on an exclusive-backend replacement (or a router profile on
+an incompatible listen address) confirms before sending `replace: true`; Enter
+on a cross-backend profile confirms reset instead. The web UI keeps the same
+state per profile, derives the aggregate transitional state from those rows,
+and its existing exclusive-backend dialog now retries with `replace: true`.
+
+Covered at the UI interaction seams and the typed Connect dispatch seam.
+`make test`, `make lint`, and `pnpm run verify:web` pass.
