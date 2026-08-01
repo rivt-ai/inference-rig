@@ -44,11 +44,11 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.22.0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -61,7 +61,7 @@ jobs:
       # rebuilt: a cached interpreter is executable content, and restoring it
       # would mean running code the pin no longer describes.
       - name: Cache pinned MLX model
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/mlx-model
           key: mlx-model-Qwen2.5-0.5B-Instruct-4bit-a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3
@@ -121,7 +121,7 @@ jobs:
 
       - name: Upload MLX logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mlx-logs
           path: /tmp/Test*/**/logs/
