@@ -3,9 +3,56 @@ package config
 import (
 	"bytes"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// TestLoadOrDefaultFallsBackOnlyWhenAbsent is the runnable check on the
+// fail-fast rule: a missing file is the single condition that may quietly use
+// defaults, and every other failure must surface with the config path in it.
+func TestLoadOrDefaultFallsBackOnlyWhenAbsent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	t.Setenv(ProjectConfigEnv, path)
+
+	cfg, err := LoadOrDefault()
+	if err != nil || cfg.ListenAddr != DefaultListenAddr {
+		t.Fatalf("missing config = %q, %v; want defaults", cfg.ListenAddr, err)
+	}
+
+	for name, body := range map[string]string{
+		"malformed yaml": "listen_addr: \"unterminated\n",
+		"unknown key":    "listen_prot: 7000\n",
+		"invalid value":  "log_archive_retention: -1h\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			err := errFrom(LoadOrDefault())
+			if err == nil {
+				t.Fatal("startup used defaults instead of failing")
+			}
+			if !strings.Contains(err.Error(), path) {
+				t.Errorf("error %q does not name the config path", err)
+			}
+		})
+	}
+
+	t.Run("unreadable file", func(t *testing.T) {
+		// A directory standing in for the file: an I/O error that is not
+		// fs.ErrNotExist and that still reproduces when tests run as root,
+		// where a 0000-mode file would remain readable.
+		t.Setenv(ProjectConfigEnv, dir)
+		if err := errFrom(LoadOrDefault()); err == nil {
+			t.Fatal("an unreadable config must fail startup")
+		}
+	})
+}
+
+func errFrom(_ Config, err error) error { return err }
 
 func TestParseDefaults(t *testing.T) {
 	cfg, err := Parse([]byte("listen_addr: \"127.0.0.1:9000\"\n"))

@@ -8,12 +8,20 @@ import (
 
 type State string
 
+// A supervised process reports Running, Stopped, Starting, Stopping or Failed.
+// The remaining states describe a control-plane runtime slot, which knows things
+// one process cannot: that it is being matched against what is already on the
+// host, that its engine is loading the profile it was started for, or that a
+// live process was found which no longer belongs to anyone.
 const (
-	Running  State = "running"
-	Stopped  State = "stopped"
-	Starting State = "starting"
-	Stopping State = "stopping"
-	Failed   State = "failed"
+	Running     State = "running"
+	Stopped     State = "stopped"
+	Starting    State = "starting"
+	Stopping    State = "stopping"
+	Failed      State = "failed"
+	Reconciling State = "reconciling"
+	Activating  State = "activating"
+	Orphaned    State = "orphaned"
 )
 
 type Status struct {

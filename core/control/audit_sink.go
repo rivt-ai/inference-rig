@@ -32,5 +32,13 @@ func (s SlogSink) Record(_ context.Context, event AuditEvent) {
 	if event.ErrorKind != "" {
 		attrs = append(attrs, slog.String("error_kind", string(event.ErrorKind)))
 	}
+	if event.OperationID != "" {
+		attrs = append(attrs,
+			slog.String("operation_id", event.OperationID),
+			slog.String("profile", event.Profile),
+			slog.String("backend", event.Backend),
+			slog.String("state", string(event.State)),
+		)
+	}
 	s.logger.Info("audit event", attrs...)
 }

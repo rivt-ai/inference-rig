@@ -65,6 +65,9 @@ const (
 	// ControlServiceStopRuntimeProcedure is the fully-qualified name of the ControlService's
 	// StopRuntime RPC.
 	ControlServiceStopRuntimeProcedure = "/inferencerig.control.v1.ControlService/StopRuntime"
+	// ControlServiceResetRuntimesProcedure is the fully-qualified name of the ControlService's
+	// ResetRuntimes RPC.
+	ControlServiceResetRuntimesProcedure = "/inferencerig.control.v1.ControlService/ResetRuntimes"
 	// ControlServiceGetRuntimeStatusProcedure is the fully-qualified name of the ControlService's
 	// GetRuntimeStatus RPC.
 	ControlServiceGetRuntimeStatusProcedure = "/inferencerig.control.v1.ControlService/GetRuntimeStatus"
@@ -163,6 +166,9 @@ type ControlServiceClient interface {
 	GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error)
 	StartRuntime(context.Context, *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error)
 	StopRuntime(context.Context, *v1.StopRuntimeRequest) (*v1.StopRuntimeResponse, error)
+	// ResetRuntimes stops every runtime and clears the active backend, which is
+	// how a host switches backends. It is not a daemon restart.
+	ResetRuntimes(context.Context, *v1.ResetRuntimesRequest) (*v1.ResetRuntimesResponse, error)
 	GetRuntimeStatus(context.Context, *v1.GetRuntimeStatusRequest) (*v1.GetRuntimeStatusResponse, error)
 	ResolveProfileModel(context.Context, *v1.ResolveProfileModelRequest) (*v1.ResolveProfileModelResponse, error)
 	// ResolveModel resolves an arbitrary catalog reference without requiring a
@@ -274,6 +280,12 @@ func NewControlServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+ControlServiceStopRuntimeProcedure,
 			connect.WithSchema(controlServiceMethods.ByName("StopRuntime")),
+			connect.WithClientOptions(opts...),
+		),
+		resetRuntimes: connect.NewClient[v1.ResetRuntimesRequest, v1.ResetRuntimesResponse](
+			httpClient,
+			baseURL+ControlServiceResetRuntimesProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("ResetRuntimes")),
 			connect.WithClientOptions(opts...),
 		),
 		getRuntimeStatus: connect.NewClient[v1.GetRuntimeStatusRequest, v1.GetRuntimeStatusResponse](
@@ -454,6 +466,7 @@ type controlServiceClient struct {
 	getBackendInstallStatus *connect.Client[v1.GetBackendInstallStatusRequest, v1.GetBackendInstallStatusResponse]
 	startRuntime            *connect.Client[v1.StartRuntimeRequest, v1.StartRuntimeResponse]
 	stopRuntime             *connect.Client[v1.StopRuntimeRequest, v1.StopRuntimeResponse]
+	resetRuntimes           *connect.Client[v1.ResetRuntimesRequest, v1.ResetRuntimesResponse]
 	getRuntimeStatus        *connect.Client[v1.GetRuntimeStatusRequest, v1.GetRuntimeStatusResponse]
 	resolveProfileModel     *connect.Client[v1.ResolveProfileModelRequest, v1.ResolveProfileModelResponse]
 	resolveModel            *connect.Client[v1.ResolveModelRequest, v1.ResolveModelResponse]
@@ -576,6 +589,15 @@ func (c *controlServiceClient) StartRuntime(ctx context.Context, req *v1.StartRu
 // StopRuntime calls inferencerig.control.v1.ControlService.StopRuntime.
 func (c *controlServiceClient) StopRuntime(ctx context.Context, req *v1.StopRuntimeRequest) (*v1.StopRuntimeResponse, error) {
 	response, err := c.stopRuntime.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// ResetRuntimes calls inferencerig.control.v1.ControlService.ResetRuntimes.
+func (c *controlServiceClient) ResetRuntimes(ctx context.Context, req *v1.ResetRuntimesRequest) (*v1.ResetRuntimesResponse, error) {
+	response, err := c.resetRuntimes.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -830,6 +852,9 @@ type ControlServiceHandler interface {
 	GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error)
 	StartRuntime(context.Context, *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error)
 	StopRuntime(context.Context, *v1.StopRuntimeRequest) (*v1.StopRuntimeResponse, error)
+	// ResetRuntimes stops every runtime and clears the active backend, which is
+	// how a host switches backends. It is not a daemon restart.
+	ResetRuntimes(context.Context, *v1.ResetRuntimesRequest) (*v1.ResetRuntimesResponse, error)
 	GetRuntimeStatus(context.Context, *v1.GetRuntimeStatusRequest) (*v1.GetRuntimeStatusResponse, error)
 	ResolveProfileModel(context.Context, *v1.ResolveProfileModelRequest) (*v1.ResolveProfileModelResponse, error)
 	// ResolveModel resolves an arbitrary catalog reference without requiring a
@@ -937,6 +962,12 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 		ControlServiceStopRuntimeProcedure,
 		svc.StopRuntime,
 		connect.WithSchema(controlServiceMethods.ByName("StopRuntime")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceResetRuntimesHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceResetRuntimesProcedure,
+		svc.ResetRuntimes,
+		connect.WithSchema(controlServiceMethods.ByName("ResetRuntimes")),
 		connect.WithHandlerOptions(opts...),
 	)
 	controlServiceGetRuntimeStatusHandler := connect.NewUnaryHandlerSimple(
@@ -1125,6 +1156,8 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 			controlServiceStartRuntimeHandler.ServeHTTP(w, r)
 		case ControlServiceStopRuntimeProcedure:
 			controlServiceStopRuntimeHandler.ServeHTTP(w, r)
+		case ControlServiceResetRuntimesProcedure:
+			controlServiceResetRuntimesHandler.ServeHTTP(w, r)
 		case ControlServiceGetRuntimeStatusProcedure:
 			controlServiceGetRuntimeStatusHandler.ServeHTTP(w, r)
 		case ControlServiceResolveProfileModelProcedure:
@@ -1230,6 +1263,10 @@ func (UnimplementedControlServiceHandler) StartRuntime(context.Context, *v1.Star
 
 func (UnimplementedControlServiceHandler) StopRuntime(context.Context, *v1.StopRuntimeRequest) (*v1.StopRuntimeResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.StopRuntime is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) ResetRuntimes(context.Context, *v1.ResetRuntimesRequest) (*v1.ResetRuntimesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.ResetRuntimes is not implemented"))
 }
 
 func (UnimplementedControlServiceHandler) GetRuntimeStatus(context.Context, *v1.GetRuntimeStatusRequest) (*v1.GetRuntimeStatusResponse, error) {

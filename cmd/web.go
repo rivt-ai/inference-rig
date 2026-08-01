@@ -31,9 +31,9 @@ func webCommand() *cobra.Command {
 				return err
 			}
 			defer removePIDFile()
-			cfg := config.Default()
-			if loaded, err := config.Load(); err == nil {
-				cfg = loaded
+			cfg, err := config.LoadOrDefault()
+			if err != nil {
+				return err
 			}
 			app, err := fs.Sub(webui.Files, "dist")
 			if err != nil {

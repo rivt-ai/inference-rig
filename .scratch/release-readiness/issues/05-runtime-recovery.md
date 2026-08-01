@@ -1,7 +1,7 @@
 # 05 — Runtime recovery and reconciliation
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: 04
 Milestone: A
 Roadmap: P0 #1

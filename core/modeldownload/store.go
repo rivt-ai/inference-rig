@@ -49,8 +49,9 @@ func validateItem(plan backends.ArtifactPlan, item backends.ArtifactItem, seen m
 }
 
 // prepareParent creates target's parent and rejects symlinked ancestors. stage,
-// when non-empty, is a sibling staging path that is also symlink-checked and
-// cleared; the directory case passes "" because it stages under its own root.
+// when non-empty, is a sibling staging path that is also symlink-checked; it is
+// kept rather than cleared so an interrupted transfer can resume from it. The
+// directory case passes "" because it stages under its own root.
 func prepareParent(target, stage string) error {
 	dir := filepath.Dir(target)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -67,9 +68,6 @@ func prepareParent(target, stage string) error {
 		if err := filedoc.RejectSymlink(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("%w: %v", ErrInvalidInput, err)
 		}
-	}
-	if stage != "" {
-		_ = os.Remove(stage)
 	}
 	return nil
 }

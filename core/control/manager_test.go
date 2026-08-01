@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -114,10 +115,18 @@ func TestManagerControlsProfilesRuntimeInstallAndDownloads(t *testing.T) {
 	if profiles, err := manager.ListProfiles(ctx); err != nil || len(profiles) != 2 {
 		t.Fatalf("profiles = %#v, err = %v", profiles, err)
 	}
-	if _, err := manager.StartRuntime(ctx, "one"); err != nil {
+	if _, err := manager.StartRuntime(ctx, "one", false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.StartRuntime(ctx, "two"); err != nil {
+	// The backend serves one profile at a time, so switching is the caller's
+	// decision to make: without replace the running engine stays up.
+	if _, err := manager.StartRuntime(ctx, "two", false); Kind(err) != ErrorConflict {
+		t.Fatalf("start without replace = %v, want a conflict", err)
+	}
+	if len(runtimes) != 1 || runtimes[0].stops != 0 {
+		t.Fatalf("refused start touched the running runtime: %#v", runtimes)
+	}
+	if _, err := manager.StartRuntime(ctx, "two", true); err != nil {
 		t.Fatal(err)
 	}
 	if len(runtimes) != 2 || runtimes[0].stops != 1 {
@@ -159,8 +168,12 @@ func TestManagerControlsProfilesRuntimeInstallAndDownloads(t *testing.T) {
 }
 
 func profileYAML(name, source string) string {
+	return profileYAMLOnPort(name, source, 8080)
+}
+
+func profileYAMLOnPort(name, source string, port int) string {
 	return "version: 1\nname: " + name + "\nbackend: test\nmodel:\n  source: " + source +
-		"\nlisten:\n  host: 127.0.0.1\n  port: 8080\n"
+		"\nlisten:\n  host: 127.0.0.1\n  port: " + strconv.Itoa(port) + "\n"
 }
 
 func waitDownload(t *testing.T, manager *Manager, id string) modeldownload.Job {
@@ -249,7 +262,7 @@ func startWithActivator(t *testing.T, backend backends.Backend) (coreruntime.Com
 	if _, err := manager.PutProfile(ctx, "one", profileYAML("one", "https://example.test/m"), true); err != nil {
 		t.Fatal(err)
 	}
-	return manager.StartRuntime(ctx, "one")
+	return manager.StartRuntime(ctx, "one", false)
 }
 
 // A router-style engine starts serving no model at all, so the manager must ask

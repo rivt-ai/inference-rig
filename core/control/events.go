@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"inferencerig/core/runtime"
 )
 
 const DefaultEventLimit = 200
@@ -17,6 +19,14 @@ type Event struct {
 	Success   bool      `json:"success"`
 	ErrorKind ErrorKind `json:"error_kind,omitempty"`
 	Duration  string    `json:"duration,omitempty"`
+
+	// Runtime state-machine transitions carry these; every other action leaves
+	// them empty. A client watching the stream follows a start or stop through
+	// them instead of polling status.
+	OperationID string        `json:"operation_id,omitempty"`
+	Profile     string        `json:"profile,omitempty"`
+	Backend     string        `json:"backend,omitempty"`
+	State       runtime.State `json:"state,omitempty"`
 }
 
 type EventStore struct {
@@ -38,7 +48,13 @@ func (s *EventStore) Record(_ context.Context, event AuditEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.nextID++
-	recorded := Event{ID: strconv.FormatUint(s.nextID, 10), Time: time.Now().UTC().Format(time.RFC3339), Action: event.Action, Success: event.Success, ErrorKind: event.ErrorKind, Duration: event.Duration.String()}
+	recorded := Event{
+		ID: strconv.FormatUint(s.nextID, 10), Time: time.Now().UTC().Format(time.RFC3339),
+		Action: event.Action, Success: event.Success, ErrorKind: event.ErrorKind,
+		Duration:    event.Duration.String(),
+		OperationID: event.OperationID, Profile: event.Profile,
+		Backend: event.Backend, State: event.State,
+	}
 	s.events = append(s.events, recorded)
 	if len(s.events) > s.limit {
 		s.events[0] = Event{}
