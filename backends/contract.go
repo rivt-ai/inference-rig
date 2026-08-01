@@ -86,6 +86,30 @@ type RuntimeActivator interface {
 	ActivateRuntime(ctx context.Context, p profiles.Profile) error
 }
 
+// ProfileImporter is the optional facet a backend implements when the file it
+// materializes is one users edit in place, and those edits can be carried back
+// into the canonical YAML the profile store owns. It is outside Backend because
+// most backends generate a launch command and nothing durable to edit.
+//
+// The direction of authority does not change: YAML stays canonical, the
+// generated file stays derived, and importing happens *before* regeneration so
+// the very next render carries the adopted values. An importer decides nothing
+// about persistence — it returns the YAML it would like written, and the
+// control manager writes it through the store, which re-validates.
+type ProfileImporter interface {
+	// ImportGenerated inspects this backend's generated file against docs —
+	// every profile the backend owns — and returns the canonical YAML each
+	// profile should adopt, keyed by profile name, plus the keys whose edits it
+	// discarded because canonical YAML had moved too. Both empty is the common
+	// case: the file holds nothing to adopt.
+	//
+	// Conflicting keys are reported rather than merged: with both sides moved
+	// there is no non-arbitrary way to pick, so the canonical side wins by the
+	// same rule that governs every render, and the operator is told what was
+	// dropped. Implementations must read only — the control manager persists.
+	ImportGenerated(docs []profiles.ProfileDocument) (adopt map[string]string, conflicts []string, err error)
+}
+
 // Compile-time proof that the backend contract satisfies the profile store's
 // validator interface, so a registered Backend can validate profiles directly.
 var _ profiles.BackendValidator = (Backend)(nil)

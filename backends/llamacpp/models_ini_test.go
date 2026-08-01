@@ -1,6 +1,7 @@
 package llamacpp
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -29,8 +30,11 @@ func TestRenderModelsINIHeaderGlobalAndSections(t *testing.T) {
 	if !strings.HasPrefix(content, "; InferenceRig materialized runtime file.") {
 		t.Fatalf("missing materialized-file header: %q", content)
 	}
-	if !strings.Contains(content, "; Manual edits are allowed, but the next InferenceRig materialization overwrites them.") {
-		t.Fatalf("missing manual-edit warning: %q", content)
+	if !strings.Contains(content, "are imported back into that profile's") {
+		t.Fatalf("header does not state that manual edits are imported: %q", content)
+	}
+	if !strings.Contains(content, "the YAML wins") {
+		t.Fatalf("header does not state who wins a conflict: %q", content)
 	}
 	if !strings.Contains(content, "version = 1\n") {
 		t.Fatal("missing version key")
@@ -111,14 +115,21 @@ func TestMaterializeReturnsGeneratedFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m.Files) != 1 || m.Files[0].Path != path || m.Files[0].Mode != generatedFileMode {
+	if len(m.Files) != 2 || m.Files[0].Path != path || m.Files[0].Mode != generatedFileMode {
 		t.Fatalf("materialization = %#v", m)
 	}
 	if !strings.Contains(string(m.Files[0].Content), "[demo]") || !strings.Contains(string(m.Files[0].Content), "model = /demo.gguf") {
 		t.Fatalf("content = %q", m.Files[0].Content)
 	}
+	// The baseline copy is the record of what was written, so it must be a copy
+	// of exactly that — a baseline that differs would report phantom edits.
+	if m.Files[1].Path != path+baselineSuffix || !bytes.Equal(m.Files[1].Content, m.Files[0].Content) {
+		t.Fatalf("baseline = %#v", m.Files[1])
+	}
 	// Materialize must not touch disk.
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatal("Materialize wrote to disk")
+	for _, file := range m.Files {
+		if _, err := os.Stat(file.Path); !os.IsNotExist(err) {
+			t.Fatalf("Materialize wrote %s to disk", file.Path)
+		}
 	}
 }
