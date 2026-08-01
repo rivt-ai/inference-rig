@@ -6,7 +6,7 @@ require (
 	charm.land/bubbles/v2 v2.1.1
 	charm.land/bubbletea/v2 v2.0.8
 	charm.land/huh/v2 v2.0.3
-	charm.land/lipgloss/v2 v2.0.4
+	charm.land/lipgloss/v2 v2.0.5
 	connectrpc.com/connect v1.20.0
 	github.com/antonikliment/tuikit v0.2.2
 	github.com/dustin/go-humanize v1.0.1
