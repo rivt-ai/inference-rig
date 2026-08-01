@@ -1,0 +1,31 @@
+listen_addr: "127.0.0.1:7000"
+model_storage_dir: "" # default: ${INFERENCERIG_HOME}/models
+catalog_cache_dir: "" # default: ${INFERENCERIG_HOME}/cache/hf-catalog
+catalog_cache_ttl: 6h
+log_archive_retention: 168h # 0s keeps archives indefinitely
+startup_services:
+  - control
+  - web
+security:
+  # Environment variable holding the gateway token. Unset, the gateway
+  # generates one and persists it to ${INFERENCERIG_HOME}/run/gateway.token,
+  # then prints a http://host:port/#token=... URL that logs the browser in.
+  auth_token_env: "INFERENCERIG_CONTROL_TOKEN"
+  # Browser origins allowed to reach the gateway. Empty means loopback only.
+  allowed_origins: []
+  # Turn the origin check off entirely, for a reverse proxy that terminates the
+  # browser origin itself.
+  disable_origin_check: false
+  # Serve the gateway with no bearer token at all — every profile, model, log
+  # and audit record readable, every runtime operation executable, by anything
+  # that can reach listen_addr. Only for a single-user local install: with a
+  # non-loopback listen_addr it is refused unless allow_exposed_without_auth
+  # is also set.
+  disable_auth: false
+  # The second, deliberate key that permits disable_auth on a non-loopback
+  # bind, for a deployment that authenticates in a reverse proxy in front.
+  allow_exposed_without_auth: false
+
+# Per-profile backend configuration is canonical YAML under
+# ${INFERENCERIG_HOME}/profiles/<name>/profile.yaml (added in Phase 4).
+# Each profile declares its backend (llamacpp | mlx) and engine_args.

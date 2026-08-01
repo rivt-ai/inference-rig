@@ -1,0 +1,48 @@
+name: Test
+
+# Runs on every pull request (regardless of base) so stacked phase PRs are
+# gated, plus pushes to main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      - name: Verify web UI
+        run: |
+          cd webui
+          pnpm install --frozen-lockfile
+          pnpm run verify:web
+
+      - name: Test
+        run: |
+          go mod download
+          make test
