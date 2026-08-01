@@ -167,7 +167,11 @@ func (p *activityPage) View(width, height int, data snapshot) string {
 		if !event.GetSuccess() {
 			style = errorStyle
 		}
-		events = append(events, mutedStyle.Render(event.GetTime())+"  "+style.Render(event.GetAction())+"  "+event.GetDuration())
+		action := event.GetAction()
+		if recovery := event.GetRecovery(); recovery != "" {
+			action += " " + recovery
+		}
+		events = append(events, mutedStyle.Render(event.GetTime())+"  "+style.Render(action)+"  "+event.GetDuration())
 	}
 	p.views[0].SetLines(events)
 	p.views[1].SetLines(colorLog(data.controlLog))

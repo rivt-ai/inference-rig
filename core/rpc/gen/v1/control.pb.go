@@ -3670,10 +3670,13 @@ type Event struct {
 	// (action "runtime.transition"). operation_id ties the transitions of one
 	// start, stop or reset together, so a client follows a lifecycle through the
 	// event stream instead of polling status.
-	OperationId   string `protobuf:"bytes,7,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
-	Profile       string `protobuf:"bytes,8,opt,name=profile,proto3" json:"profile,omitempty"`
-	Backend       string `protobuf:"bytes,9,opt,name=backend,proto3" json:"backend,omitempty"`
-	State         string `protobuf:"bytes,10,opt,name=state,proto3" json:"state,omitempty"`
+	OperationId string `protobuf:"bytes,7,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	Profile     string `protobuf:"bytes,8,opt,name=profile,proto3" json:"profile,omitempty"`
+	Backend     string `protobuf:"bytes,9,opt,name=backend,proto3" json:"backend,omitempty"`
+	State       string `protobuf:"bytes,10,opt,name=state,proto3" json:"state,omitempty"`
+	// recovery is the startup reconciliation classification when action is
+	// "runtime.recover".
+	Recovery      string `protobuf:"bytes,11,opt,name=recovery,proto3" json:"recovery,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3774,6 +3777,13 @@ func (x *Event) GetBackend() string {
 func (x *Event) GetState() string {
 	if x != nil {
 		return x.State
+	}
+	return ""
+}
+
+func (x *Event) GetRecovery() string {
+	if x != nil {
+		return x.Recovery
 	}
 	return ""
 }
@@ -6733,7 +6743,7 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\x06events\x18\x02 \x03(\v2\x1e.inferencerig.control.v1.EventR\x06events\"\x14\n" +
 	"\x12WatchEventsRequest\"K\n" +
 	"\x13WatchEventsResponse\x124\n" +
-	"\x05event\x18\x01 \x01(\v2\x1e.inferencerig.control.v1.EventR\x05event\"\x85\x02\n" +
+	"\x05event\x18\x01 \x01(\v2\x1e.inferencerig.control.v1.EventR\x05event\"\xa1\x02\n" +
 	"\x05Event\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04time\x18\x02 \x01(\tR\x04time\x12\x16\n" +
@@ -6746,7 +6756,8 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\aprofile\x18\b \x01(\tR\aprofile\x12\x18\n" +
 	"\abackend\x18\t \x01(\tR\abackend\x12\x14\n" +
 	"\x05state\x18\n" +
-	" \x01(\tR\x05state\"\xaf\x01\n" +
+	" \x01(\tR\x05state\x12\x1a\n" +
+	"\brecovery\x18\v \x01(\tR\brecovery\"\xaf\x01\n" +
 	"\x17ListModelCatalogRequest\x12\x18\n" +
 	"\abackend\x18\x01 \x01(\tR\abackend\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x14\n" +

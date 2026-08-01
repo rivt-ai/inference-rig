@@ -23,10 +23,11 @@ type Event struct {
 	// Runtime state-machine transitions carry these; every other action leaves
 	// them empty. A client watching the stream follows a start or stop through
 	// them instead of polling status.
-	OperationID string        `json:"operation_id,omitempty"`
-	Profile     string        `json:"profile,omitempty"`
-	Backend     string        `json:"backend,omitempty"`
-	State       runtime.State `json:"state,omitempty"`
+	OperationID string                         `json:"operation_id,omitempty"`
+	Profile     string                         `json:"profile,omitempty"`
+	Backend     string                         `json:"backend,omitempty"`
+	State       runtime.State                  `json:"state,omitempty"`
+	Recovery    runtime.RecoveryClassification `json:"recovery,omitempty"`
 }
 
 type EventStore struct {
@@ -53,7 +54,7 @@ func (s *EventStore) Record(_ context.Context, event AuditEvent) {
 		Action: event.Action, Success: event.Success, ErrorKind: event.ErrorKind,
 		Duration:    event.Duration.String(),
 		OperationID: event.OperationID, Profile: event.Profile,
-		Backend: event.Backend, State: event.State,
+		Backend: event.Backend, State: event.State, Recovery: event.Recovery,
 	}
 	s.events = append(s.events, recorded)
 	if len(s.events) > s.limit {

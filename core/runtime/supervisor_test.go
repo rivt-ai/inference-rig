@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"slices"
@@ -125,6 +126,130 @@ func fakeSpec(t *testing.T, mode, readinessPath string) LaunchSpec {
 
 // spawnFakeChild launches a fake child directly (not through the supervisor) and
 // returns its PID, for exercising Recover. The child is killed at test cleanup.
+func spawnFakeChild(t *testing.T, spec LaunchSpec, mode string) *exec.Cmd {
+	t.Helper()
+	cmd := exec.Command(spec.Executable)
+	cmd.Env = append(os.Environ(), envList(map[string]string{
+		"IR_FAKE_MODE": mode,
+		"IR_FAKE_ADDR": net.JoinHostPort(spec.Host, strconv.Itoa(spec.Port)),
+		"IR_FAKE_PATH": spec.ReadinessPath,
+	})...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		_ = cmd.Wait()
+	})
+	return cmd
+}
+
+func writeSupervisorPID(t *testing.T, spec LaunchSpec, pid int) {
+	t.Helper()
+	if err := pidfile.New(filepath.Join(spec.PIDDir, spec.Name+".pid")).Write(pid); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSupervisorRecoversValidSurvivorWithoutRestartingIt(t *testing.T) {
+	spec := fakeSpec(t, "server", "/health")
+	child := spawnFakeChild(t, spec, "server")
+	writeSupervisorPID(t, spec, child.Process.Pid)
+	deadline := time.Now().Add(spec.ReadinessTimeout)
+	for time.Now().Before(deadline) {
+		if err := NewSupervisor(spec).probeReady(context.Background()); err == nil {
+			break
+		}
+		time.Sleep(spec.ReadinessInterval)
+	}
+
+	sup := NewSupervisor(spec)
+	adopted, err := sup.Recover(context.Background())
+	if err != nil || !adopted {
+		t.Fatalf("Recover = %v, %v", adopted, err)
+	}
+	status, _ := sup.Status(context.Background())
+	if status.State != Running || status.Processes[0].PID != child.Process.Pid {
+		t.Fatalf("status = %#v", status)
+	}
+	go func() { _ = child.Wait() }()
+	if _, err := sup.Stop(context.Background()); err != nil {
+		t.Fatalf("stop adopted survivor: %v", err)
+	}
+}
+
+func TestSupervisorRecoveryClassifications(t *testing.T) {
+	t.Run("stale PID file", func(t *testing.T) {
+		spec := fakeSpec(t, "server", "")
+		writeSupervisorPID(t, spec, 999999999)
+		_, err := NewSupervisor(spec).Recover(context.Background())
+		if got := RecoveryClass(err); got != RecoveryStalePIDFile {
+			t.Fatalf("classification = %q, want %q (err=%v)", got, RecoveryStalePIDFile, err)
+		}
+	})
+
+	t.Run("mismatched executable", func(t *testing.T) {
+		spec := fakeSpec(t, "server", "")
+		child := exec.Command("sleep", "120")
+		child.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		if err := child.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = child.Process.Kill(); _ = child.Wait() })
+		writeSupervisorPID(t, spec, child.Process.Pid)
+		_, err := NewSupervisor(spec).Recover(context.Background())
+		if got := RecoveryClass(err); got != RecoveryMismatchedExecutable {
+			t.Fatalf("classification = %q, want %q (err=%v)", got, RecoveryMismatchedExecutable, err)
+		}
+	})
+
+	t.Run("occupied port", func(t *testing.T) {
+		spec := fakeSpec(t, "noready", "")
+		child := spawnFakeChild(t, spec, "noready")
+		writeSupervisorPID(t, spec, child.Process.Pid)
+		listener, err := net.Listen("tcp", net.JoinHostPort(spec.Host, strconv.Itoa(spec.Port)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = listener.Close() }()
+		go drainConns(listener)
+		_, err = NewSupervisor(spec).Recover(context.Background())
+		if got := RecoveryClass(err); got != RecoveryOccupiedPort {
+			t.Fatalf("classification = %q, want %q (err=%v)", got, RecoveryOccupiedPort, err)
+		}
+	})
+
+	t.Run("unhealthy survivor", func(t *testing.T) {
+		spec := fakeSpec(t, "noready", "")
+		child := spawnFakeChild(t, spec, "noready")
+		writeSupervisorPID(t, spec, child.Process.Pid)
+		_, err := NewSupervisor(spec).Recover(context.Background())
+		if got := RecoveryClass(err); got != RecoveryUnhealthySurvivor {
+			t.Fatalf("classification = %q, want %q (err=%v)", got, RecoveryUnhealthySurvivor, err)
+		}
+	})
+}
+
+func TestSupervisorStalePIDCleanupPreservesReplacement(t *testing.T) {
+	spec := fakeSpec(t, "server", "")
+	recordedPID, replacementPID := os.Getpid(), os.Getpid()+1
+	writeSupervisorPID(t, spec, recordedPID)
+	sup := NewSupervisor(spec)
+	sup.alive = func(int) bool {
+		writeSupervisorPID(t, spec, replacementPID)
+		return false
+	}
+
+	if _, err := sup.Recover(context.Background()); RecoveryClass(err) != RecoveryStalePIDFile {
+		t.Fatalf("Recover error = %v", err)
+	}
+	pid, exists, err := pidfile.New(filepath.Join(spec.PIDDir, spec.Name+".pid")).Read()
+	if err != nil || !exists || pid != replacementPID {
+		t.Fatalf("replacement PID file = pid %d, exists %v, err %v", pid, exists, err)
+	}
+}
+
 func TestSupervisorStartStopLifecycle(t *testing.T) {
 	spec := fakeSpec(t, "server", "")
 	sup := NewSupervisor(spec)

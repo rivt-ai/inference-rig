@@ -48,6 +48,8 @@ func (r *blockingRuntime) Status(context.Context) (coreruntime.Status, error) {
 	return coreruntime.Status{State: r.state, CheckedAt: time.Now()}, nil
 }
 
+func (r *blockingRuntime) Recover(context.Context) (bool, error) { return false, nil }
+
 // recordingSink is the external audit log, kept separate from the event store so
 // a test can prove a transition reaches both. Concurrent lifecycle calls record
 // from their own goroutines, which is what an AuditSink must tolerate.

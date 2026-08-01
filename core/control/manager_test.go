@@ -59,6 +59,46 @@ func (r *fakeRuntime) Status(context.Context) (coreruntime.Status, error) {
 }
 func (r *fakeRuntime) Recover(context.Context) (bool, error) { return false, nil }
 
+type recoveredRuntime struct {
+	fakeRuntime
+	pid int
+}
+
+func (r *recoveredRuntime) Recover(context.Context) (bool, error) {
+	r.state = coreruntime.Running
+	return true, nil
+}
+
+func (r *recoveredRuntime) Status(context.Context) (coreruntime.Status, error) {
+	return coreruntime.Status{
+		State: coreruntime.Running, CheckedAt: time.Now(),
+		Processes: []coreruntime.ProcessStatus{{PID: r.pid, State: coreruntime.Running, Ready: true}},
+	}, nil
+}
+
+func TestManagerAdoptsRecoveredRuntimeWithoutStartingIt(t *testing.T) {
+	engine := &recoveredRuntime{pid: 4242}
+	manager, _ := lifecycleManager(t, backendtest.New("test"), engine, "one")
+
+	if err := manager.RecoverRuntimes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.RuntimeStatus(context.Background(), "one")
+	if err != nil || status.State != coreruntime.Running || status.Processes[0].PID != engine.pid {
+		t.Fatalf("status = %#v, err = %v", status, err)
+	}
+	if engine.starts != 0 {
+		t.Fatalf("recovery restarted the runtime %d time(s)", engine.starts)
+	}
+	events := manager.Events().List()
+	if len(events) < 2 || events[0].Recovery != coreruntime.RecoveryValidAdoptee || events[1].State != coreruntime.Reconciling {
+		t.Fatalf("recovery events = %#v", events)
+	}
+	if _, err := manager.StopRuntime(context.Background(), "one"); err != nil || engine.stops != 1 {
+		t.Fatalf("stop after recovery: stops=%d err=%v", engine.stops, err)
+	}
+}
+
 // A catalog entry is a repository plus a file inside it. Folding the two into
 // one field left the backend resolving a bare filename, which fetched a URI
 // with no scheme, so both halves must reach the backend intact.

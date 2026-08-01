@@ -132,6 +132,9 @@ func NewService() (*Service, error) {
 		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: paths.CatalogCache, CacheTTL: time.Hour}),
 		Config:    configstore.NewFileStore(paths.Config, 0),
 	})
+	if err := manager.RecoverRuntimes(context.Background()); err != nil {
+		return nil, err
+	}
 	path, handler := rpc.ControlHandler(rpc.NewControlService(manager))
 	server, err := rpc.NewServer(path, handler)
 	if err != nil {
