@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -288,6 +289,13 @@ func (m *Manager) StartRuntime(ctx context.Context, name string, replace bool) (
 	if err != nil {
 		return result, err
 	}
+	// Import before rendering, and re-read the profile after: an adopted edit
+	// must reach this very start, not the one after it.
+	if m.importGenerated(ctx, backend) {
+		if doc, err = m.GetProfile(ctx, name); err != nil {
+			return result, err
+		}
+	}
 	materialization, err := m.materialize(ctx, backend, doc.Effective)
 	if err != nil {
 		return result, CoreError(ErrorInvalidInput, err.Error(), err)
@@ -529,25 +537,64 @@ type batchMaterializer interface {
 	MaterializeProfiles([]profiles.Profile) (backends.Materialization, error)
 }
 
+// importGenerated adopts manual edits to a backend's generated file back into
+// canonical YAML, and reports whether any profile was rewritten.
+//
+// Nothing here can fail a start. The generated file is derived state: if it is
+// unreadable, ungrammatical, or would produce a profile the store rejects, the
+// canonical YAML is still complete and correct and the next render replaces the
+// file anyway. Blocking a runtime on a stray character in a file InferenceRig
+// itself owns would trade a lost edit for an unstartable engine. Failures are
+// logged and the start proceeds from YAML.
+func (m *Manager) importGenerated(ctx context.Context, backend backends.Backend) bool {
+	importer, ok := backend.(backends.ProfileImporter)
+	if !ok {
+		return false
+	}
+	docs, err := m.profiles.ListDocuments(ctx)
+	if err != nil {
+		slog.Warn("import generated config: list profiles", "backend", backend.Name(), "error", err)
+		return false
+	}
+	adopt, conflicts, err := importer.ImportGenerated(docs)
+	if err != nil {
+		slog.Warn("import generated config", "backend", backend.Name(), "error", err)
+		return false
+	}
+	if len(conflicts) > 0 {
+		slog.Warn("generated config edits discarded: the profile changed too", "keys", conflicts)
+	}
+	imported := false
+	for name, profileYAML := range adopt {
+		// Written per profile, so one profile whose imported form does not
+		// validate cannot cost the others theirs.
+		if _, err := m.profiles.Replace(ctx, name, profileYAML); err != nil {
+			slog.Warn("import generated config", "profile", name, "error", err)
+			continue
+		}
+		imported = true
+		slog.Info("imported edits from generated config", "profile", name)
+	}
+	return imported
+}
+
 func (m *Manager) materialize(ctx context.Context, backend backends.Backend, selected profiles.Profile) (backends.Materialization, error) {
 	batch, ok := backend.(batchMaterializer)
 	if !ok {
 		return backend.Materialize(selected)
 	}
-	summaries, err := m.profiles.List(ctx)
+	// ListDocuments rather than List-then-Get-each: a summary is built by
+	// reading and validating the whole profile anyway, so the per-name reads
+	// were re-reading files this call already had.
+	docs, err := m.profiles.ListDocuments(ctx)
 	if err != nil {
 		return backends.Materialization{}, err
 	}
-	items := make([]profiles.Profile, 0, len(summaries))
-	for _, summary := range summaries {
-		if summary.Backend != backend.Name() {
-			continue
+	items := make([]profiles.Profile, 0, len(docs))
+	for _, doc := range docs {
+		if doc.Effective.Backend == backend.Name() {
+			items = append(items, doc.Effective)
 		}
-		doc, err := m.profiles.Get(ctx, summary.Name)
-		if err != nil {
-			return backends.Materialization{}, err
-		}
-		items = append(items, doc.Effective)
 	}
 	return batch.MaterializeProfiles(items)
 }
