@@ -1,7 +1,7 @@
 # 20 — Render the active backend and replace in the TUI and web UI
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: 04
 Milestone: A
 Roadmap: P2 #13

@@ -144,6 +144,19 @@ research tickets do not.
   (`ArtifactPlan.Revision`) while llama.cpp's network-free `Resolve` stays
   unpinned; scheme, host allowlist, redirect count and a max transfer size are
   enforced on redirects as well as the first request.
+- [10 — Correct documentation and evidence levels](issues/10-docs-evidence-correction.md)
+  — Four evidence levels defined and named (contract → control-stack →
+  CI-tested → hardware), with platform support kept separate from
+  released-artifact availability; `release.yml` publishes linux/amd64 only
+  today, so the artifact table has a row per target for ticket 16's receipt to
+  fill. `docs/hardware-validation.md` rewritten (it quoted a removed
+  `make e2e-live` target, env vars that exist nowhere, and claimed live tests
+  skip when they fail). The E2E plan keeps its text and gains verified
+  per-phase Outcomes: phases 1–4 landed, phase 5 partial — its numeric targets
+  are met but the areas it targeted are still the weakest and the "no
+  0%-covered function on a required path" clause has never been audited. The
+  enforced coverage gate is **68** (in `e2e.yml`), not the Makefile's 65.
+  Nothing in the repo claims hardware validation; no runs are recorded.
 
 ## Not yet specified
 
