@@ -1,0 +1,12 @@
+[Unit]
+Description=InferenceRig control daemon
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+ExecStart=%s serve
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

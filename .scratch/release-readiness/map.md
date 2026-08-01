@@ -118,6 +118,12 @@ research tickets do not.
   `unhealthy_survivor`, `valid_adoptee`), rebuild ticket 04's slot through
   `reconciling`/`orphaned`, and are exposed through audit/events, CLI, TUI and
   web. A compiled-binary crash/restart E2E proves same-PID adoption and shutdown.
+- [06 — Make profile autostart operational](issues/06-operational-autostart.md)
+  — Bootstrap validates the whole autostart set, reconciles first, then starts
+  profiles lexically with three bounded attempts and visible per-profile
+  outcomes; adopted profiles are not restarted and partial failure leaves the
+  daemon healthy. `inferencerig service` generates, installs, reinstalls and
+  uninstalls bounded systemd user units and `RunAtLoad` macOS LaunchAgents.
 - [12 — Decide release identity, channels and signing](issues/12-release-identity.md)
   — Repo goes public before the first tag (it is private today, which would
   break the install one-liner and bill the macOS MLX job); first release is

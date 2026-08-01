@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	adaptercli "inferencerig/adapters/cli"
+	"inferencerig/bootstrap"
 	"inferencerig/config"
 	"inferencerig/core/rpc"
 	"inferencerig/internal/buildinfo"
@@ -37,7 +38,7 @@ func NewRootCommand() *cobra.Command {
 		},
 	}
 	rootCmd.AddCommand(versionCommand())
-	rootCmd.AddCommand(serveCommand(), daemonCommand(), setupCommand(), tuiCommand(), webCommand())
-	rootCmd.AddCommand(adaptercli.Commands(rpc.DialControl)...)
+	rootCmd.AddCommand(serveCommand(), daemonCommand(), setupCommand(), tuiCommand(), webCommand(), serviceCommand())
+	rootCmd.AddCommand(adaptercli.Commands(rpc.DialControl, bootstrap.ValidateConfig)...)
 	return rootCmd
 }
