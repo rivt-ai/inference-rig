@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"inferencerig/core/profiles"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
@@ -21,6 +22,20 @@ type dispatchClient struct {
 	controlv1connect.ControlServiceClient
 	calls []string
 	err   error
+}
+
+type localPollClient struct {
+	testClient
+	models map[string]string
+	err    error
+}
+
+func (c localPollClient) ListLocalModels(_ context.Context, request *controlv1.ListLocalModelsRequest) (*controlv1.ListLocalModelsResponse, error) {
+	if c.err != nil {
+		return nil, c.err
+	}
+	path := c.models[request.GetBackend()]
+	return &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: path}}}, nil
 }
 
 func (c *dispatchClient) record(name string) error {
@@ -42,6 +57,11 @@ func (c *dispatchClient) StopRuntime(_ context.Context, r *controlv1.StopRuntime
 
 func (c *dispatchClient) RestartRuntime(_ context.Context, r *controlv1.RestartRuntimeRequest) (*controlv1.RestartRuntimeResponse, error) {
 	return &controlv1.RestartRuntimeResponse{}, c.record("restart:" + r.GetProfile())
+}
+
+func (c *dispatchClient) PutProfile(_ context.Context, r *controlv1.PutProfileRequest) (*controlv1.PutProfileResponse, error) {
+	p := r.GetProfile()
+	return &controlv1.PutProfileResponse{Profile: p}, c.record(fmt.Sprintf("create:%s:%s:%s:%s:%d:%t", r.GetName(), p.GetBackend(), p.GetModelSource(), p.GetHost(), p.GetPort(), r.GetCreateOnly()))
 }
 
 func (c *dispatchClient) StartModelDownload(_ context.Context, r *controlv1.StartModelDownloadRequest) (*controlv1.StartModelDownloadResponse, error) {
@@ -90,7 +110,7 @@ func TestRunRPCDispatchesEveryActionToItsProcedure(t *testing.T) {
 		{"start", rpcRequest{kind: rpcStart, profile: "demo", replace: true}, "start:demo:true"},
 		{"reset", rpcRequest{kind: rpcReset}, "reset"},
 		{"stop", rpcRequest{kind: rpcStop, profile: "demo"}, "stop:demo"},
-		{"restart", rpcRequest{kind: rpcRestart, profile: "demo"}, "restart:demo"},
+		{"create", rpcRequest{kind: rpcPutProfile, create: &controlv1.Profile{Name: "demo", Backend: "one", ModelSource: "/model", Host: "127.0.0.1", Port: 8080}}, "create:demo:one:/model:127.0.0.1:8080:true"},
 		{"autostart", rpcRequest{kind: rpcAutostart, profile: "demo", enabled: true}, "autostart:demo"},
 		{"download", rpcRequest{kind: rpcDownload, profile: "demo"}, "download:demo"},
 		{"cancel", rpcRequest{kind: rpcCancel, id: "job-1"}, "cancel:job-1"},
@@ -110,6 +130,123 @@ func TestRunRPCDispatchesEveryActionToItsProcedure(t *testing.T) {
 				t.Fatalf("calls = %v, want [%s]", client.calls, test.want)
 			}
 		})
+	}
+}
+
+func TestModelsPageCreatesAValidNeutralProfile(t *testing.T) {
+	page := newModelsPage()
+	page.active = paneLocal
+	data := snapshot{
+		backends:     &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "neutral"}}},
+		profiles:     &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Port: 8080}}},
+		local:        &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: "/models/demo"}}},
+		localBackend: "neutral",
+	}
+	request := page.Update(keyMsg("n"), data)().(rpcRequest)
+	if request.kind != rpcPutProfile || request.create.GetBackend() != "neutral" || request.create.GetModelSource() != "/models/demo" || request.create.GetHost() != "127.0.0.1" || request.create.GetPort() != 8081 {
+		t.Fatalf("create request = %#v", request)
+	}
+	if err := profiles.ValidateName(request.create.GetName()); err != nil {
+		t.Fatalf("generated profile name is invalid: %v", err)
+	}
+}
+
+func TestBackendSwitchWaitsForMatchingLocalPoll(t *testing.T) {
+	app := &dashboard{
+		data: snapshot{
+			backends:     &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "one"}, {Name: "two"}}},
+			local:        &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: "/one/model"}}},
+			localBackend: "one", warnings: map[string]string{},
+		},
+		models: newModelsPage(),
+	}
+	app.models.active = paneLocal
+	app.models.Update(keyMsg("]"), app.data)
+	if cmd := app.models.Update(keyMsg("n"), app.data); cmd != nil {
+		t.Fatalf("stale local row produced request %#v", cmd())
+	}
+
+	client := localPollClient{models: map[string]string{"two": "/two/model"}}
+	app.applyPoll(poll(context.Background(), client, "two", nil, false)().(pollResult))
+	request := app.models.Update(keyMsg("n"), app.data)().(rpcRequest)
+	if request.create.GetBackend() != "two" || request.create.GetModelSource() != "/two/model" {
+		t.Fatalf("refreshed create request = %#v", request)
+	}
+
+	app.models.Update(keyMsg("["), app.data)
+	failed := localPollClient{models: client.models, err: errors.New("local unavailable")}
+	app.applyPoll(poll(context.Background(), failed, "one", nil, false)().(pollResult))
+	if app.data.localBackend != "two" || app.data.local.GetModels()[0].GetPath() != "/two/model" {
+		t.Fatalf("failed poll lost last good local snapshot: %#v", app.data.local)
+	}
+	if cmd := app.models.Update(keyMsg("n"), app.data); cmd != nil {
+		t.Fatalf("failed refresh exposed stale create request %#v", cmd())
+	}
+}
+
+func TestNextProfilePortReportsExhaustion(t *testing.T) {
+	profiles := make([]*controlv1.Profile, 0, 65535-8080+1)
+	for port := int32(8080); port <= 65535; port++ {
+		profiles = append(profiles, &controlv1.Profile{Port: port})
+	}
+	if port, err := nextProfilePort(profiles); err == nil || port != 0 {
+		t.Fatalf("exhausted ports returned port=%d err=%v", port, err)
+	}
+	page := newModelsPage()
+	page.active = paneLocal
+	cmd := page.Update(keyMsg("n"), snapshot{
+		backends:     &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "neutral"}}},
+		profiles:     &controlv1.ListProfilesResponse{Profiles: profiles},
+		local:        &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: "/models/demo"}}},
+		localBackend: "neutral",
+	})
+	if msg := cmd().(actionMsg); !strings.Contains(msg.err.Error(), "no available profile port") {
+		t.Fatalf("exhaustion warning = %v", msg.err)
+	}
+
+	profiles = profiles[:len(profiles)-1]
+	if port, err := nextProfilePort(profiles); err != nil || port != 65535 {
+		t.Fatalf("last available port=%d err=%v", port, err)
+	}
+}
+
+func TestProfileCreationErrorsRemainVisible(t *testing.T) {
+	app := newDispatchDashboard(&dispatchClient{err: errDispatch})
+	msg := app.runRPC(rpcRequest{kind: rpcPutProfile, create: &controlv1.Profile{Name: "demo"}})().(actionMsg)
+	app.updateAction(msg)
+	if warning := app.data.warnings["action"]; !strings.Contains(warning, errDispatch.Error()) {
+		t.Fatalf("profile validation error is not visible: %q", warning)
+	}
+}
+
+func TestSelectedRunningProfileConfirmsRestartAndClearsState(t *testing.T) {
+	page := newModelsPage()
+	data := snapshot{
+		info:     &controlv1.GetInfoResponse{RunningProfiles: []string{"demo"}},
+		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Name: "demo", Backend: "neutral"}}},
+	}
+	if cmd := page.Update(keyMsg("R"), data); cmd != nil {
+		t.Fatal("first restart key dispatched without confirmation")
+	}
+	request := page.Update(keyMsg("R"), data)().(serviceRequest)
+	if request.panel != panelRuntime || !request.restart || request.profile != "demo" {
+		t.Fatalf("restart request = %#v", request)
+	}
+	client := &dispatchClient{}
+	msg := runServiceAction(context.Background(), client, request)().(actionMsg)
+	if len(client.calls) != 1 || client.calls[0] != "restart:demo" || msg.notice != "runtime restarted" {
+		t.Fatalf("restart result = calls %v, notice %q", client.calls, msg.notice)
+	}
+	if pending := page.status.Pending(); pending != "" {
+		t.Fatalf("restart confirmation remained armed for %q", pending)
+	}
+}
+
+func TestRuntimeSelectionIndexDoesNotBecomeRestart(t *testing.T) {
+	client := &dispatchClient{}
+	runServiceAction(context.Background(), client, serviceRequest{panel: panelRuntime, action: 1, profile: "second"})()
+	if len(client.calls) != 1 || client.calls[0] != "stop:second" {
+		t.Fatalf("second runtime action = %v, want stop", client.calls)
 	}
 }
 

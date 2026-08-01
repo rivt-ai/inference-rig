@@ -13,7 +13,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/antonikliment/tuikit"
 
-	"inferencerig/config"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
@@ -33,6 +32,7 @@ type snapshot struct {
 	profiles                      *controlv1.ListProfilesResponse
 	catalog                       *controlv1.ListModelCatalogResponse
 	local                         *controlv1.ListLocalModelsResponse
+	localBackend                  string
 	signals                       *controlv1.GetSignalsResponse
 	events                        *controlv1.ListEventsResponse
 	downloads                     []*controlv1.ModelDownload
@@ -272,7 +272,7 @@ func (d *dashboard) applyPoll(result pollResult) {
 	// The catalog arrives on its own command, so a poll never carries one.
 	next.catalog, next.catalogPending = current.catalog, current.catalogPending
 	if !result.ok["local"] {
-		next.local = current.local
+		next.local, next.localBackend = current.local, current.localBackend
 	}
 	if !result.ok["signals"] {
 		next.signals = current.signals
@@ -300,11 +300,8 @@ func (d *dashboard) status() (string, tuikit.Level) {
 	if d.notice != "" {
 		return d.notice + refreshedText(d.data.refreshed), tuikit.LevelSuccess
 	}
-	// Setup no longer writes a starter profile, so a fresh install has nothing
-	// to run. The TUI cannot create profiles, so say where they are created.
 	if !d.data.refreshed.IsZero() && len(d.data.profiles.GetProfiles()) == 0 {
-		return "No profiles yet — create one in the web interface (`" +
-			config.ProjectName + " web`)" + refreshedText(d.data.refreshed), tuikit.LevelWarning
+		return "No profiles yet — press n on Models to create one" + refreshedText(d.data.refreshed), tuikit.LevelWarning
 	}
 	return "Ready" + refreshedText(d.data.refreshed), tuikit.LevelInfo
 }
@@ -336,8 +333,8 @@ func (d *dashboard) runRPC(request rpcRequest) tea.Cmd {
 			_, msg.err = d.client.ResetRuntimes(d.ctx, &controlv1.ResetRuntimesRequest{})
 		case rpcStop:
 			_, msg.err = d.client.StopRuntime(d.ctx, &controlv1.StopRuntimeRequest{Profile: request.profile})
-		case rpcRestart:
-			_, msg.err = d.client.RestartRuntime(d.ctx, &controlv1.RestartRuntimeRequest{Profile: request.profile})
+		case rpcPutProfile:
+			_, msg.err = d.client.PutProfile(d.ctx, &controlv1.PutProfileRequest{Name: request.create.GetName(), Profile: request.create, CreateOnly: true})
 		case rpcAutostart:
 			_, msg.err = d.client.SetProfileAutostart(d.ctx, &controlv1.SetProfileAutostartRequest{Name: request.profile, Enabled: request.enabled})
 		case rpcDownload:
@@ -376,7 +373,7 @@ func poll(ctx context.Context, client controlv1connect.ControlServiceClient, bac
 		defer cancel()
 		p := &poller{
 			ctx: pollCtx, client: client, backend: backend,
-			result: pollResult{value: snapshot{warnings: map[string]string{}, refreshed: time.Now(), downloads: downloads}, ok: map[string]bool{}},
+			result: pollResult{value: snapshot{warnings: map[string]string{}, refreshed: time.Now(), downloads: downloads, localBackend: backend}, ok: map[string]bool{}},
 		}
 		if !local {
 			p.result.ok["logs"] = true
@@ -481,7 +478,7 @@ const (
 	rpcStart rpcKind = iota
 	rpcReset
 	rpcStop
-	rpcRestart
+	rpcPutProfile
 	rpcAutostart
 	rpcDownload
 	rpcCancel
@@ -494,6 +491,7 @@ const (
 type rpcRequest struct {
 	kind                       rpcKind
 	profile, backend, path, id string
+	create                     *controlv1.Profile
 	enabled, replace           bool
 	notice                     string
 }

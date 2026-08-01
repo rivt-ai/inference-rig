@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"fmt"
+	"hash/crc32"
 	"image/color"
 	"slices"
 	"strings"
@@ -27,11 +28,11 @@ const (
 )
 
 type modelsPage struct {
-	active                                  modelPane
-	backendIndex                            int
-	profiles, catalog, local, downloads     table.Model
-	profileStatus, startStatus, localStatus tuikit.Status
-	search                                  tuikit.SearchView
+	active                              modelPane
+	backendIndex                        int
+	profiles, catalog, local, downloads table.Model
+	status                              tuikit.Status
+	search                              tuikit.SearchView
 }
 
 func newModelsPage() modelsPage {
@@ -64,6 +65,12 @@ func (p *modelsPage) Update(msg tea.KeyPressMsg, data snapshot) tea.Cmd {
 		p.search.Update(msg)
 		return nil
 	}
+	if msg.String() == "n" {
+		return p.createProfile(data)
+	}
+	if msg.String() == "R" {
+		return p.restart(data)
+	}
 	if command, handled := p.navigate(msg, data); handled {
 		return command
 	}
@@ -74,10 +81,8 @@ func (p *modelsPage) navigate(msg tea.KeyPressMsg, data snapshot) (tea.Cmd, bool
 	switch msg.String() {
 	case "tab":
 		p.active = (p.active + 1) % modelPanes
-		p.disarm()
 	case "shift+tab":
 		p.active = (p.active + modelPanes - 1) % modelPanes
-		p.disarm()
 	case "[":
 		p.moveBackend(-1, data.backends)
 		return func() tea.Msg { return refreshMsg{} }, true
@@ -85,19 +90,19 @@ func (p *modelsPage) navigate(msg tea.KeyPressMsg, data snapshot) (tea.Cmd, bool
 		p.moveBackend(1, data.backends)
 		return func() tea.Msg { return refreshMsg{} }, true
 	case "up":
-		p.move(-1)
+		p.table().MoveUp(1)
 	case "down":
-		p.move(1)
+		p.table().MoveDown(1)
 	case "/":
 		if p.active == paneCatalog {
 			p.search.Update(msg)
 		}
 	case "esc":
-		p.disarm()
 		p.search.Update(msg)
 	default:
 		return nil, false
 	}
+	p.disarm()
 	return nil, true
 }
 
@@ -139,16 +144,6 @@ func (p *modelsPage) moveBackend(delta int, backends *controlv1.ListBackendsResp
 	}
 }
 
-func (p *modelsPage) move(delta int) {
-	current := p.table()
-	if delta < 0 {
-		current.MoveUp(1)
-	} else {
-		current.MoveDown(1)
-	}
-	p.disarm()
-}
-
 func (p *modelsPage) table() *table.Model {
 	return []*table.Model{&p.profiles, &p.catalog, &p.local, &p.downloads}[p.active]
 }
@@ -159,12 +154,12 @@ func (p *modelsPage) enter(data snapshot) tea.Cmd {
 		profile := selectedItem(data.profiles.GetProfiles(), p.profiles.Cursor())
 		if profile != nil && !slices.Contains(data.info.GetRunningProfiles(), profile.GetName()) {
 			if reason := backendConflictReason(data.info, profile); reason != "" {
-				return p.startStatus.Confirm(reason, false, func() tea.Cmd {
+				return p.status.Confirm(reason, false, func() tea.Cmd {
 					return requestCmd(rpcRequest{kind: rpcReset, notice: "runtimes reset"})
 				})
 			}
 			if startNeedsReplace(data, profile) {
-				return p.startStatus.Confirm("Starting "+profile.GetName()+" will stop the running profile.", false, func() tea.Cmd {
+				return p.status.Confirm("Starting "+profile.GetName()+" will stop the running profile.", false, func() tea.Cmd {
 					return requestCmd(rpcRequest{kind: rpcStart, profile: profile.GetName(), replace: true, notice: "runtime started"})
 				})
 			}
@@ -186,7 +181,7 @@ func (p *modelsPage) destroy(data snapshot, confirm bool) tea.Cmd {
 		if profile == nil {
 			return nil
 		}
-		return p.profileStatus.Confirm(profile.GetName(), confirm, func() tea.Cmd {
+		return p.status.Confirm("Clean up "+profile.GetName()+" and its unshared artifacts?", confirm, func() tea.Cmd {
 			return requestCmd(rpcRequest{kind: rpcCleanup, profile: profile.GetName(), notice: "profile cleaned up"})
 		})
 	case paneLocal:
@@ -194,7 +189,7 @@ func (p *modelsPage) destroy(data snapshot, confirm bool) tea.Cmd {
 		if item == nil {
 			return nil
 		}
-		return p.localStatus.Confirm(item.GetPath(), confirm, func() tea.Cmd {
+		return p.status.Confirm("Delete "+item.GetPath()+"?", confirm, func() tea.Cmd {
 			return requestCmd(rpcRequest{kind: rpcDelete, backend: p.backend(data.backends), path: item.GetPath(), notice: "local model deleted"})
 		})
 	}
@@ -203,17 +198,38 @@ func (p *modelsPage) destroy(data snapshot, confirm bool) tea.Cmd {
 
 func requestCmd(request rpcRequest) tea.Cmd { return func() tea.Msg { return request } }
 
-func (p *modelsPage) disarm() {
-	for _, status := range []*tuikit.Status{&p.profileStatus, &p.startStatus, &p.localStatus} {
-		status.Disarm()
+func (p *modelsPage) createProfile(data snapshot) tea.Cmd {
+	backend := p.backend(data.backends)
+	model := selectedItem(data.local.GetModels(), p.local.Cursor())
+	if p.active != paneLocal || model == nil || data.localBackend != backend {
+		return nil
 	}
+	port, err := nextProfilePort(data.profiles.GetProfiles())
+	if err != nil {
+		return func() tea.Msg { return actionMsg{err: err} }
+	}
+	path := model.GetPath()
+	profile := &controlv1.Profile{Name: fmt.Sprintf("model-%08x", crc32.ChecksumIEEE([]byte(path))), Backend: backend, ModelSource: path, Host: "127.0.0.1", Port: port}
+	return requestCmd(rpcRequest{kind: rpcPutProfile, create: profile, notice: "profile created"})
+}
+
+func (p *modelsPage) restart(data snapshot) tea.Cmd {
+	profile := selectedItem(data.profiles.GetProfiles(), p.profiles.Cursor())
+	if p.active != paneProfiles || profile == nil || !slices.Contains(data.info.GetRunningProfiles(), profile.GetName()) {
+		return nil
+	}
+	return p.status.Confirm("Restart "+profile.GetName()+"?", false, func() tea.Cmd {
+		return func() tea.Msg { return serviceRequest{panel: panelRuntime, profile: profile.GetName(), restart: true} }
+	})
+}
+
+func (p *modelsPage) disarm() {
+	p.status.Disarm()
 }
 
 func (p *modelsPage) complete(msg actionMsg) {
 	if msg.err != nil || msg.notice != "" {
-		for _, status := range []*tuikit.Status{&p.profileStatus, &p.localStatus} {
-			status.SetResult(msg.err, msg.notice)
-		}
+		p.status.SetResult(msg.err, msg.notice)
 	}
 }
 
@@ -249,6 +265,8 @@ func (p *modelsPage) View(width, height int, data snapshot) string {
 		key.NewBinding(key.WithKeys("tab"), key.WithHelp("Tab", "Pane")),
 		key.NewBinding(key.WithKeys("[", "]"), key.WithHelp("[/]", "Backend")),
 		key.NewBinding(key.WithKeys("enter"), key.WithHelp("Enter", "Run/apply")),
+		key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "Profile from local")),
+		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "Restart")),
 		key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "Download")),
 		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "Delete")),
 	)
@@ -302,20 +320,17 @@ func (p *modelsPage) setRows(data snapshot) {
 
 func (p *modelsPage) statusRows(body string, data snapshot) string {
 	rows := []string{body}
-	switch p.active {
-	case paneProfiles:
-		if pending := p.startStatus.Pending(); pending != "" {
-			rows = append(rows, warningStyle.Render(pending+" Press Enter again to confirm, Esc to cancel"))
-		} else if pending := p.profileStatus.Pending(); pending != "" {
-			rows = append(rows, warningStyle.Render("Clean up "+pending+" and its unshared artifacts? Press d or y to confirm, Esc to cancel"))
-		} else {
-			rows = p.profileStatus.AppendRows(theme, rows)
+	if p.active == paneProfiles || p.active == paneLocal {
+		pending, keyName := p.status.Pending(), "Enter"
+		if strings.HasPrefix(pending, "Restart ") {
+			keyName = "R"
+		} else if strings.HasPrefix(pending, "Clean up ") || strings.HasPrefix(pending, "Delete ") {
+			keyName = "d or y"
 		}
-	case paneLocal:
-		if pending := p.localStatus.Pending(); pending != "" {
-			rows = append(rows, warningStyle.Render("Delete "+pending+"? Press d or y to confirm, Esc to cancel"))
+		if pending != "" {
+			rows = append(rows, warningStyle.Render(pending+" Press "+keyName+" again to confirm, Esc to cancel"))
 		} else {
-			rows = p.localStatus.AppendRows(theme, rows)
+			rows = p.status.AppendRows(theme, rows)
 		}
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
@@ -379,6 +394,21 @@ func profileRuntimeState(runtimes *controlv1.GetRuntimeStatusResponse, name stri
 		}
 	}
 	return "Stopped"
+}
+
+func nextProfilePort(items []*controlv1.Profile) (int32, error) {
+	used := make([]bool, 65536)
+	for _, item := range items {
+		if port := item.GetPort(); port >= 8080 && port <= 65535 {
+			used[port] = true
+		}
+	}
+	for port := int32(8080); port <= 65535; port++ {
+		if !used[port] {
+			return port, nil
+		}
+	}
+	return 0, fmt.Errorf("no available profile port")
 }
 
 func selectedItem[T any](items []T, index int) T { item, _ := selected(items, index); return item }
