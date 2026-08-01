@@ -57,8 +57,10 @@ func StartDetached(name string, args ...string) error {
 		_ = cmd.Process.Signal(syscall.SIGTERM)
 		return err
 	}
-	_ = cmd.Process.Release()
-	return nil
+	// Not Release: a fork/exec that succeeded says nothing about whether the
+	// process stayed up, and every caller used to report success for a daemon
+	// that had already died. watchStartup reaps it and reports that.
+	return watchStartup(cmd, file, name, pid)
 }
 
 func StatusDetached(name string) (DetachedStatus, error) {
