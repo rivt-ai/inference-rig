@@ -49,6 +49,7 @@ type serviceRequest struct {
 	panel   servicePanel
 	action  int
 	profile string
+	restart bool
 }
 
 func (p *servicesPage) Update(msg tea.KeyPressMsg, data snapshot, manage bool) tea.Cmd {
@@ -241,7 +242,12 @@ func runServiceAction(ctx context.Context, client controlv1connect.ControlServic
 				}
 			}
 		case panelRuntime:
-			_, msg.err = client.StopRuntime(ctx, &controlv1.StopRuntimeRequest{Profile: request.profile})
+			if request.restart {
+				_, msg.err = client.RestartRuntime(ctx, &controlv1.RestartRuntimeRequest{Profile: request.profile})
+				msg.notice = "runtime restarted"
+			} else {
+				_, msg.err = client.StopRuntime(ctx, &controlv1.StopRuntimeRequest{Profile: request.profile})
+			}
 		}
 		return msg
 	}

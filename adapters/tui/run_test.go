@@ -106,8 +106,8 @@ func TestModelsSelectBackendAndConfirmDelete(t *testing.T) {
 	if got := page.backend(data.backends); got != "two" {
 		t.Fatalf("backend = %q", got)
 	}
-	if cmd := page.Update(keyMsg("d"), data); cmd != nil || page.localStatus.Pending() != "/model" {
-		t.Fatalf("first delete cmd=%v pending=%q", cmd, page.localStatus.Pending())
+	if cmd := page.Update(keyMsg("d"), data); cmd != nil || page.status.Pending() != "Delete /model?" {
+		t.Fatalf("first delete cmd=%v pending=%q", cmd, page.status.Pending())
 	}
 	request := page.Update(keyMsg("y"), data)().(rpcRequest)
 	if request.kind != rpcDelete || request.backend != "two" || request.path != "/model" {

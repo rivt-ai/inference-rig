@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"inferencerig/core/profiles"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
@@ -42,6 +43,11 @@ func (c *dispatchClient) StopRuntime(_ context.Context, r *controlv1.StopRuntime
 
 func (c *dispatchClient) RestartRuntime(_ context.Context, r *controlv1.RestartRuntimeRequest) (*controlv1.RestartRuntimeResponse, error) {
 	return &controlv1.RestartRuntimeResponse{}, c.record("restart:" + r.GetProfile())
+}
+
+func (c *dispatchClient) PutProfile(_ context.Context, r *controlv1.PutProfileRequest) (*controlv1.PutProfileResponse, error) {
+	p := r.GetProfile()
+	return &controlv1.PutProfileResponse{Profile: p}, c.record(fmt.Sprintf("create:%s:%s:%s:%s:%d:%t", r.GetName(), p.GetBackend(), p.GetModelSource(), p.GetHost(), p.GetPort(), r.GetCreateOnly()))
 }
 
 func (c *dispatchClient) StartModelDownload(_ context.Context, r *controlv1.StartModelDownloadRequest) (*controlv1.StartModelDownloadResponse, error) {
@@ -90,7 +96,7 @@ func TestRunRPCDispatchesEveryActionToItsProcedure(t *testing.T) {
 		{"start", rpcRequest{kind: rpcStart, profile: "demo", replace: true}, "start:demo:true"},
 		{"reset", rpcRequest{kind: rpcReset}, "reset"},
 		{"stop", rpcRequest{kind: rpcStop, profile: "demo"}, "stop:demo"},
-		{"restart", rpcRequest{kind: rpcRestart, profile: "demo"}, "restart:demo"},
+		{"create", rpcRequest{kind: rpcPutProfile, create: &controlv1.Profile{Name: "demo", Backend: "one", ModelSource: "/model", Host: "127.0.0.1", Port: 8080}}, "create:demo:one:/model:127.0.0.1:8080:true"},
 		{"autostart", rpcRequest{kind: rpcAutostart, profile: "demo", enabled: true}, "autostart:demo"},
 		{"download", rpcRequest{kind: rpcDownload, profile: "demo"}, "download:demo"},
 		{"cancel", rpcRequest{kind: rpcCancel, id: "job-1"}, "cancel:job-1"},
@@ -110,6 +116,63 @@ func TestRunRPCDispatchesEveryActionToItsProcedure(t *testing.T) {
 				t.Fatalf("calls = %v, want [%s]", client.calls, test.want)
 			}
 		})
+	}
+}
+
+func TestModelsPageCreatesAValidNeutralProfile(t *testing.T) {
+	page := newModelsPage()
+	page.active = paneLocal
+	data := snapshot{
+		backends: &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "neutral"}}},
+		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Port: 8080}}},
+		local:    &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: "/models/demo"}}},
+	}
+	request := page.Update(keyMsg("n"), data)().(rpcRequest)
+	if request.kind != rpcPutProfile || request.create.GetBackend() != "neutral" || request.create.GetModelSource() != "/models/demo" || request.create.GetHost() != "127.0.0.1" || request.create.GetPort() != 8081 {
+		t.Fatalf("create request = %#v", request)
+	}
+	if err := profiles.ValidateName(request.create.GetName()); err != nil {
+		t.Fatalf("generated profile name is invalid: %v", err)
+	}
+}
+
+func TestProfileCreationErrorsRemainVisible(t *testing.T) {
+	app := newDispatchDashboard(&dispatchClient{err: errDispatch})
+	msg := app.runRPC(rpcRequest{kind: rpcPutProfile, create: &controlv1.Profile{Name: "demo"}})().(actionMsg)
+	app.updateAction(msg)
+	if warning := app.data.warnings["action"]; !strings.Contains(warning, errDispatch.Error()) {
+		t.Fatalf("profile validation error is not visible: %q", warning)
+	}
+}
+
+func TestSelectedRunningProfileConfirmsRestartAndClearsState(t *testing.T) {
+	page := newModelsPage()
+	data := snapshot{
+		info:     &controlv1.GetInfoResponse{RunningProfiles: []string{"demo"}},
+		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Name: "demo", Backend: "neutral"}}},
+	}
+	if cmd := page.Update(keyMsg("R"), data); cmd != nil {
+		t.Fatal("first restart key dispatched without confirmation")
+	}
+	request := page.Update(keyMsg("R"), data)().(serviceRequest)
+	if request.panel != panelRuntime || !request.restart || request.profile != "demo" {
+		t.Fatalf("restart request = %#v", request)
+	}
+	client := &dispatchClient{}
+	msg := runServiceAction(context.Background(), client, request)().(actionMsg)
+	if len(client.calls) != 1 || client.calls[0] != "restart:demo" || msg.notice != "runtime restarted" {
+		t.Fatalf("restart result = calls %v, notice %q", client.calls, msg.notice)
+	}
+	if pending := page.status.Pending(); pending != "" {
+		t.Fatalf("restart confirmation remained armed for %q", pending)
+	}
+}
+
+func TestRuntimeSelectionIndexDoesNotBecomeRestart(t *testing.T) {
+	client := &dispatchClient{}
+	runServiceAction(context.Background(), client, serviceRequest{panel: panelRuntime, action: 1, profile: "second"})()
+	if len(client.calls) != 1 || client.calls[0] != "stop:second" {
+		t.Fatalf("second runtime action = %v, want stop", client.calls)
 	}
 }
 
