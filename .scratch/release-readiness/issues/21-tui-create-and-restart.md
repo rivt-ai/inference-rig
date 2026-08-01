@@ -47,3 +47,9 @@ owner for create/start/restart/cleanup results instead of carrying parallel
 confirmation state, keeping the module under the enforced Go LOC budget.
 
 Focused `go test ./adapters/tui`, `make test`, and `make lint` pass.
+
+Review follow-up: local-model snapshots now carry the backend that produced
+them, so a backend switch cannot create from stale rows while its refresh is in
+flight. Port allocation accepts 65535 as the last valid choice and reports
+exhaustion through the existing visible action-warning path instead of reusing
+8080.
