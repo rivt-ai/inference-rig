@@ -121,9 +121,21 @@ func (s *ControlService) InstallBackend(ctx context.Context, req *controlv1.Inst
 	if req.GetBackend() == "" {
 		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
 	}
-	result, err := s.manager.InstallBackend(ctx, req.GetBackend(), backends.InstallOptions{
+	return installResponse(s.manager.InstallBackend(ctx, req.GetBackend(), backends.InstallOptions{
 		Version: req.GetVersion(), Upgrade: req.GetUpgrade(), Force: req.GetForce(),
-	})
+	}))
+}
+
+func (s *ControlService) RollbackBackend(ctx context.Context, req *controlv1.RollbackBackendRequest) (*controlv1.InstallBackendResponse, error) {
+	if req.GetBackend() == "" {
+		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	}
+	return installResponse(s.manager.RollbackBackend(ctx, req.GetBackend()))
+}
+
+// installResponse renders whichever install the manager left active — a fresh
+// one or a restored one; both answer the same question.
+func installResponse(result backends.InstallResult, err error) (*controlv1.InstallBackendResponse, error) {
 	if err != nil {
 		return nil, rpcError(err)
 	}

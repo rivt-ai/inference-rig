@@ -13,7 +13,12 @@ import (
 
 // stubFetcher provisions a fake llama-server offline so the install state
 // machine runs hermetically through the contract suite.
-type stubFetcher struct{ version string }
+type stubFetcher struct {
+	version string
+	// script is the staged binary's content: the default answers the version
+	// probe, a test that needs a rejected payload supplies one that fails.
+	script string
+}
 
 func (f stubFetcher) Resolve(_ context.Context, _ Accel, version string) (Release, error) {
 	v := f.version
@@ -23,12 +28,16 @@ func (f stubFetcher) Resolve(_ context.Context, _ Accel, version string) (Releas
 	return Release{Version: v}, nil
 }
 
-func (f stubFetcher) Fetch(_ context.Context, _ Release, _ Accel, dir string, _ io.Writer) (string, error) {
+func (f stubFetcher) Fetch(_ context.Context, rel Release, _ Accel, dir string, _ io.Writer) (Payload, error) {
 	exe := filepath.Join(dir, defaultExecutable)
-	if err := os.WriteFile(exe, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		return "", err
+	script := f.script
+	if script == "" {
+		script = "#!/bin/sh\nexit 0\n"
 	}
-	return exe, nil
+	if err := os.WriteFile(exe, []byte(script), 0o755); err != nil {
+		return Payload{}, err
+	}
+	return Payload{Executable: exe, Source: "stub://" + rel.Version, Digest: "sha256:" + rel.Version}, nil
 }
 
 // newTestBackend builds a fully hermetic backend: temp generated/storage/engine

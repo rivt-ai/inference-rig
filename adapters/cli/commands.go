@@ -154,6 +154,9 @@ func backendCommand(dial dialer) *cobra.Command {
 			}
 			return client.InstallBackend(ctx, &controlv1.InstallBackendRequest{Backend: args[0], Version: version})
 		}),
+		rpcCommand("rollback <backend>", "Restore the previous backend installation", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
+			return client.RollbackBackend(ctx, &controlv1.RollbackBackendRequest{Backend: args[0]})
+		}),
 		rpcCommand("params <backend>", "List backend parameters", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
 			return client.GetBackendParams(ctx, &controlv1.GetBackendParamsRequest{Backend: args[0]})
 		}),

@@ -40,17 +40,37 @@ func TestPublicGateway(t *testing.T) {
 		connect.WithInterceptors(bearer(rig.token)))
 	ctx := context.Background()
 
-	// 2. A mutating procedure must be refused without the token. Reads stay open
-	// by design, so a read is checked separately to prove the guard is scoped
-	// rather than simply off.
+	// 2. Every procedure is refused without the token — the read as much as the
+	// write. A read exposes profiles, installed models, runtime state,
+	// telemetry, logs and audit records, which is the whole state of the
+	// machine, so "reads are open" is not a smaller hole than an open write.
 	_, err := anonymous.PutProfile(ctx, &controlv1.PutProfileRequest{
 		Name: "unauthorized", ProfileYaml: rig.profileYAML("unauthorized", 9999), CreateOnly: true,
 	})
 	if connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("unauthenticated PutProfile = %v (want unauthenticated)", err)
 	}
-	if _, err := anonymous.ListBackends(ctx, &controlv1.ListBackendsRequest{}); err != nil {
-		t.Fatalf("unauthenticated read was rejected: %v", err)
+	if _, err := anonymous.ListBackends(ctx, &controlv1.ListBackendsRequest{}); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated ListBackends = %v (want unauthenticated)", err)
+	}
+	// Streams are a separate code path in connect-go: a unary-only guard leaves
+	// the machine's whole event feed readable.
+	stream, err := anonymous.WatchEvents(ctx, &controlv1.WatchEventsRequest{})
+	if err == nil {
+		stream.Receive()
+		err = stream.Err()
+		_ = stream.Close()
+	}
+	if connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated WatchEvents = %v (want unauthenticated)", err)
+	}
+
+	// The unauthenticated exceptions, both deliberate: /health so a container
+	// healthcheck can reach it, and / so the shell that supplies the token can
+	// load. /health also publishes the posture, which is how the QA script and
+	// any monitor tell an open gateway from a protected one.
+	if _, body := httpGet(t, base+"/health", nil); !strings.Contains(body, `"auth":"required"`) {
+		t.Errorf("GET /health did not report the auth posture: %s", body)
 	}
 
 	// 3. MCP is a separate protocol on its own route, so its guard is separate
@@ -95,14 +115,92 @@ func TestPublicGateway(t *testing.T) {
 	waitFor(t, "gateway PID cleanup", func() bool { return !fileExists(rig.pidPath("web")) })
 }
 
-// bearer attaches the gateway token the way the web app does.
-func bearer(token string) connect.Interceptor {
-	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
-		return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
-			request.Header().Set("Authorization", "Bearer "+token)
-			return next(ctx, request)
+// TestGatewayBehindReverseProxy asserts the configuration documented in
+// docs/reverse-proxy.md: with security.allowed_origins set, the browser origin
+// the proxy forwards is accepted and everything else is still refused. The unit
+// tests cover the matching itself; what this proves is the wiring — that the
+// configured list actually reaches the origin guard in a real process, which is
+// what the documented deployment depends on.
+func TestGatewayBehindReverseProxy(t *testing.T) {
+	rig := newLlamacppRig(t)
+	rig.writeConfig("security:\n  allowed_origins:\n    - \"https://rig.example\"\n")
+	rig.startControl()
+	gateway := rig.startGateway()
+	defer gateway.stop(t)
+
+	for _, test := range []struct {
+		origin string
+		want   int
+	}{
+		{origin: "https://rig.example", want: http.StatusOK},
+		{origin: "https://evil.example", want: http.StatusForbidden},
+		// A configured list replaces the loopback default rather than adding to
+		// it, so a proxied install stops trusting loopback origins as well.
+		{origin: rig.gatewayURL(), want: http.StatusForbidden},
+	} {
+		if status, _ := httpGet(t, rig.gatewayURL()+"/health", map[string]string{"Origin": test.origin}); status != test.want {
+			t.Errorf("Origin %s = %d, want %d", test.origin, status, test.want)
 		}
-	})
+	}
+}
+
+// TestGatewayInsecureMode proves the other half of the policy: the escape hatch
+// still works, and someone running it cannot come to believe they are
+// protected. The posture must be discoverable by someone who never watched the
+// terminal — a systemd-managed daemon has no terminal — so /health carries it
+// as well as the startup message.
+//
+// It gets its own install rather than restarting the gateway inside
+// TestPublicGateway: the control daemon owns config.yaml and rewrites it whole
+// from its own copy (an autostart toggle is enough), so a security block edited
+// in underneath a running daemon does not survive to be read.
+func TestGatewayInsecureMode(t *testing.T) {
+	rig := newLlamacppRig(t)
+	rig.writeConfig("security:\n  disable_auth: true\n")
+	rig.startControl()
+	gateway := rig.startGateway()
+	defer gateway.stop(t)
+
+	if _, body := httpGet(t, rig.gatewayURL()+"/health", nil); !strings.Contains(body, `"auth":"disabled"`) {
+		t.Errorf("insecure /health did not report the posture: %s", body)
+	}
+	anonymous := controlv1connect.NewControlServiceClient(http.DefaultClient, rig.gatewayURL())
+	if _, err := anonymous.ListBackends(context.Background(), &controlv1.ListBackendsRequest{}); err != nil {
+		t.Fatalf("insecure mode rejected an unauthenticated read: %v", err)
+	}
+	// The startup message must name the setting and what it exposes, not merely
+	// mention that something is different.
+	output := gateway.output()
+	for _, want := range []string{"disable_auth", "without authentication"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("insecure startup output does not mention %q:\n%s", want, output)
+		}
+	}
+}
+
+// bearer attaches the gateway token the way the web app does — on streams as
+// well as unary calls. connect.UnaryInterceptorFunc would cover only the unary
+// half, which is the same gap that made a unary-only server guard leave
+// WatchEvents open.
+type bearer string
+
+func (b bearer) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
+	return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
+		request.Header().Set("Authorization", "Bearer "+string(b))
+		return next(ctx, request)
+	}
+}
+
+func (b bearer) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
+	return func(ctx context.Context, spec connect.Spec) connect.StreamingClientConn {
+		conn := next(ctx, spec)
+		conn.RequestHeader().Set("Authorization", "Bearer "+string(b))
+		return conn
+	}
+}
+
+func (bearer) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
+	return next
 }
 
 // mcp posts one JSON-RPC message to the MCP route, optionally authenticated.

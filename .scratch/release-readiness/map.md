@@ -120,6 +120,19 @@ research tickets do not.
   and the human dispatching it is the manual-QA sign-off. Nothing
   Apache-derived is in the tree — only `llamarig`/`mlxrig` licensing is left to
   confirm. `release.yml` already does more than expected, so ticket 14 shrinks.
+- [09 — Enforce the gateway security policy](issues/09-enforce-gateway-security.md)
+  — Ticket 01's policy is implemented: every RPC and `/mcp` authenticated
+  (`/health` and the app shell excepted), the guard wrapping the Connect
+  *handler* rather than a unary interceptor, which closed an unauthenticated
+  hole on the three server streams. Token persists to `run/gateway.token` and
+  arrives in the browser via a `#token=` launch URL; `disable_auth` on a
+  non-loopback bind is now a load error without `allow_exposed_without_auth`;
+  posture shows in the startup message, `/health` JSON, TUI badge and a
+  non-loopback-only web banner; `allowed_origins` is a list that replaces the
+  loopback default, documented in `docs/reverse-proxy.md`; credential-shaped
+  argv is redacted from `command.Display`. Note for later tickets: the control
+  daemon rewrites `config.yaml` whole, so tests must write config before
+  starting it.
 - [13 — Research the release supply chain](issues/13-research-release-supply-chain.md)
   — All three targets cross-build with `CGO_ENABLED=0` after the existing web
   build, so retain the small `GOOS`/`GOARCH` matrix and `gh release create`;
@@ -138,6 +151,29 @@ research tickets do not.
   (`ArtifactPlan.Revision`) while llama.cpp's network-free `Resolve` stays
   unpinned; scheme, host allowlist, redirect count and a max transfer size are
   enforced on redirects as well as the first request.
+- [08 — Harden engine installation and rollback](issues/08-engine-install-hardening.md)
+  — One neutral `backends.InstallRecord` (source, version, digest, platform,
+  accelerator, time) at `${INFERENCERIG_HOME}/engine/<backend>/state.json`,
+  active + previous, replacing both backends' bespoke state shapes; this is what
+  the release receipt and `doctor` read. llama.cpp extracts with `archive/tar`
+  and rejects traversal, escaping links and non-plain modes; a staged binary must
+  answer `--version` before it is activated. MLX installs an embedded
+  `requirements.lock` with `--no-deps` into a version-scoped venv and refuses any
+  version it has no lock for. `Backend.Rollback` joins the contract interface and
+  ships as `backend rollback <backend>`.
+- [10 — Correct documentation and evidence levels](issues/10-docs-evidence-correction.md)
+  — Four evidence levels defined and named (contract → control-stack →
+  CI-tested → hardware), with platform support kept separate from
+  released-artifact availability; `release.yml` publishes linux/amd64 only
+  today, so the artifact table has a row per target for ticket 16's receipt to
+  fill. `docs/hardware-validation.md` rewritten (it quoted a removed
+  `make e2e-live` target, env vars that exist nowhere, and claimed live tests
+  skip when they fail). The E2E plan keeps its text and gains verified
+  per-phase Outcomes: phases 1–4 landed, phase 5 partial — its numeric targets
+  are met but the areas it targeted are still the weakest and the "no
+  0%-covered function on a required path" clause has never been audited. The
+  enforced coverage gate is **68** (in `e2e.yml`), not the Makefile's 65.
+  Nothing in the repo claims hardware validation; no runs are recorded.
 
 ## Not yet specified
 

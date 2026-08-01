@@ -60,4 +60,22 @@ describe('AppShell', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reset theme colors' }));
     expect(localStorage.getItem('inferencerig.theme.primary.light')).toBeNull();
   });
+
+  // Someone running an exposed unauthenticated gateway must never be able to
+  // believe they are protected, so the warning is a permanent part of the page
+  // rather than a toast they can miss or dismiss.
+  it('names what is exposed when the gateway serves unauthenticated over the network', () => {
+    const app = createInferenceRigState();
+    app.insecureExposed = true;
+    render(Harness, { app });
+
+    expect(screen.getByRole('alert').textContent).toMatch(/Authentication is disabled/);
+  });
+
+  it('does not nag when the gateway is authenticated', () => {
+    const app = createInferenceRigState();
+    render(Harness, { app });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

@@ -136,8 +136,9 @@ func (w *Wizard) collect(ctx context.Context, paths Paths, input io.Reader, outp
 
 // remoteBindWarning returns the confirmation prompt for a remote-capable bind,
 // or "" when the bind is loopback-only or no confirmation is warranted. A
-// remote-capable bind may serve unauthenticated; the answer is honored and
-// the exposure is warned about at load time instead of rejected here.
+// remote-capable bind may serve unauthenticated, but only deliberately: this
+// confirmation is what renderConfig turns into security.allow_exposed_without_auth,
+// without which such a config is refused at load.
 func remoteBindWarning(answers Answers) string {
 	if !(&config.Config{ListenAddr: answers.ListenAddr}).AllowsNonLoopback() {
 		return ""

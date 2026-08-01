@@ -68,11 +68,21 @@ type Config struct {
 type SecurityConfig struct {
 	AuthTokenEnv       string `yaml:"auth_token_env" json:"auth_token_env"`
 	DisableOriginCheck bool   `yaml:"disable_origin_check" json:"disable_origin_check"`
+	// AllowedOrigins lists the browser origins permitted to reach the gateway.
+	// Empty means loopback-only, which is the default posture. It is a list
+	// rather than a single origin because one install is commonly reached by
+	// both a hostname and an IP.
+	AllowedOrigins []string `yaml:"allowed_origins" json:"allowed_origins,omitempty"`
 	// DisableAuth drops the bearer-token guard entirely so a single-user local
-	// install can drive the gateway without pasting a token. It is only honored
-	// for a loopback ListenAddr; Load rejects the combination with a bind that
-	// reaches the network, because that would publish every mutating RPC.
+	// install can drive the gateway without pasting a token. On a bind that
+	// reaches the network it is refused unless AllowExposedWithoutAuth is also
+	// set: two deliberate keys, so nobody publishes every RPC by pasting one
+	// config snippet.
 	DisableAuth bool `yaml:"disable_auth" json:"disable_auth"`
+	// AllowExposedWithoutAuth is the second key that permits DisableAuth on a
+	// non-loopback bind, for a deployment that terminates authentication in a
+	// reverse proxy in front of the gateway.
+	AllowExposedWithoutAuth bool `yaml:"allow_exposed_without_auth" json:"allow_exposed_without_auth"`
 }
 
 // Default returns the configuration used when no file is present.
@@ -162,13 +172,15 @@ func ValidateStartupServices(services []string) error {
 }
 
 // ValidateSecurity checks security settings against the bind address. Disabling
-// auth on a bind that reaches the network is permitted but never silent: it
-// warns rather than rejecting, so an operator can deliberately expose a
-// single-user install without editing the binary.
-//
-// ponytail: warn-only by request. Restore the hard error here if an exposed
-// unauthenticated gateway should be unreachable by configuration alone.
+// auth on a bind that reaches the network publishes every RPC to anything that
+// can route to the port, so it is refused unless the operator also sets
+// security.allow_exposed_without_auth — a second, differently named key that a
+// pasted config snippet will not carry by accident.
 func (c *Config) ValidateSecurity() error {
+	if c.Security.DisableAuth && c.AllowsNonLoopback() && !c.Security.AllowExposedWithoutAuth {
+		return fmt.Errorf("security.disable_auth with a non-loopback listen_addr %q publishes every RPC unauthenticated; "+
+			"bind loopback, drop security.disable_auth, or set security.allow_exposed_without_auth: true", c.ListenAddr)
+	}
 	c.WarnIfExposed()
 	return nil
 }
@@ -181,6 +193,24 @@ func (c *Config) WarnIfExposed() {
 		slog.Warn("serving without authentication on a non-loopback address",
 			"listen_addr", c.ListenAddr, "setting", "security.disable_auth")
 	}
+}
+
+// BrowseURL is the address to point a browser at for the given listen address.
+// A wildcard bind is not a reachable host, so it resolves to loopback: that is
+// the interface the operator reading the message is sitting on.
+func BrowseURL(listenAddr string) string {
+	host, port, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		host = listenAddr
+	}
+	host = strings.Trim(host, "[]")
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	if port == "" {
+		return "http://" + host
+	}
+	return "http://" + net.JoinHostPort(host, port)
 }
 
 // AllowsNonLoopback reports whether ListenAddr binds beyond the local host,
@@ -294,6 +324,12 @@ func ResolvePaths() (Paths, error) {
 // ControlSocketPath returns the Unix socket the control daemon listens on and
 // that CLI/TUI clients dial.
 func ControlSocketPath() (string, error) { return homePath("run", "control.sock") }
+
+// GatewayTokenPath returns the file the gateway token persists to. With reads
+// authenticated, a token that only lived for one run would leave the web UI
+// blank after every restart, so it survives on disk beside the control socket
+// under the same 0700 run directory.
+func GatewayTokenPath() (string, error) { return homePath("run", "gateway.token") }
 
 // ExpandHome expands a leading ~ to the user's home directory.
 func ExpandHome(path string) string {

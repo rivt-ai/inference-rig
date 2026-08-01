@@ -241,6 +241,20 @@ func (m *Manager) InstallBackend(ctx context.Context, name string, opts backends
 	return result, err
 }
 
+// RollbackBackend returns a backend's managed engine to its previous install.
+func (m *Manager) RollbackBackend(ctx context.Context, name string) (result backends.InstallResult, err error) {
+	defer m.recording(ctx, "backend.rollback", &err)()
+	backend, err := m.Backend(name)
+	if err != nil {
+		return result, err
+	}
+	result, err = backend.Rollback(ctx)
+	if err != nil {
+		err = CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return result, err
+}
+
 // BackendInstallStatus reports whether a backend has a usable engine.
 func (m *Manager) BackendInstallStatus(ctx context.Context, name string) (backends.InstallStatus, error) {
 	backend, err := m.Backend(name)

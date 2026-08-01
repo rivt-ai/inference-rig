@@ -387,7 +387,54 @@ func (s *LaunchSpec) command() (command, error) {
 	if s.Executable == "" {
 		return command{}, Errorf(ErrorInvalidInput, "%s executable is required", cmp.Or(s.Name, "process"))
 	}
-	return command{Executable: s.Executable, Argv: append([]string(nil), s.Argv...), Display: strings.Join(append([]string{s.Executable}, s.Argv...), " ")}, nil
+	return command{
+		Executable: s.Executable,
+		Argv:       append([]string(nil), s.Argv...),
+		Display:    strings.Join(append([]string{s.Executable}, RedactArgv(s.Argv)...), " "),
+	}, nil
+}
+
+// RedactArgv masks credential-shaped arguments. Display is the command line as
+// it reaches logs, events and API responses, and an engine API key on it is a
+// credential in the clear.
+//
+// Only credentials are masked. Paths and the rest of the argv stay verbatim:
+// they are the primary signal when a launch fails, and hiding them degrades
+// every diagnostic for no gain against a reader who already has log access.
+func RedactArgv(argv []string) []string {
+	redacted := make([]string, len(argv))
+	maskNext := false
+	for i, arg := range argv {
+		flag, _, inline := strings.Cut(arg, "=")
+		switch {
+		case maskNext:
+			// The value of the bare credential flag seen on the last iteration.
+			redacted[i], maskNext = redactedValue, false
+		case !credentialFlag(flag):
+			redacted[i] = arg
+		case inline:
+			redacted[i] = flag + "=" + redactedValue
+		default:
+			// A bare credential flag takes its value as the next argument.
+			redacted[i], maskNext = arg, true
+		}
+	}
+	return redacted
+}
+
+const redactedValue = "[redacted]"
+
+// credentialFlag matches the shapes a secret is passed under, rather than a
+// fixed list of engine flags: every engine spells its key differently, and a
+// list would silently miss the next one.
+func credentialFlag(flag string) bool {
+	name := strings.ToLower(strings.TrimLeft(flag, "-"))
+	for _, marker := range []string{"api-key", "api_key", "apikey", "token", "secret", "password", "passwd"} {
+		if strings.Contains(name, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func interruptProcessGroup(pid, pgid int) error {

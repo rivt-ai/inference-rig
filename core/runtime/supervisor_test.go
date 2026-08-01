@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -386,5 +387,37 @@ func TestSupervisorWithoutLogNameWritesNoServiceLog(t *testing.T) {
 	entries, err := os.ReadDir(filepath.Join(home, "run"))
 	if err == nil && len(entries) > 0 {
 		t.Fatalf("unexpected service logs written: %v", entries)
+	}
+}
+
+// Display is the command line that reaches logs, events and API responses, so a
+// credential on the argv must never survive into it — while the paths and flags
+// that explain a failed launch must survive intact.
+func TestRedactArgvMasksCredentialsOnly(t *testing.T) {
+	spec := LaunchSpec{Executable: "/opt/engine/server", Argv: []string{
+		"--model", "/home/user/models/qwen.gguf",
+		"--api-key", "sk-live-secret",
+		"--hf_token=hf_secret",
+		"--port", "8080",
+		"--APIKEY=shouty",
+		"--verbose",
+	}}
+	command, err := spec.command()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"sk-live-secret", "hf_secret", "shouty"} {
+		if strings.Contains(command.Display, secret) {
+			t.Errorf("Display leaked %q: %s", secret, command.Display)
+		}
+	}
+	for _, kept := range []string{"/opt/engine/server", "/home/user/models/qwen.gguf", "--port", "8080", "--verbose"} {
+		if !strings.Contains(command.Display, kept) {
+			t.Errorf("Display dropped %q, which is diagnostic not credential: %s", kept, command.Display)
+		}
+	}
+	// The process still receives the real arguments; only the display is masked.
+	if !slices.Contains(command.Argv, "sk-live-secret") {
+		t.Errorf("Argv was redacted too, so the engine would launch without its key: %v", command.Argv)
 	}
 }
