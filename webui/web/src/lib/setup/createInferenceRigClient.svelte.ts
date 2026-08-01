@@ -1,7 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { toast } from 'svelte-sonner';
-import { createApiClient } from '../api';
-import { loadSession, saveApiBase, saveToken } from '../session';
+import { apiUrl, createApiClient } from '../api';
+import { isLoopbackHost, loadSession, saveApiBase, saveToken, takeLaunchToken } from '../session';
 import { canApplyDownload, chooseProfileSelection, isTerminalDownloadState } from '../tasks';
 import { capabilitiesFor, singleActiveProfileWarning } from '../backends';
 import { engineArgsFromRows, rowsFromEngineArgs } from '../engineArgs';
@@ -117,8 +117,13 @@ export function createInferenceRigClient() {
   async function mount() {
     const session = loadSession(sessionStorage);
     state.apiBase = session.apiBase;
-    state.token = session.token;
+    // A `#token=…` launch URL is how `inferencerig web` hands the browser its
+    // credential, so it wins over whatever this tab had stored.
+    const launchToken = takeLaunchToken(window.location, window.history);
+    state.token = launchToken || session.token;
+    if (launchToken) saveToken(sessionStorage, launchToken);
     window.addEventListener('beforeunload', beforeUnload);
+    await refreshAuthPosture();
     await runTask('initial load', async () => {
       await loadBackends();
       await refreshServerInfo();
@@ -175,6 +180,20 @@ export function createInferenceRigClient() {
       toast.error(`${label} failed`, { description: err instanceof Error ? err.message : String(err) });
     } finally {
       state.busy = false;
+    }
+  }
+
+  // The auth posture comes from the plain /health route rather than the Health
+  // RPC because it must be readable before the UI holds a token — that is the
+  // case the banner exists for. A gateway that cannot be reached at all is the
+  // normal error path and says nothing about its posture, so it stays silent.
+  async function refreshAuthPosture() {
+    try {
+      const response = await fetch(apiUrl('/health', state.apiBase));
+      const health = await response.json();
+      state.insecureExposed = health?.auth === 'disabled' && !isLoopbackHost(window.location.hostname);
+    } catch {
+      state.insecureExposed = false;
     }
   }
 

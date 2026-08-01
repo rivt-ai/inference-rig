@@ -155,10 +155,13 @@ func newRig(t *testing.T, engineDir string) *rig {
 	return r
 }
 
-func (r *rig) writeConfig() {
+// writeConfig writes the rig's config file. The variadic extra blocks are
+// appended verbatim, so a test that needs a different security posture can
+// rewrite the config and restart a service rather than build a second rig.
+func (r *rig) writeConfig(extra ...string) {
 	r.t.Helper()
 	content := fmt.Sprintf("listen_addr: 127.0.0.1:%d\nmodel_storage_dir: %s\n",
-		r.gatewayPort, filepath.Join(r.home, "models"))
+		r.gatewayPort, filepath.Join(r.home, "models")) + strings.Join(extra, "")
 	if err := os.WriteFile(r.configPath(), []byte(content), 0o600); err != nil {
 		r.t.Fatal(err)
 	}

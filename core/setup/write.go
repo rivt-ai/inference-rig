@@ -64,6 +64,11 @@ func renderConfig(paths Paths, answers Answers) (string, error) {
 	cfg.AutostartProfiles = nil
 	cfg.Security.AuthTokenEnv = answers.AuthTokenEnv
 	cfg.Security.DisableAuth = answers.DisableAuth
+	// An exposed unauthenticated bind needs a second, explicit key or the config
+	// will not load. Reaching here means the operator answered the
+	// remoteBindWarning confirmation, which is that explicit choice — so the
+	// wizard records it rather than writing a config that refuses to start.
+	cfg.Security.AllowExposedWithoutAuth = cfg.Security.DisableAuth && cfg.AllowsNonLoopback()
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return "", err

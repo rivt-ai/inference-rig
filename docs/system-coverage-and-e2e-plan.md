@@ -1,7 +1,15 @@
 # System Coverage and E2E Plan
 
-Status: proposed for implementation after PR #1
+Status: **Phases 1–4 landed; Phase 5 partially landed.** Each phase carries an
+`Outcome` section recording what was verified against the tree on 2026-08-01.
+The plan text itself is left as written — it is the record of what was planned,
+and editing it to match the result would erase the difference.
+
 Baseline: `6bad76a` (PR #1 plus the latest committed local fix), 2026-07-30
+
+The "Context" section below describes the state **before** this plan was
+implemented. Do not read it as a description of the repository today; the
+Outcome sections are the current state.
 
 ## Context
 
@@ -20,9 +28,10 @@ coverage blocks and excluding generated RPC code, `backends/backendtest`, and
 - The sole cross-package integration test exercises about 12% of the complete
   hand-written production statement set. It starts a real Unix-socket RPC
   server, but uses an in-process fake runtime and covers only a happy path.
-- `make e2e-live` currently reports success while both tests skip on the
-  GitHub Ubuntu runner. The workflow supplies no engine/model inputs; the MLX
-  test also requires Apple Silicon. On draft PRs the whole job is skipped.
+- `make e2e-live` reported success while both tests skipped on the GitHub
+  Ubuntu runner. The workflow supplied no engine/model inputs; the MLX test
+  also required Apple Silicon. On draft PRs the whole job was skipped. (That
+  target no longer exists — see Phase 4's Outcome.)
 - The live tests stop after process readiness. They do not make an inference
   request.
 - Web tests use Vitest/jsdom. Playwright is installed only for screenshot
@@ -94,6 +103,24 @@ report even when the threshold fails.
 - The initial gate passes at the measured baseline and fails below 60%.
 - Raise the floor to **65%** after Phases 2 and 3 land.
 
+### Outcome: landed
+
+`scripts/go-coverage.sh` and `make coverage` exist. Exclusions are enforced by
+one regex in the script (`core/rpc/gen`, `backends/backendtest`, `webui`), the
+merged profile and HTML report are written to `artifacts/coverage/`, and the
+coverage of the compiled child processes started by the E2E suite is folded in
+(`GOCOVERDIR` under `artifacts/coverage/e2e`), so a system path counts as
+covered only when a real process executed it.
+
+The floor was ratcheted past its target: `GO_COVERAGE_MIN` defaults to **65**
+in the Makefile, and the E2E workflow runs `make coverage GO_COVERAGE_MIN=68`,
+so **68 is the enforced gate**. `make coverage` prints the current total and
+per-package figures; no number is repeated here, because a hardcoded percentage
+in prose is wrong the moment a test lands.
+
+CI uploads `artifacts/coverage/` with `if: always()`, so the report survives a
+threshold failure.
+
 ## Phase 2: real-engine compiled-process E2E
 
 ### Pinned llama.cpp and model
@@ -164,6 +191,24 @@ matrix coverage. The process E2E needs one representative backend path.
 - A broken command registration, socket path, argument render, readiness probe,
   inference request, or shutdown path makes the test fail.
 
+### Outcome: landed
+
+`scripts/provision-e2e-llamacpp.sh` and `test/e2e/harness_test.go` exist, and
+`TestCLIControlLifecycle` in `test/e2e/cli_lifecycle_test.go` drives the flow
+through to a real chat completion and asserts generated tokens.
+
+The pins moved into `scripts/e2e-fixtures.env`, the single versioned manifest
+the plan asked for — read by the provisioning script and used directly as the
+CI cache key (`hashFiles('scripts/e2e-fixtures.env')`), so a changed pin cannot
+be served a stale artifact. The pinned values are llama.cpp `b9637` and
+`mradermacher/SmolLM2-135M-Instruct-GGUF` at revision `34d6b157…`, each with a
+SHA-256 verified before use. There is no `latest` fallback.
+
+A missing fixture fails the run rather than skipping (`requireEnv`).
+
+Not verified here: the "under 45 seconds on a warm CI runner" acceptance
+criterion, which only the CI timings can answer.
+
 ## Phase 3: public gateway and browser
 
 ### Gateway flow
@@ -207,6 +252,19 @@ browser-specific defect appears.
 - Failure includes Playwright trace and screenshot artifacts.
 - `verify:web` remains the fast component/unit gate; browser E2E is a separate
   target.
+
+### Outcome: landed
+
+`TestPublicGateway` (`test/e2e/gateway_test.go`) covers the health route, the
+auth and origin guards, MCP discovery plus a read-only tool call, the served
+application shell, and the public stream bridge opened and cancelled cleanly.
+The Playwright scenario lives in `webui/e2e/profile-lifecycle.spec.ts` behind
+`pnpm test:e2e`, driven by `TestBrowserProfileLifecycle` over the same Go
+harness, and runs as its own `E2E (Chromium)` check.
+
+The gateway's authentication rule is no longer the one sketched in step 3
+above; ticket 01 decided the policy and ticket 09 implements it. The test
+asserts whatever that policy is — this plan is not its specification.
 
 ## Phase 4: Apple Silicon backend validation
 
@@ -292,6 +350,24 @@ not block ordinary PRs.
   alter the result.
 - No live workflow can pass with zero executed tests.
 
+### Outcome: landed
+
+`.github/workflows/mlx.yml` runs on `macos-15` (pinned, not `macos-latest`) on
+a nightly schedule, manual dispatch and `v*` tags. It builds a job-local venv
+with `mlx-lm==0.31.3`, downloads `mlx-community/Qwen2.5-0.5B-Instruct-4bit` at
+the pinned revision into the runner temp directory, caches the model by
+repository and revision, records the environment, and runs `make e2e-live-mlx`.
+`TestMLXLiveInference` asserts a non-empty completion, so readiness alone
+cannot make the job green.
+
+The old `make e2e-live` target is gone, replaced by `make e2e` (llama.cpp, every
+PR) and `make e2e-live-mlx` (Apple Silicon), so selecting one can never turn the
+other into a skip.
+
+Outstanding from this phase: the optional "run on labeled PRs" trigger was not
+implemented. The self-hosted-runner fallback remains contingency, not
+configuration.
+
 ## Phase 5: close targeted gaps
 
 After process E2E coverage is merged, use the report to add only high-value
@@ -313,6 +389,23 @@ Targets after this pass:
 
 Do not create package floors for presentation-only formatting code.
 
+### Outcome: partially landed
+
+The numeric targets are met. A `make coverage` run on 2026-08-01 put the total
+above the 65% floor, with `core/control`, `core/runtime`, `core/profiles` and
+`core/modeldownload` all comfortably above their 70% target. Tests exist for
+several of the named gaps — supervisor stop-timeout escalation, TUI action
+dispatch, public HTTP stream forwarding and cancellation.
+
+Still outstanding, and the reason this phase is not marked landed:
+
+- The weakest areas the plan set out to close are still the weakest:
+  `adapters/tui`, `cmd` and `core/setup` all sit well below the repository
+  total. `platform/process` is under 60%.
+- "No 0%-covered function on a required process, auth, or cleanup path" has
+  never been checked — nothing enforces it, and no one has audited the report
+  against it. Treat it as unverified rather than met.
+
 ## CI and developer commands
 
 Add these stable entry points:
@@ -321,18 +414,25 @@ Add these stable entry points:
 make test                 # existing fast Go suite
 make coverage             # scoped report and threshold
 make e2e                  # provision and test real llama.cpp inference
+make e2e-browser          # the Chromium workflow over the same harness
 pnpm test:e2e             # browser test against a supplied/running harness
 make e2e-live-mlx         # provisioned real engine
 ```
 
-PR CI order:
+All six exist. Every command quoted anywhere in this document is a real
+Makefile target or package script.
 
-1. existing Go and web verification;
-2. scoped coverage;
-3. real llama.cpp process E2E;
-4. Chromium E2E.
+PR CI checks, as built:
 
-Keep each as a separate check so failures identify the broken layer.
+1. `Test` — Go suite and web verification (`test.yml`);
+2. `Lint` (`lint.yml`);
+3. `E2E (llama.cpp) and coverage` — the process E2E, then `make coverage` at a
+   floor of 68 (`e2e.yml`);
+4. `E2E (Chromium)` — the browser workflow (`e2e.yml`).
+
+Coverage ended up inside the llama.cpp job rather than as its own check,
+deliberately: the published figure has to include the coverage the compiled
+child processes produced, so it can only be computed after that suite has run.
 
 ## Delivery sequence
 
@@ -361,3 +461,13 @@ Coverage is considered good enough for this phase when:
   job;
 - failures preserve enough logs, coverage, and browser artifacts to diagnose
   without rerunning interactively.
+
+### Status: met, with one qualification
+
+Every criterion above holds except the coverage one: the published figure clears
+its floor and the four critical packages clear theirs, but the "no 0%-covered
+function on a required process, auth, or cleanup path" clause has never been
+audited. See Phase 5's Outcome.
+
+What each layer does and does not prove — and which platforms hold which
+evidence level today — is `docs/hardware-validation.md`, not this document.

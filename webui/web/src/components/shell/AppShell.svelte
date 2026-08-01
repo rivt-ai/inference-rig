@@ -169,6 +169,15 @@
       </DropdownMenu.Root>
     </header>
 
+    {#if app.insecureExposed}
+      <div role="alert" class="border-b bg-destructive px-4 py-2 text-sm font-medium text-white md:px-6">
+        Authentication is disabled and this {projectDisplayName} is reachable over the network. Anyone who can
+        reach {window.location.host} can read every profile, model, log and audit record, and can start, stop or
+        delete runtimes — no credential required. Remove <code>security.disable_auth</code> from the config and
+        restart the gateway.
+      </div>
+    {/if}
+
     <main class="flex-1 p-4 md:p-6">
       <div class="mx-auto w-full max-w-7xl">
         {#if errorMessage}
