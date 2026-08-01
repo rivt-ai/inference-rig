@@ -894,6 +894,6 @@ func eventProto(event control.Event) *controlv1.Event {
 		Id: event.ID, Time: event.Time, Action: event.Action,
 		Success: event.Success, ErrorKind: string(event.ErrorKind), Duration: event.Duration,
 		OperationId: event.OperationID, Profile: event.Profile,
-		Backend: event.Backend, State: string(event.State),
+		Backend: event.Backend, State: string(event.State), Recovery: string(event.Recovery),
 	}
 }

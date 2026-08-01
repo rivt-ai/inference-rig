@@ -40,5 +40,8 @@ func (s SlogSink) Record(_ context.Context, event AuditEvent) {
 			slog.String("state", string(event.State)),
 		)
 	}
+	if event.Recovery != "" {
+		attrs = append(attrs, slog.String("recovery", string(event.Recovery)))
+	}
 	s.logger.Info("audit event", attrs...)
 }

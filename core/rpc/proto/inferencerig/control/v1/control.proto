@@ -385,6 +385,9 @@ message Event {
   string profile = 8;
   string backend = 9;
   string state = 10;
+  // recovery is the startup reconciliation classification when action is
+  // "runtime.recover".
+  string recovery = 11;
 }
 
 message ListModelCatalogRequest {

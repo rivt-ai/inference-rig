@@ -38,6 +38,7 @@ type Runtime interface {
 	Start(context.Context) (coreruntime.CommandResult, error)
 	Stop(context.Context) (coreruntime.CommandResult, error)
 	Status(context.Context) (coreruntime.Status, error)
+	Recover(context.Context) (bool, error)
 }
 
 type ModelCatalog interface {
