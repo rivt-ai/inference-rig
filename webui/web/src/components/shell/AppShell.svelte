@@ -185,15 +185,16 @@
           delete runtimes — no credential required. Remove <code>security.disable_auth</code> from the config and
           restart the gateway.
         </p>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onclick={dismissInsecureBanner}
           aria-label="Dismiss this warning for {window.location.host}"
           title="Dismiss for {window.location.host}. It returns if you reach {projectDisplayName} at a different address."
-          class="-mr-1 shrink-0 rounded p-1 text-white/80 transition hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+          class="-mr-1 shrink-0 text-white/80 hover:bg-white/15 hover:text-white focus-visible:ring-white"
         >
           <X class="size-4" />
-        </button>
+        </Button>
       </div>
     {/if}
 
