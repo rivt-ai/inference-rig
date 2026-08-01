@@ -30,6 +30,13 @@ func (r *Registry) Register(b Backend) error {
 	if name == "" {
 		return fmt.Errorf("backend has empty name")
 	}
+	// A backend is either exclusive (SingleActiveProfile) or a router that can be
+	// told which profile to serve. Anything else has no defined slot behaviour in
+	// the control plane, and the gap must be caught here rather than reaching a
+	// manager that would have to guess.
+	if _, router := b.(RuntimeActivator); !b.Capabilities().SingleActiveProfile && !router {
+		return fmt.Errorf("backend %q serves several profiles but implements no RuntimeActivator", name)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, exists := r.m[name]; exists {

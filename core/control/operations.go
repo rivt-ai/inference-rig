@@ -22,15 +22,21 @@ type Info struct {
 	RunningProfiles   []string
 	AutostartProfiles []string
 	StartupServices   []string
+	// ActiveBackend is the one backend currently serving, empty when none is.
+	// Profiles naming any other backend cannot start until a reset, and every
+	// front end renders that from this field rather than deriving it.
+	ActiveBackend string
 }
 
+// RestartRuntime stops then starts a profile. The stop leaves the slot empty (or
+// the profile deactivated on a router backend), so the start needs no replace.
 func (m *Manager) RestartRuntime(ctx context.Context, name string) (result RuntimeRestart, err error) {
 	defer m.recording(ctx, "runtime.restart", &err)()
 	stopped, err := m.StopRuntime(ctx, name)
 	if err != nil {
 		return result, err
 	}
-	started, err := m.StartRuntime(ctx, name)
+	started, err := m.StartRuntime(ctx, name, false)
 	return RuntimeRestart{Stopped: stopped, Started: started}, err
 }
 
@@ -182,8 +188,9 @@ func (m *Manager) GetInfo(ctx context.Context) (Info, error) {
 		}
 	}
 	m.mu.Lock()
-	for _, slot := range m.runtimes {
-		info.RunningProfiles = append(info.RunningProfiles, slot.profile)
+	if m.slot != nil {
+		info.ActiveBackend = m.slot.backend
+		info.RunningProfiles = append(info.RunningProfiles, m.slot.profiles...)
 	}
 	m.mu.Unlock()
 	sort.Strings(info.RunningProfiles)

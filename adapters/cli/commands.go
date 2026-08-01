@@ -163,18 +163,25 @@ func backendCommand(dial dialer) *cobra.Command {
 
 func runtimeCommand(dial dialer) *cobra.Command {
 	group := &cobra.Command{Use: "runtime", Short: "Manage profile runtimes"}
+	var replace bool
+	start := rpcCommand("start <profile>", "Start a runtime", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
+		return client.StartRuntime(ctx, &controlv1.StartRuntimeRequest{Profile: args[0], Replace: replace})
+	})
+	start.Flags().BoolVar(&replace, "replace", false,
+		"Stop the profile the backend is already serving instead of reporting a conflict")
 	group.AddCommand(
 		rpcCommand("status <profile>", "Show runtime status", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
 			return client.GetRuntimeStatus(ctx, &controlv1.GetRuntimeStatusRequest{Profile: args[0]})
 		}),
-		rpcCommand("start <profile>", "Start a runtime", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
-			return client.StartRuntime(ctx, &controlv1.StartRuntimeRequest{Profile: args[0]})
-		}),
+		start,
 		rpcCommand("stop <profile>", "Stop a runtime", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
 			return client.StopRuntime(ctx, &controlv1.StopRuntimeRequest{Profile: args[0]})
 		}),
 		rpcCommand("restart <profile>", "Restart a runtime", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
 			return client.RestartRuntime(ctx, &controlv1.RestartRuntimeRequest{Profile: args[0]})
+		}),
+		rpcCommand("reset", "Stop every runtime and clear the active backend", cobra.NoArgs, dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, _ []string) (proto.Message, error) {
+			return client.ResetRuntimes(ctx, &controlv1.ResetRuntimesRequest{})
 		}),
 	)
 	return group

@@ -88,6 +88,7 @@ research tickets do not.
   already existed. `inferencerig config validate` calls the same function, so it
   agrees with startup by construction, and dials nothing. The invalid-security
   combination is left to ticket 09, which owns making it an error at all.
+- [03 — Decide backend concurrency semantics](issues/03-backend-concurrency-semantics.md)
   — No new contract surface: `SingleActiveProfile` + `RuntimeActivator` already
   distinguish exclusive (MLX) from router (llama.cpp) backends, and the manager
   simply starts honouring them. One backend active at a time globally; the
@@ -96,6 +97,19 @@ research tickets do not.
   `runtimeSlot{process, profiles}` keyed by backend. No client can kill a
   running engine implicitly — conflict unless `replace: true`. Non-active
   backend profiles stay listed but render unstartable with the reason.
+- [04 — Explicit runtime state machine](issues/04-runtime-state-machine.md) —
+  `core/control/slot.go` owns one `runtimeSlot` with an explicit state
+  (`stopped`/`reconciling`/`starting`/`activating`/`running`/`stopping`/`failed`/
+  `orphaned`); the manager mutex is held only to reserve and commit, so a cold
+  start blocks neither status nor another profile's lifecycle call, and losers
+  get a typed conflict rather than a queue. Every transition carries an
+  operation ID, profile, backend and typed result into the event stream and
+  audit log. `replace`, `active_backend` and `ResetRuntimes` landed on the wire
+  (plus CLI `--replace`/`runtime reset` and the MCP equivalents), and the
+  registry now rejects a backend that is neither exclusive nor a router. A
+  router profile listening on a different address than the running process needs
+  `replace` too — ticket 03 had not spotted that the router binds the starting
+  profile's address.
 - [12 — Decide release identity, channels and signing](issues/12-release-identity.md)
   — Repo goes public before the first tag (it is private today, which would
   break the install one-liner and bill the macOS MLX job); first release is
