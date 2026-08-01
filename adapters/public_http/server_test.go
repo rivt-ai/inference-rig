@@ -5,9 +5,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
@@ -92,47 +95,33 @@ func TestGatewayForwardsEveryProcedureUnchanged(t *testing.T) {
 	}
 }
 
-// Every procedure named with a mutating verb must be in mutatingProcedures.
-// Without this, adding a write RPC silently ships it unauthenticated.
-func TestEveryMutatingProcedureRequiresAuth(t *testing.T) {
-	mutatingVerbs := []string{"Put", "Delete", "Set", "Install", "Start", "Stop", "Restart", "Cancel", "Apply", "Cleanup", "Clear"}
-	unary, _ := controlProcedures(t)
-	for _, procedure := range unary {
-		name := procedure[strings.LastIndex(procedure, "/")+1:]
-		mutating := false
-		for _, verb := range mutatingVerbs {
-			if strings.HasPrefix(name, verb) {
-				mutating = true
-				break
+// Every procedure requires the token — reads included, streams included. This
+// replaces the old classification table: there is nothing left to add a new RPC
+// to, so a new RPC cannot slip through unclassified, and the descriptor is what
+// decides the list rather than a hand-maintained set.
+func TestEveryProcedureRequiresAuth(t *testing.T) {
+	unary, streaming := controlProcedures(t)
+	procedures := append(append([]string{}, unary...), streaming...)
+	if len(procedures) == 0 {
+		t.Fatal("no procedures discovered")
+	}
+	for _, procedure := range procedures {
+		t.Run(procedure, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, procedure, strings.NewReader(`{}`))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			NewHandler(Dependencies{Control: testClient{}, AuthToken: "secret"}).ServeHTTP(response, request)
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d %q, want 401", response.Code, response.Body.String())
 			}
-		}
-		if !mutating {
-			continue
-		}
-		if _, guarded := mutatingProcedures[procedure]; !guarded {
-			t.Errorf("%s looks mutating but is not in mutatingProcedures", name)
-		}
+		})
 	}
 }
 
-// Guard against the reverse drift: a stale entry for a procedure that no longer
-// exists silently protects nothing.
-func TestMutatingProceduresAllExist(t *testing.T) {
-	unary, _ := controlProcedures(t)
-	known := make(map[string]struct{}, len(unary))
-	for _, procedure := range unary {
-		known[procedure] = struct{}{}
-	}
-	for procedure := range mutatingProcedures {
-		if _, ok := known[procedure]; !ok {
-			t.Errorf("mutatingProcedures lists unknown procedure %q", procedure)
-		}
-	}
-}
-
-func TestMutationWithoutTokenIsRejected(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost,
-		controlv1connect.ControlServiceStartRuntimeProcedure, strings.NewReader(`{}`))
+// The MCP endpoint is a separate route and therefore a separate guard.
+func TestMCPRequiresAuth(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/mcp",
+		strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 	NewHandler(Dependencies{Control: testClient{}, AuthToken: "secret"}).ServeHTTP(response, request)
@@ -162,10 +151,13 @@ func TestDisableAuthServesMutationsUnauthenticated(t *testing.T) {
 	}
 }
 
-func TestReadsAreOpen(t *testing.T) {
+// The mirror of TestEveryProcedureRequiresAuth: the token has to actually let a
+// read through, or "everything is rejected" would pass with a broken gateway.
+func TestReadWithTokenSucceeds(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost,
 		controlv1connect.ControlServiceListBackendsProcedure, strings.NewReader(`{}`))
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer secret")
 	response := httptest.NewRecorder()
 	NewHandler(Dependencies{Control: testClient{}, AuthToken: "secret"}).ServeHTTP(response, request)
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"name":"test"`) {
@@ -176,21 +168,47 @@ func TestReadsAreOpen(t *testing.T) {
 // An empty configured token used to disable the guard entirely. It must now
 // produce a real token instead.
 func TestResolveAuthTokenFailsClosed(t *testing.T) {
-	token, generated := ResolveAuthToken("")
+	token, generated := ResolveAuthToken("", "")
 	if !generated || len(token) != 64 {
 		t.Fatalf("generated = %v, token length = %d", generated, len(token))
 	}
-	if again, _ := ResolveAuthToken(""); again == token {
+	if again, _ := ResolveAuthToken("", ""); again == token {
 		t.Fatal("generated tokens must not repeat")
 	}
-	if token, generated := ResolveAuthToken("configured"); generated || token != "configured" {
+	if token, generated := ResolveAuthToken("configured", ""); generated || token != "configured" {
 		t.Fatalf("configured token = %q, generated = %v", token, generated)
+	}
+}
+
+// With every read authenticated, a token that did not survive a restart would
+// leave the web UI blank after every restart. It must persist and be reused.
+func TestResolveAuthTokenPersists(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run", "gateway.token")
+	first, generated := ResolveAuthToken("", path)
+	if !generated {
+		t.Fatal("first call must generate")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("token file: %v", err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Errorf("token file mode = %04o, want 0600", mode)
+	}
+	second, generated := ResolveAuthToken("", path)
+	if generated || second != first {
+		t.Fatalf("reused token = %q (generated %v), want %q", second, generated, first)
+	}
+	// The environment still wins, so an operator can override the stored token.
+	if token, _ := ResolveAuthToken("from-env", path); token != "from-env" {
+		t.Fatalf("configured token = %q, want the environment value", token)
 	}
 }
 
 func TestOriginGuard(t *testing.T) {
 	tests := []struct {
 		name, origin string
+		allowed      []string
 		disabled     bool
 		want         int
 	}{
@@ -200,6 +218,17 @@ func TestOriginGuard(t *testing.T) {
 		{name: "ipv6 loopback", origin: "http://[::1]:7000", want: http.StatusOK},
 		{name: "rebinding attempt", origin: "http://evil.example.com", want: http.StatusForbidden},
 		{name: "disabled lets anything through", origin: "http://evil.example.com", disabled: true, want: http.StatusOK},
+		// A configured list replaces the loopback default entirely, and holds
+		// more than one entry: one install is commonly reached by both a
+		// hostname and an IP, which a single-origin setting could not express.
+		{name: "first configured origin", origin: "https://rig.example",
+			allowed: []string{"https://rig.example", "http://10.0.0.4:7000"}, want: http.StatusOK},
+		{name: "second configured origin", origin: "http://10.0.0.4:7000",
+			allowed: []string{"https://rig.example", "http://10.0.0.4:7000"}, want: http.StatusOK},
+		{name: "origin outside the configured list", origin: "http://evil.example.com",
+			allowed: []string{"https://rig.example"}, want: http.StatusForbidden},
+		{name: "a configured list excludes loopback", origin: "http://127.0.0.1:7000",
+			allowed: []string{"https://rig.example"}, want: http.StatusForbidden},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -208,7 +237,7 @@ func TestOriginGuard(t *testing.T) {
 				request.Header.Set("Origin", test.origin)
 			}
 			response := httptest.NewRecorder()
-			NewHandler(Dependencies{Control: testClient{}, DisableOriginCheck: test.disabled}).
+			NewHandler(Dependencies{Control: testClient{}, AllowedOrigins: test.allowed, DisableOriginCheck: test.disabled}).
 				ServeHTTP(response, request)
 			if response.Code != test.want {
 				t.Fatalf("status = %d, want %d", response.Code, test.want)
@@ -217,12 +246,42 @@ func TestOriginGuard(t *testing.T) {
 	}
 }
 
-func TestHealthEndpointStaysPlainHTTP(t *testing.T) {
+// /health is unauthenticated on purpose — a container healthcheck cannot hold a
+// token — and reports the auth posture, which is how a monitor or the web UI
+// discovers an open gateway without having watched the startup log.
+func TestHealthEndpointIsUnauthenticatedAndReportsPosture(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		disableAuth bool
+		want        string
+	}{
+		{name: "default", want: `"auth":"required"`},
+		{name: "insecure mode", disableAuth: true, want: `"auth":"disabled"`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			NewHandler(Dependencies{Control: testClient{}, AuthToken: "secret", DisableAuth: test.disableAuth}).
+				ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/health", nil))
+			body := response.Body.String()
+			if response.Code != http.StatusOK || !strings.Contains(body, `"ok":true`) {
+				t.Fatalf("response = %d %q", response.Code, body)
+			}
+			if !strings.Contains(body, test.want) {
+				t.Errorf("body %q does not report %s", body, test.want)
+			}
+		})
+	}
+}
+
+// The static app shell stays open: it is what serves the UI that supplies the
+// token, and it carries no user data.
+func TestAppShellIsUnauthenticated(t *testing.T) {
+	shell := fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html><script></script></html>")}}
 	response := httptest.NewRecorder()
-	NewHandler(Dependencies{Control: testClient{}}).
-		ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/health", nil))
-	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"ok":true`) {
-		t.Fatalf("response = %d %q", response.Code, response.Body.String())
+	NewHandler(Dependencies{Control: testClient{}, AuthToken: "secret", AppFS: shell}).
+		ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "<html") {
+		t.Fatalf("GET / = %d %q", response.Code, response.Body.String())
 	}
 }
 

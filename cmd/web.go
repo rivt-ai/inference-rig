@@ -42,15 +42,22 @@ func webCommand() *cobra.Command {
 			var token string
 			if cfg.Security.DisableAuth {
 				// An open gateway must never be silent. A non-loopback bind is
-				// permitted here but also warns via config.WarnIfExposed.
-				command.Printf("security.disable_auth is set; serving %s without authentication\n\n", cfg.ListenAddr)
+				// refused by config.ValidateSecurity unless deliberately opted
+				// into, and warns via config.WarnIfExposed when it is.
+				command.Printf("security.disable_auth is set; serving %s without authentication\n"+
+					"Every profile, model, log and audit record is readable, and every runtime\n"+
+					"operation is executable, by anything that can reach that address.\n\n", cfg.ListenAddr)
 			} else {
+				tokenPath, _ := config.GatewayTokenPath()
 				generated := false
-				token, generated = public_http.ResolveAuthToken(os.Getenv(cfg.Security.AuthTokenEnv))
+				token, generated = public_http.ResolveAuthToken(os.Getenv(cfg.Security.AuthTokenEnv), tokenPath)
 				if generated {
-					command.Printf("no %s set; generated a gateway token for this run:\n\n    %s\n\n",
-						cfg.Security.AuthTokenEnv, token)
+					command.Printf("no %s set; generated a gateway token and saved it to %s\n",
+						cfg.Security.AuthTokenEnv, tokenPath)
 				}
+				// The token rides in the fragment, not the query: a fragment is
+				// never sent to the server, so it cannot land in an access log.
+				command.Printf("Open the web UI:\n\n    %s/#token=%s\n\n", config.BrowseURL(cfg.ListenAddr), token)
 			}
 			server := &http.Server{
 				Addr: cfg.ListenAddr,
@@ -59,6 +66,7 @@ func webCommand() *cobra.Command {
 					AuthToken:          token,
 					DisableAuth:        cfg.Security.DisableAuth,
 					AppFS:              app,
+					AllowedOrigins:     cfg.Security.AllowedOrigins,
 					DisableOriginCheck: cfg.Security.DisableOriginCheck,
 				}),
 				ReadHeaderTimeout: 5 * time.Second,

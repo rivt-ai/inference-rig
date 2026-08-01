@@ -28,6 +28,12 @@ export function createInferenceRigState() {
     busy: false,
     activeSection: 'runtime',
 
+    // True only when the gateway serves unauthenticated AND this browser
+    // reached it over the network. Loopback insecure mode is the ordinary
+    // single-user case and must not nag; a gateway anyone on the network can
+    // drive is something the user has to be told, every page, permanently.
+    insecureExposed: false,
+
     // Backend awareness. selectedBackend drives every capability gate; it is
     // the axis llamarig did not have, because there was only ever llama.cpp.
     backends: [] as BackendInfo[],

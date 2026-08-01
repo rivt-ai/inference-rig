@@ -99,6 +99,19 @@ research tickets do not.
   and the human dispatching it is the manual-QA sign-off. Nothing
   Apache-derived is in the tree — only `llamarig`/`mlxrig` licensing is left to
   confirm. `release.yml` already does more than expected, so ticket 14 shrinks.
+- [09 — Enforce the gateway security policy](issues/09-enforce-gateway-security.md)
+  — Ticket 01's policy is implemented: every RPC and `/mcp` authenticated
+  (`/health` and the app shell excepted), the guard wrapping the Connect
+  *handler* rather than a unary interceptor, which closed an unauthenticated
+  hole on the three server streams. Token persists to `run/gateway.token` and
+  arrives in the browser via a `#token=` launch URL; `disable_auth` on a
+  non-loopback bind is now a load error without `allow_exposed_without_auth`;
+  posture shows in the startup message, `/health` JSON, TUI badge and a
+  non-loopback-only web banner; `allowed_origins` is a list that replaces the
+  loopback default, documented in `docs/reverse-proxy.md`; credential-shaped
+  argv is redacted from `command.Display`. Note for later tickets: the control
+  daemon rewrites `config.yaml` whole, so tests must write config before
+  starting it.
 
 ## Not yet specified
 

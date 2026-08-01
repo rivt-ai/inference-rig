@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -44,16 +45,39 @@ func TestParseRejectsNegativeRetention(t *testing.T) {
 	}
 }
 
-func TestParseAllowsDisableAuthOnRemoteBind(t *testing.T) {
-	// A non-loopback bind without auth is permitted and warned about rather
-	// than rejected, so the setting must survive parsing intact.
-	cfg, err := Parse([]byte("listen_addr: \"0.0.0.0:7000\"\nsecurity: {disable_auth: true}\n"))
-	if err != nil || !cfg.Security.DisableAuth {
-		t.Fatalf("remote disable_auth = %v, %v", cfg.Security.DisableAuth, err)
+// Disabling auth on a bind that reaches the network publishes every RPC, so it
+// takes two deliberate keys. One key alone must fail to load: a config snippet
+// pasted from somewhere else will not carry both.
+func TestParseRefusesExposedDisableAuthWithoutOptIn(t *testing.T) {
+	_, err := Parse([]byte("listen_addr: \"0.0.0.0:7000\"\nsecurity: {disable_auth: true}\n"))
+	if err == nil {
+		t.Fatal("expected an error for disable_auth on a non-loopback bind")
 	}
+	if !strings.Contains(err.Error(), "allow_exposed_without_auth") {
+		t.Errorf("error %q does not name the opt-in key", err)
+	}
+
+	// Both keys: the deliberate reverse-proxy deployment, permitted and warned.
+	cfg, err := Parse([]byte("listen_addr: \"0.0.0.0:7000\"\n" +
+		"security: {disable_auth: true, allow_exposed_without_auth: true}\n"))
+	if err != nil || !cfg.Security.DisableAuth {
+		t.Fatalf("opted-in exposed disable_auth = %v, %v", cfg.Security.DisableAuth, err)
+	}
+
+	// Loopback insecure mode is the ordinary single-user case and unaffected.
 	cfg, err = Parse([]byte("listen_addr: \"127.0.0.1:7000\"\nsecurity: {disable_auth: true}\n"))
 	if err != nil || !cfg.Security.DisableAuth {
 		t.Fatalf("loopback disable_auth = %v, %v", cfg.Security.DisableAuth, err)
+	}
+}
+
+func TestParseReadsAllowedOrigins(t *testing.T) {
+	cfg, err := Parse([]byte("security:\n  allowed_origins: [\"https://rig.example\", \"http://10.0.0.4:7000\"]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"https://rig.example", "http://10.0.0.4:7000"}; !slices.Equal(cfg.Security.AllowedOrigins, want) {
+		t.Fatalf("allowed_origins = %v, want %v", cfg.Security.AllowedOrigins, want)
 	}
 }
 

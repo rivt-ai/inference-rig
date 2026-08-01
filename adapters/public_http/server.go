@@ -20,19 +20,18 @@ import (
 type Dependencies struct {
 	// Control is the canonical control client, dialed over the control socket.
 	Control controlv1connect.ControlServiceClient
-	// AuthToken guards every mutating procedure. Resolve it with
-	// ResolveAuthToken so an unset token fails closed rather than opening the
-	// gateway.
+	// AuthToken guards every procedure. Resolve it with ResolveAuthToken so an
+	// unset token fails closed rather than opening the gateway.
 	AuthToken string
 	// DisableAuth serves every procedure unauthenticated. It exists for a
-	// single-user local install bound to loopback; the caller is responsible
-	// for refusing it on a bind that reaches the network.
+	// single-user local install bound to loopback; config.ValidateSecurity is
+	// what refuses it on a bind that reaches the network.
 	DisableAuth bool
 	// AppFS holds the built web app. A nil AppFS serves no static files.
 	AppFS fs.FS
-	// AllowedOrigin, when set, is the only browser origin permitted to reach
-	// the gateway. Empty means loopback-only, which is the default posture.
-	AllowedOrigin string
+	// AllowedOrigins, when non-empty, are the browser origins permitted to
+	// reach the gateway. Empty means loopback-only, the default posture.
+	AllowedOrigins []string
 	// DisableOriginCheck turns the origin guard off. It exists for reverse-proxy
 	// deployments that terminate the browser origin themselves.
 	DisableOriginCheck bool
@@ -47,14 +46,28 @@ func NewHandler(deps Dependencies) http.Handler {
 
 	// The canonical RPC. Unary methods forward straight through; the two
 	// server streams are piped by controlBridge.
+	//
+	// The token is checked by an http.Handler wrapper rather than a Connect
+	// interceptor: connect.UnaryInterceptorFunc leaves streaming handlers
+	// untouched, so WatchEvents, WatchLogs and WatchModelCatalog would serve
+	// the machine's whole event and log stream unauthenticated. One wrapper
+	// covers every procedure, and connect clients map the plain 401 back to
+	// CodeUnauthenticated.
 	path, handler := controlv1connect.NewControlServiceHandler(
 		controlBridge{ControlServiceClient: deps.Control},
-		connectInterceptors(deps.AuthToken, deps.DisableAuth),
 	)
-	mux.Handle(path, handler)
+	mux.Handle(path, requireToken(deps.AuthToken, deps.DisableAuth, handler))
 
 	// A plain health endpoint for load balancers, container healthchecks, and
-	// shell scripts, which cannot speak Connect.
+	// shell scripts, which cannot speak Connect. It stays unauthenticated —
+	// those callers cannot hold a token — and carries nothing but liveness and
+	// the auth posture, which is how a script, a monitor or the web UI can tell
+	// an unauthenticated gateway from a protected one without reading the
+	// startup log.
+	auth := "required"
+	if deps.DisableAuth {
+		auth = "disabled"
+	}
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		response, err := deps.Control.Health(r.Context(), &controlv1.HealthRequest{})
 		if err != nil || !response.GetOk() {
@@ -62,7 +75,7 @@ func NewHandler(deps Dependencies) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ok":true,"service":"` + response.GetService() + `"}`))
+		_, _ = w.Write([]byte(`{"ok":true,"service":"` + response.GetService() + `","auth":"` + auth + `"}`))
 	})
 
 	// MCP is JSON-RPC 2.0, a different protocol that cannot be a Connect
