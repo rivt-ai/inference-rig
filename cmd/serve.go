@@ -14,9 +14,13 @@ func serveCommand() *cobra.Command {
 	var detach bool
 	command := &cobra.Command{
 		Use: "serve", Short: "Run the canonical control daemon", Args: cobra.NoArgs,
+		// This command's stderr is the service log a failed start is read back
+		// from, so a usage dump and a doubled error would bury the one line
+		// that matters. The error is the output here.
+		SilenceUsage: true, SilenceErrors: true,
 		RunE: func(command *cobra.Command, _ []string) error {
 			if detach {
-				return process.StartDetached(config.ProjectName, "serve")
+				return reportStartupFailure(command, startDetached(config.ProjectName, "serve"))
 			}
 			service, err := bootstrap.NewService()
 			if err != nil {

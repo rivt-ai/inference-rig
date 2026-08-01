@@ -17,7 +17,10 @@ import (
 func setupCommand() *cobra.Command {
 	return &cobra.Command{
 		Use: "setup", Short: "Configure InferenceRig interactively", Args: cobra.NoArgs,
-		RunE: runSetup,
+		SilenceUsage: true, SilenceErrors: true,
+		RunE: func(command *cobra.Command, args []string) error {
+			return reportStartupFailure(command, runSetup(command, args))
+		},
 	}
 }
 

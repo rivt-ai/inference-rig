@@ -80,11 +80,6 @@ func New(opts Options) *Backend {
 	return b
 }
 
-// Register constructs the backend and adds it to the registry.
-func Register(reg *backends.Registry) error {
-	return reg.Register(New(Options{}))
-}
-
 // Name returns the backend key.
 func (b *Backend) Name() string { return Name }
 

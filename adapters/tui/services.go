@@ -253,10 +253,14 @@ func runServiceAction(ctx context.Context, client controlv1connect.ControlServic
 	}
 }
 
+// startDetached is a package var so tests can drive the startup-failure paths
+// without spawning a real daemon.
+var startDetached = process.StartDetached
+
 func processAction(name string, action int, args []string) error {
 	switch action {
 	case 0:
-		return process.StartDetached(name, args...)
+		return startDetached(name, args...)
 	case 1:
 		return process.StopDetached(name)
 	default:
@@ -276,7 +280,7 @@ func autostartServices() tea.Cmd {
 			if status, _ := process.StatusDetached(serviceProcessName(name)); status.Running {
 				continue
 			}
-			if err := process.StartDetached(serviceProcessName(name), args...); err != nil {
+			if err := startDetached(serviceProcessName(name), args...); err != nil {
 				return actionMsg{err: err}
 			}
 			started = append(started, name)

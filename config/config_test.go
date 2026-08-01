@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -102,6 +103,11 @@ func TestParseRefusesExposedDisableAuthWithoutOptIn(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "allow_exposed_without_auth") {
 		t.Errorf("error %q does not name the opt-in key", err)
+	}
+	// A diagnostic offers this failure's three remedies off errors.Is, so the
+	// sentinel must survive both Parse and LoadFile's wrapping.
+	if !errors.Is(err, ErrExposedWithoutAuth) {
+		t.Errorf("error %v does not wrap ErrExposedWithoutAuth", err)
 	}
 
 	// Both keys: the deliberate reverse-proxy deployment, permitted and warned.

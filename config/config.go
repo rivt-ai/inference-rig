@@ -171,6 +171,12 @@ func ValidateStartupServices(services []string) error {
 	return nil
 }
 
+// ErrExposedWithoutAuth reports the one config failure that has known, named
+// remedies. It is wrapped rather than formatted into the message alone so a
+// diagnostic can offer those remedies via errors.Is instead of matching the
+// error text, which would silently stop working the moment the wording changes.
+var ErrExposedWithoutAuth = errors.New("authentication disabled on a bind that reaches the network")
+
 // ValidateSecurity checks security settings against the bind address. Disabling
 // auth on a bind that reaches the network publishes every RPC to anything that
 // can route to the port, so it is refused unless the operator also sets
@@ -178,8 +184,9 @@ func ValidateStartupServices(services []string) error {
 // pasted config snippet will not carry by accident.
 func (c *Config) ValidateSecurity() error {
 	if c.Security.DisableAuth && c.AllowsNonLoopback() && !c.Security.AllowExposedWithoutAuth {
-		return fmt.Errorf("security.disable_auth with a non-loopback listen_addr %q publishes every RPC unauthenticated; "+
-			"bind loopback, drop security.disable_auth, or set security.allow_exposed_without_auth: true", c.ListenAddr)
+		return fmt.Errorf("%w: security.disable_auth with a non-loopback listen_addr %q publishes every RPC unauthenticated; "+
+			"bind loopback, drop security.disable_auth, or set security.allow_exposed_without_auth: true",
+			ErrExposedWithoutAuth, c.ListenAddr)
 	}
 	c.WarnIfExposed()
 	return nil
@@ -268,10 +275,6 @@ func ConfigPath() (string, error) {
 }
 
 func DefaultModelStorageDir() (string, error) { return homePath("models") }
-
-func DefaultCatalogCacheDir() (string, error) { return homePath("cache", "hf-catalog") }
-
-func ProfilesDir() (string, error) { return homePath("profiles") }
 
 // GeneratedDir returns the directory holding a backend's generated (non
 // user-owned) runtime files: ${home}/generated/<backend>. The backend name is
