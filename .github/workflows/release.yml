@@ -93,7 +93,7 @@ jobs:
               -X inferencerig/internal/buildinfo.Version=${RELEASE_VERSION} \
               -X inferencerig/internal/buildinfo.Commit=${GITHUB_SHA} \
               -X inferencerig/internal/buildinfo.CommitTime=${commit_time}" \
-            -o "dist/${name}/inferencerig" .
+            -o "dist/${name}/infr" .
           cp LICENSE README.md "dist/${name}/"
           tar -C dist -czf "dist/release/${name}.tar.gz" "${name}"
           cd dist/release && sha256sum ./*.tar.gz > SHA256SUMS
@@ -104,7 +104,7 @@ jobs:
         run: |
           smoke=$(mktemp -d)
           tar -C "$smoke" -xzf "dist/release/inferencerig_${RELEASE_VERSION}_linux_amd64.tar.gz"
-          "$smoke/inferencerig_${RELEASE_VERSION}_linux_amd64/inferencerig" version
+          "$smoke/inferencerig_${RELEASE_VERSION}_linux_amd64/infr" version
           cd dist/release && sha256sum --check SHA256SUMS
 
       - name: Publish GitHub prerelease

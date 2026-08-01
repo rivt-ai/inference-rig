@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"inferencerig/config"
 )
 
 func TestVersionCommandText(t *testing.T) {
 	out := runVersion(t, "version")
-	if !strings.Contains(out, "inferencerig") {
-		t.Errorf("version output %q missing project name", out)
+	if !strings.Contains(out, config.CommandName) {
+		t.Errorf("version output %q missing command name", out)
 	}
 }
 

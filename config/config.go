@@ -23,6 +23,11 @@ import (
 const (
 	ProjectName        = "inferencerig"
 	ProjectDisplayName = "InferenceRig"
+	// CommandName is what the user types. It is deliberately separate from
+	// ProjectName: ProjectName still names the home directory, PID files, log
+	// files and the user service, so shortening the command cannot move an
+	// existing installation's data.
+	CommandName = "infr"
 	ProjectHomeEnv     = "INFERENCERIG_HOME"
 	ProjectConfigEnv   = "INFERENCERIG_CONFIG"
 	ProjectHomeDirName = "." + ProjectName

@@ -28,7 +28,7 @@ func Execute() error {
 // NewRootCommand builds the CLI.
 func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:               config.ProjectName,
+		Use:               config.CommandName,
 		Short:             "Neutral control plane for local inference backends",
 		Args:              cobra.NoArgs,
 		Version:           buildinfo.Version,
