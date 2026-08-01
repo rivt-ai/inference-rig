@@ -19,10 +19,11 @@ type Event struct {
 	Success   bool      `json:"success"`
 	ErrorKind ErrorKind `json:"error_kind,omitempty"`
 	Duration  string    `json:"duration,omitempty"`
+	Detail    string    `json:"detail,omitempty"`
 
-	// Runtime state-machine transitions carry these; every other action leaves
-	// them empty. A client watching the stream follows a start or stop through
-	// them instead of polling status.
+	// Runtime transitions carry all four fields; autostart outcomes also carry
+	// Profile. A client follows starts through events instead of
+	// polling status.
 	OperationID string                         `json:"operation_id,omitempty"`
 	Profile     string                         `json:"profile,omitempty"`
 	Backend     string                         `json:"backend,omitempty"`
@@ -52,7 +53,7 @@ func (s *EventStore) Record(_ context.Context, event AuditEvent) {
 	recorded := Event{
 		ID: strconv.FormatUint(s.nextID, 10), Time: time.Now().UTC().Format(time.RFC3339),
 		Action: event.Action, Success: event.Success, ErrorKind: event.ErrorKind,
-		Duration:    event.Duration.String(),
+		Duration: event.Duration.String(), Detail: event.Detail,
 		OperationID: event.OperationID, Profile: event.Profile,
 		Backend: event.Backend, State: event.State, Recovery: event.Recovery,
 	}

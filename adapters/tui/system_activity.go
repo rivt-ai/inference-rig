@@ -171,6 +171,12 @@ func (p *activityPage) View(width, height int, data snapshot) string {
 		if recovery := event.GetRecovery(); recovery != "" {
 			action += " " + recovery
 		}
+		if profile := event.GetProfile(); profile != "" {
+			action += " " + profile
+		}
+		if detail := event.GetDetail(); detail != "" {
+			action += ": " + detail
+		}
 		events = append(events, mutedStyle.Render(event.GetTime())+"  "+style.Render(action)+"  "+event.GetDuration())
 	}
 	p.views[0].SetLines(events)

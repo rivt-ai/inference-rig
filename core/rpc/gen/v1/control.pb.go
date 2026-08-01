@@ -3666,17 +3666,17 @@ type Event struct {
 	Success   bool                   `protobuf:"varint,4,opt,name=success,proto3" json:"success,omitempty"`
 	ErrorKind string                 `protobuf:"bytes,5,opt,name=error_kind,json=errorKind,proto3" json:"error_kind,omitempty"`
 	Duration  string                 `protobuf:"bytes,6,opt,name=duration,proto3" json:"duration,omitempty"`
-	// The fields below are set only on runtime state-machine transitions
-	// (action "runtime.transition"). operation_id ties the transitions of one
-	// start, stop or reset together, so a client follows a lifecycle through the
-	// event stream instead of polling status.
+	// operation_id and state describe runtime transitions; profile also
+	// identifies per-profile autostart outcomes.
 	OperationId string `protobuf:"bytes,7,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	Profile     string `protobuf:"bytes,8,opt,name=profile,proto3" json:"profile,omitempty"`
 	Backend     string `protobuf:"bytes,9,opt,name=backend,proto3" json:"backend,omitempty"`
 	State       string `protobuf:"bytes,10,opt,name=state,proto3" json:"state,omitempty"`
 	// recovery is the startup reconciliation classification when action is
 	// "runtime.recover".
-	Recovery      string `protobuf:"bytes,11,opt,name=recovery,proto3" json:"recovery,omitempty"`
+	Recovery string `protobuf:"bytes,11,opt,name=recovery,proto3" json:"recovery,omitempty"`
+	// detail explains an operation outcome, notably why an autostart failed.
+	Detail        string `protobuf:"bytes,12,opt,name=detail,proto3" json:"detail,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3784,6 +3784,13 @@ func (x *Event) GetState() string {
 func (x *Event) GetRecovery() string {
 	if x != nil {
 		return x.Recovery
+	}
+	return ""
+}
+
+func (x *Event) GetDetail() string {
+	if x != nil {
+		return x.Detail
 	}
 	return ""
 }
@@ -6743,7 +6750,7 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\x06events\x18\x02 \x03(\v2\x1e.inferencerig.control.v1.EventR\x06events\"\x14\n" +
 	"\x12WatchEventsRequest\"K\n" +
 	"\x13WatchEventsResponse\x124\n" +
-	"\x05event\x18\x01 \x01(\v2\x1e.inferencerig.control.v1.EventR\x05event\"\xa1\x02\n" +
+	"\x05event\x18\x01 \x01(\v2\x1e.inferencerig.control.v1.EventR\x05event\"\xb9\x02\n" +
 	"\x05Event\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04time\x18\x02 \x01(\tR\x04time\x12\x16\n" +
@@ -6757,7 +6764,8 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\abackend\x18\t \x01(\tR\abackend\x12\x14\n" +
 	"\x05state\x18\n" +
 	" \x01(\tR\x05state\x12\x1a\n" +
-	"\brecovery\x18\v \x01(\tR\brecovery\"\xaf\x01\n" +
+	"\brecovery\x18\v \x01(\tR\brecovery\x12\x16\n" +
+	"\x06detail\x18\f \x01(\tR\x06detail\"\xaf\x01\n" +
 	"\x17ListModelCatalogRequest\x12\x18\n" +
 	"\abackend\x18\x01 \x01(\tR\abackend\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x14\n" +

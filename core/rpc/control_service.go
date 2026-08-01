@@ -907,5 +907,6 @@ func eventProto(event control.Event) *controlv1.Event {
 		Success: event.Success, ErrorKind: string(event.ErrorKind), Duration: event.Duration,
 		OperationId: event.OperationID, Profile: event.Profile,
 		Backend: event.Backend, State: string(event.State), Recovery: string(event.Recovery),
+		Detail: event.Detail,
 	}
 }

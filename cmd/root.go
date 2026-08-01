@@ -37,7 +37,7 @@ func NewRootCommand() *cobra.Command {
 		},
 	}
 	rootCmd.AddCommand(versionCommand())
-	rootCmd.AddCommand(serveCommand(), daemonCommand(), setupCommand(), tuiCommand(), webCommand())
+	rootCmd.AddCommand(serveCommand(), daemonCommand(), setupCommand(), tuiCommand(), webCommand(), serviceCommand())
 	rootCmd.AddCommand(adaptercli.Commands(rpc.DialControl)...)
 	return rootCmd
 }

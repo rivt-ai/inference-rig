@@ -383,10 +383,8 @@ message Event {
   bool success = 4;
   string error_kind = 5;
   string duration = 6;
-  // The fields below are set only on runtime state-machine transitions
-  // (action "runtime.transition"). operation_id ties the transitions of one
-  // start, stop or reset together, so a client follows a lifecycle through the
-  // event stream instead of polling status.
+  // operation_id and state describe runtime transitions; profile also
+  // identifies per-profile autostart outcomes.
   string operation_id = 7;
   string profile = 8;
   string backend = 9;
@@ -394,6 +392,8 @@ message Event {
   // recovery is the startup reconciliation classification when action is
   // "runtime.recover".
   string recovery = 11;
+  // detail explains an operation outcome, notably why an autostart failed.
+  string detail = 12;
 }
 
 message ListModelCatalogRequest {

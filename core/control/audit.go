@@ -15,10 +15,10 @@ type AuditEvent struct {
 	Success   bool
 	ErrorKind ErrorKind
 	Duration  time.Duration
+	Detail    string
 
-	// The fields below describe one runtime state-machine transition and are
-	// empty on every other action. OperationID ties the transitions of a single
-	// start, stop or reset together.
+	// OperationID and State describe runtime transitions; Profile also identifies
+	// per-profile autostart outcomes.
 	OperationID string
 	Profile     string
 	Backend     string

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
 	"sort"
 
 	"inferencerig/backends"
@@ -157,6 +158,17 @@ func (m *Manager) SetProfileAutostart(ctx context.Context, name string, enabled 
 	}
 	if enabled {
 		if _, err := m.GetProfile(ctx, name); err != nil {
+			return configstore.WriteResult{}, err
+		}
+		cfg, err := m.config.Read(ctx)
+		if err != nil {
+			return configstore.WriteResult{}, mapConfigError(err)
+		}
+		prospective := append([]string(nil), cfg.AutostartProfiles...)
+		if !slices.Contains(prospective, name) {
+			prospective = append(prospective, name)
+		}
+		if err := m.ValidateAutostart(ctx, prospective); err != nil {
 			return configstore.WriteResult{}, err
 		}
 	}

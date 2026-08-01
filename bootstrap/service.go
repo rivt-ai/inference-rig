@@ -4,6 +4,7 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -132,7 +133,7 @@ func NewService() (*Service, error) {
 		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: paths.CatalogCache, CacheTTL: time.Hour}),
 		Config:    configstore.NewFileStore(paths.Config, 0),
 	})
-	if err := manager.RecoverRuntimes(context.Background()); err != nil {
+	if err := prepareRuntimes(context.Background(), manager, cfg.AutostartProfiles); err != nil {
 		return nil, err
 	}
 	path, handler := rpc.ControlHandler(rpc.NewControlService(manager))
@@ -153,6 +154,16 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 	return &Service{Manager: manager, Server: server, pidFile: file, pid: pid}, nil
+}
+
+func prepareRuntimes(ctx context.Context, manager *control.Manager, autostart []string) error {
+	if err := manager.ValidateAutostart(ctx, autostart); err != nil {
+		return fmt.Errorf("validate autostart profiles: %w", err)
+	}
+	if err := manager.RecoverRuntimes(ctx); err != nil {
+		return err
+	}
+	return manager.AutostartProfiles(ctx, autostart)
 }
 
 // Run serves until ctx is cancelled or the HTTP server fails.

@@ -12,6 +12,7 @@ import (
 	"inferencerig/core/profiles"
 	"inferencerig/core/rpc"
 	controlv1 "inferencerig/core/rpc/gen/v1"
+	coreruntime "inferencerig/core/runtime"
 )
 
 func TestServiceRunsCanonicalControlSocket(t *testing.T) {
@@ -47,6 +48,52 @@ func TestServiceRunsCanonicalControlSocket(t *testing.T) {
 	}
 	if _, err := os.Stat(service.pidFile.Path()); !os.IsNotExist(err) {
 		t.Fatalf("PID file remains after shutdown: %v", err)
+	}
+}
+
+//nolint:gocyclo // One bootstrap scenario proves failed autostart, health, state, and event visibility together.
+func TestServiceStaysHealthyWhenAutostartExhaustsRetries(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(config.ProjectHomeEnv, home)
+	t.Setenv("PATH", t.TempDir())
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("autostart_profiles: [broken]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	profileDir := filepath.Join(home, "profiles", "broken")
+	if err := os.MkdirAll(profileDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	profile := "version: 1\nname: broken\nbackend: llamacpp\nmodel:\n  source: /missing/model.gguf\nlisten:\n  host: 127.0.0.1\n  port: 19876\n"
+	if err := os.WriteFile(filepath.Join(profileDir, "profile.yaml"), []byte(profile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- service.Run(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	client, err := rpc.DialControl(service.Server.SocketPath, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	health, err := client.Health(t.Context(), &controlv1.HealthRequest{})
+	if err != nil || !health.GetOk() {
+		t.Fatalf("health = %#v, err = %v", health, err)
+	}
+	status, err := service.Manager.RuntimeStatus(t.Context(), "broken")
+	if err != nil || status.State != coreruntime.Stopped {
+		t.Fatalf("status = %#v, err = %v", status, err)
+	}
+	events := service.Manager.Events().List()
+	if len(events) == 0 || events[0].Action != "runtime.autostart" || events[0].Success || !strings.Contains(events[0].Detail, "3 attempt") {
+		t.Fatalf("events = %#v", events)
 	}
 }
 
