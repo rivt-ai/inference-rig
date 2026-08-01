@@ -1,7 +1,7 @@
 # 13 — Research: release supply-chain toolchain
 
 Type: research
-Status: claimed
+Status: resolved
 Blocked by: none
 Milestone: B
 Roadmap: P0 #4
@@ -41,3 +41,20 @@ Answer, with a citation for each:
 Deliverable: a Markdown file under `docs/research/` with sources and version
 numbers, plus a one-paragraph recommendation per item. Facts only — the
 decisions are ticket 12's and ticket 14's.
+
+## Answer
+
+Resolved 2026-08-01. The verified facts, primary-source citations, exact user
+verification commands, pinned tool/action versions, and recommendation for
+each item are in
+[`docs/research/release-supply-chain.md`](../../../docs/research/release-supply-chain.md).
+
+The repository builds all three release targets with `CGO_ENABLED=0` after the
+existing web-assets step, so ticket 14 needs only the native `GOOS`/`GOARCH`
+matrix. Keep the current `gh release create` path and `SHA256SUMS`; add
+`actions/attest-build-provenance@v4` (verified at v4.1.1) and a pinned
+CycloneDX Go-module SBOM generator. Ticket 12's provenance-only decision means
+the researched cosign path is not an implementation requirement. For macOS,
+curl normally avoids browser quarantine metadata, while browser downloads are
+Gatekeeper-assessed; ad-hoc signing does not replace Developer ID signing and
+notarization.
