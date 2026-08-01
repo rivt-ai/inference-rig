@@ -3,7 +3,7 @@ import { toast } from 'svelte-sonner';
 import { apiUrl, createApiClient } from '../api';
 import { isLoopbackHost, loadSession, saveApiBase, saveToken, takeLaunchToken } from '../session';
 import { canApplyDownload, chooseProfileSelection, isTerminalDownloadState } from '../tasks';
-import { capabilitiesFor, singleActiveProfileWarning } from '../backends';
+import { capabilitiesFor, runtimeReplacementWarning } from '../backends';
 import { engineArgsFromRows, rowsFromEngineArgs } from '../engineArgs';
 import { modelProfile, nextFreePort, templateProfile, type ProfileTemplate } from '../profileTemplates';
 import { createInferenceRigState } from '../state/createInferenceRigState.svelte';
@@ -275,7 +275,7 @@ export function createInferenceRigClient() {
   // startWarning is what makes single_active_profile visible before the fact
   // rather than after: on MLX, starting B stops A, and the user is told so.
   function startWarning(name: string) {
-    return singleActiveProfileWarning(capabilities(), state.activeProfileNames, name);
+    return runtimeReplacementWarning(capabilities(), state.profiles, state.activeProfileNames, name);
   }
 
   async function refreshServerInfo() {

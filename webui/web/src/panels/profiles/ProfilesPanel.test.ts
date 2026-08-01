@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createInferenceRigState } from '../../lib/state/createInferenceRigState.svelte';
-import { NO_CAPABILITIES, singleActiveProfileWarning } from '../../lib/backends';
+import { NO_CAPABILITIES, runtimeReplacementWarning } from '../../lib/backends';
 import type { BackendCapabilities, Profile } from '../../lib/gen/inferencerig/control/v1/control_pb';
 import type { InferenceRigClient } from '../../lib/setup/createInferenceRigClient.svelte';
 import ProfilesPanel from './ProfilesPanel.svelte';
@@ -11,7 +11,7 @@ function profile(name: string, overrides: Partial<Profile> = {}): Profile {
   return {
     $typeName: 'inferencerig.control.v1.Profile',
     name,
-    backend: 'mlx',
+    backend: 'backend-a',
     profileYaml: '',
     modelSource: 'local',
     modelReference: `/models/${name}`,
@@ -27,13 +27,14 @@ function panel(options: {
   activeProfileNames?: string[];
   activeBackend?: string;
   runtimeStates?: Record<string, string>;
+  profiles?: Profile[];
   overrides?: Partial<Record<string, unknown>>;
 } = {}) {
   const state = createInferenceRigState();
-  state.selectedBackend = 'mlx';
+  state.selectedBackend = 'backend-a';
   state.selectedProfileName = 'coder';
   state.currentProfile = profile('coder');
-  state.profiles = [profile('coder'), profile('chat')];
+  state.profiles = options.profiles ?? [profile('coder'), profile('chat')];
   state.activeProfileNames = options.activeProfileNames ?? [];
   state.activeBackend = options.activeBackend ?? '';
   state.profileRuntimeStates = options.runtimeStates ?? {};
@@ -43,7 +44,7 @@ function panel(options: {
     state,
     errorMessage: '',
     capabilities: () => capabilities,
-    startWarning: (name: string) => singleActiveProfileWarning(capabilities, state.activeProfileNames, name),
+    startWarning: (name: string) => runtimeReplacementWarning(capabilities, state.profiles, state.activeProfileNames, name),
     isProfileActive: (name: string) => state.activeProfileNames.includes(name),
     loadProfiles: vi.fn(),
     selectProfile: vi.fn(),
@@ -88,9 +89,8 @@ describe('ProfilesPanel', () => {
     expect(deleteProfile).toHaveBeenCalledOnce();
   });
 
-  // single_active_profile: on MLX, starting B stops A. The user has to be told
-  // before the click, not shown a stopped profile afterwards. llama.cpp runs
-  // profiles concurrently and must not show this at all.
+  // single_active_profile: on an exclusive backend, starting B stops A. The
+  // user has to be told before the click, not shown a stopped profile later.
   it('warns which profile a start will stop on a single_active_profile backend', async () => {
     const startSelectedProfile = vi.fn();
     panel({ capabilities: { singleActiveProfile: true }, activeProfileNames: ['chat'], overrides: { startSelectedProfile } });
@@ -105,10 +105,10 @@ describe('ProfilesPanel', () => {
 
   it('keeps another backend profiles visible but offers a confirmed reset inline', async () => {
     const resetRuntimes = vi.fn();
-    panel({ activeBackend: 'llamacpp', overrides: { resetRuntimes } });
+    panel({ activeBackend: 'backend-b', overrides: { resetRuntimes } });
 
-    expect(screen.getByText('Active backend: llamacpp')).toBeInTheDocument();
-    expect(screen.getByText('llamacpp is active — reset to start mlx profiles')).toBeInTheDocument();
+    expect(screen.getByText('Active backend: backend-b')).toBeInTheDocument();
+    expect(screen.getByText('backend-b is active — reset to start backend-a profiles')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
     expect(screen.getByRole('button', { name: /coder/ }).closest('[data-slot="item"]')).toHaveClass('opacity-50');
 
@@ -116,6 +116,21 @@ describe('ProfilesPanel', () => {
     expect(resetRuntimes).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Reset and switch backend' }));
     expect(resetRuntimes).toHaveBeenCalledOnce();
+  });
+
+  it('confirms replacement when a router profile uses another listen address', async () => {
+    const startSelectedProfile = vi.fn();
+    panel({
+      activeBackend: 'backend-a',
+      activeProfileNames: ['chat'],
+      profiles: [profile('coder', { port: 8080 }), profile('chat', { port: 9090 })],
+      overrides: { startSelectedProfile }
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    expect(screen.getByText(/different listen address/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Start profile' }));
+    expect(startSelectedProfile).toHaveBeenCalledWith(true);
   });
 
   it('shows the exact transitional state reported for a profile', () => {
