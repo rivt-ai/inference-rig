@@ -1,7 +1,7 @@
 # 10 — Correct documentation and evidence levels
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: none
 Milestone: A
 Roadmap: P2 #11

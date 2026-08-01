@@ -17,6 +17,9 @@ service ControlService {
   rpc GetBackendInstallStatus(GetBackendInstallStatusRequest) returns (GetBackendInstallStatusResponse);
   rpc StartRuntime(StartRuntimeRequest) returns (StartRuntimeResponse);
   rpc StopRuntime(StopRuntimeRequest) returns (StopRuntimeResponse);
+  // ResetRuntimes stops every runtime and clears the active backend, which is
+  // how a host switches backends. It is not a daemon restart.
+  rpc ResetRuntimes(ResetRuntimesRequest) returns (ResetRuntimesResponse);
   rpc GetRuntimeStatus(GetRuntimeStatusRequest) returns (GetRuntimeStatusResponse);
   rpc ResolveProfileModel(ResolveProfileModelRequest) returns (ResolveProfileModelResponse);
   // ResolveModel resolves an arbitrary catalog reference without requiring a
@@ -143,7 +146,13 @@ message GetBackendInstallStatusResponse {
   string path = 5;
 }
 
-message StartRuntimeRequest { string profile = 1; }
+// replace states that the caller accepts the currently running profile being
+// stopped. Without it, starting a second profile on a backend that serves one
+// at a time is a conflict rather than an implicit kill.
+message StartRuntimeRequest {
+  string profile = 1;
+  bool replace = 2;
+}
 message StartRuntimeResponse {
   bool ok = 1;
   CommandResult result = 2;
@@ -154,6 +163,11 @@ message StopRuntimeResponse {
   bool ok = 1;
   CommandResult result = 2;
   RuntimeStatus status = 3;
+}
+message ResetRuntimesRequest {}
+message ResetRuntimesResponse {
+  bool ok = 1;
+  CommandResult result = 2;
 }
 // GetRuntimeStatusRequest with an empty profile reports every profile at once.
 // A dashboard polling each profile separately would issue one call per profile
@@ -363,6 +377,14 @@ message Event {
   bool success = 4;
   string error_kind = 5;
   string duration = 6;
+  // The fields below are set only on runtime state-machine transitions
+  // (action "runtime.transition"). operation_id ties the transitions of one
+  // start, stop or reset together, so a client follows a lifecycle through the
+  // event stream instead of polling status.
+  string operation_id = 7;
+  string profile = 8;
+  string backend = 9;
+  string state = 10;
 }
 
 message ListModelCatalogRequest {
@@ -524,6 +546,9 @@ message GetInfoResponse {
   repeated string autostart_profiles = 5;
   repeated string startup_services = 6;
   BuildInfo build = 7;
+  // active_backend is the one backend currently serving, empty when none is.
+  // Profiles naming any other backend cannot start until a reset.
+  string active_backend = 8;
 }
 message BuildInfo {
   string version = 1;

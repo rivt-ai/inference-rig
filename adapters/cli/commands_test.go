@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"inferencerig/config"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 )
 
@@ -94,5 +96,48 @@ func TestEveryCommandCallsCanonicalRPC(t *testing.T) {
 				t.Fatalf("called %q, want %q", got, test.procedure)
 			}
 		})
+	}
+}
+
+// TestConfigValidateMatchesStartup pins the ticket's acceptance criterion: the
+// command agrees with startup on a missing, a valid and a broken config file,
+// and reaches that verdict without a daemon to dial.
+func TestConfigValidateMatchesStartup(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	t.Setenv(config.ProjectConfigEnv, path)
+	dial := func(string, time.Duration) (controlv1connect.ControlServiceClient, error) {
+		t.Error("config validate dialed the control socket")
+		return nil, errors.New("must not dial")
+	}
+	run := func() (string, error) {
+		root := &cobra.Command{Use: "test"}
+		root.AddCommand(Commands(dial)...)
+		root.SetArgs([]string{"config", "validate"})
+		var out strings.Builder
+		root.SetOut(&out)
+		root.SetErr(io.Discard)
+		err := root.ExecuteContext(context.Background())
+		return out.String(), err
+	}
+
+	out, err := run()
+	if err != nil || !strings.Contains(out, path) {
+		t.Fatalf("missing config = %q, %v; want the resolved path and no error", out, err)
+	}
+
+	if err := os.WriteFile(path, []byte("listen_addr: \"127.0.0.1:9000\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run(); err != nil || !strings.Contains(out, path) {
+		t.Fatalf("valid config = %q, %v; want the resolved path and no error", out, err)
+	}
+
+	if err := os.WriteFile(path, []byte("listen_prot: 9000\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(); err == nil {
+		t.Fatal("an unknown key must exit non-zero")
+	} else if !strings.Contains(err.Error(), path) {
+		t.Errorf("error %q does not name the config path", err)
 	}
 }
