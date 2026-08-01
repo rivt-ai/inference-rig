@@ -387,20 +387,17 @@ func fitProto(estimate backends.FitEstimate) *controlv1.FitEstimate {
 	}
 }
 
-func fitLevelProto(level backends.FitLevel) controlv1.FitLevel {
-	switch level {
-	case backends.FitFits:
-		return controlv1.FitLevel_FIT_LEVEL_FITS
-	case backends.FitMarginal:
-		return controlv1.FitLevel_FIT_LEVEL_MARGINAL
-	case backends.FitTooLarge:
-		return controlv1.FitLevel_FIT_LEVEL_TOO_LARGE
-	case backends.FitUnknown:
-		return controlv1.FitLevel_FIT_LEVEL_UNKNOWN
-	default:
-		return controlv1.FitLevel_FIT_LEVEL_UNSPECIFIED
-	}
+// fitLevels and parameterTypes translate neutral core vocabularies into their
+// proto enums. A missing entry yields the zero value, which is the UNSPECIFIED
+// member of both enums — exactly what an unrecognized input should map to.
+var fitLevels = map[backends.FitLevel]controlv1.FitLevel{
+	backends.FitFits:     controlv1.FitLevel_FIT_LEVEL_FITS,
+	backends.FitMarginal: controlv1.FitLevel_FIT_LEVEL_MARGINAL,
+	backends.FitTooLarge: controlv1.FitLevel_FIT_LEVEL_TOO_LARGE,
+	backends.FitUnknown:  controlv1.FitLevel_FIT_LEVEL_UNKNOWN,
 }
+
+func fitLevelProto(level backends.FitLevel) controlv1.FitLevel { return fitLevels[level] }
 
 func machineProto(host backends.HostResources) *controlv1.MachineProfile {
 	return &controlv1.MachineProfile{
@@ -414,18 +411,13 @@ func machineProto(host backends.HostResources) *controlv1.MachineProfile {
 
 // fitRank orders verdicts from best to worst so "at least marginal" is a
 // comparison rather than a set membership test.
-func fitRank(level controlv1.FitLevel) int {
-	switch level {
-	case controlv1.FitLevel_FIT_LEVEL_FITS:
-		return 3
-	case controlv1.FitLevel_FIT_LEVEL_MARGINAL:
-		return 2
-	case controlv1.FitLevel_FIT_LEVEL_TOO_LARGE:
-		return 1
-	default:
-		return 0
-	}
+var fitRanks = map[controlv1.FitLevel]int{
+	controlv1.FitLevel_FIT_LEVEL_FITS:      3,
+	controlv1.FitLevel_FIT_LEVEL_MARGINAL:  2,
+	controlv1.FitLevel_FIT_LEVEL_TOO_LARGE: 1,
 }
+
+func fitRank(level controlv1.FitLevel) int { return fitRanks[level] }
 
 // bestVariant is the largest variant that still fits, since quality tracks size
 // within a repository. It falls back to the largest variant overall when
@@ -640,19 +632,15 @@ func (s *ControlService) GetBackendParams(ctx context.Context, req *controlv1.Ge
 	return &controlv1.GetBackendParamsResponse{Ok: true, Params: params}, nil
 }
 
+var parameterTypes = map[backends.ParameterType]controlv1.ParameterType{
+	backends.ParameterString: controlv1.ParameterType_PARAMETER_TYPE_STRING,
+	backends.ParameterInt:    controlv1.ParameterType_PARAMETER_TYPE_INT,
+	backends.ParameterBool:   controlv1.ParameterType_PARAMETER_TYPE_BOOL,
+	backends.ParameterList:   controlv1.ParameterType_PARAMETER_TYPE_LIST,
+}
+
 func parameterTypeProto(kind backends.ParameterType) controlv1.ParameterType {
-	switch kind {
-	case backends.ParameterString:
-		return controlv1.ParameterType_PARAMETER_TYPE_STRING
-	case backends.ParameterInt:
-		return controlv1.ParameterType_PARAMETER_TYPE_INT
-	case backends.ParameterBool:
-		return controlv1.ParameterType_PARAMETER_TYPE_BOOL
-	case backends.ParameterList:
-		return controlv1.ParameterType_PARAMETER_TYPE_LIST
-	default:
-		return controlv1.ParameterType_PARAMETER_TYPE_UNSPECIFIED
-	}
+	return parameterTypes[kind]
 }
 
 func backendProto(backend backends.Backend) *controlv1.BackendInfo {
@@ -717,19 +705,34 @@ func normalizeEngineValue(value any) any {
 		return float64(typed)
 	case uint64:
 		return float64(typed)
-	case []any:
-		items := make([]any, 0, len(typed))
-		for _, item := range typed {
-			items = append(items, normalizeEngineValue(item))
-		}
-		return items
-	case map[string]any:
-		return normalizeEngineArgs(typed)
 	case map[any]any:
 		// yaml.v3 produces this for nested mappings with non-string keys.
 		nested := make(map[string]any, len(typed))
 		for key, item := range typed {
-			nested[fmt.Sprint(key)] = normalizeEngineValue(item)
+			nested[fmt.Sprint(key)] = item
+		}
+		return normalizeEngineArgs(nested)
+	default:
+		return mapContainer(value, normalizeEngineValue)
+	}
+}
+
+// mapContainer applies convert to every element of a slice or string-keyed map
+// and returns anything else untouched. Both engine-arg conversions below walk
+// the same YAML/structpb shapes; only their scalar rule differs, so the
+// recursion lives here once rather than being written out per conversion.
+func mapContainer(value any, convert func(any) any) any {
+	switch typed := value.(type) {
+	case []any:
+		items := make([]any, 0, len(typed))
+		for _, item := range typed {
+			items = append(items, convert(item))
+		}
+		return items
+	case map[string]any:
+		nested := make(map[string]any, len(typed))
+		for key, item := range typed {
+			nested[key] = convert(item)
 		}
 		return nested
 	default:
@@ -771,20 +774,8 @@ func demoteWholeFloats(value any) any {
 			return int64(typed)
 		}
 		return typed
-	case []any:
-		items := make([]any, 0, len(typed))
-		for _, item := range typed {
-			items = append(items, demoteWholeFloats(item))
-		}
-		return items
-	case map[string]any:
-		nested := make(map[string]any, len(typed))
-		for key, item := range typed {
-			nested[key] = demoteWholeFloats(item)
-		}
-		return nested
 	default:
-		return value
+		return mapContainer(value, demoteWholeFloats)
 	}
 }
 

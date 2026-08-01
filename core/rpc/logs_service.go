@@ -113,28 +113,24 @@ func (s *ControlService) ClearLogArchives(context.Context, *controlv1.ClearLogAr
 	return &controlv1.ClearLogArchivesResponse{Ok: true, Deleted: int32(deleted)}, nil
 }
 
-// logService validates a network-supplied service name before it is used to
-// derive a filesystem path, rejecting separators and traversal outright.
+// logService and archiveID validate a network-supplied value before it is used
+// to derive a filesystem path, rejecting separators and traversal outright.
 func logService(service string) (string, error) {
-	if service == "" {
-		return "", control.Errorf(control.ErrorInvalidInput, "service is required")
-	}
-	if !audit.ValidLogName(service) {
-		return "", control.Errorf(control.ErrorInvalidInput, "invalid service name %q", service)
-	}
-	return service, nil
+	return checkedPathPart(service, "service", audit.ValidLogName)
 }
 
-// archiveID applies the same guard to archive identifiers, which are likewise
-// joined onto the archive directory.
 func archiveID(id string) (string, error) {
-	if id == "" {
-		return "", control.Errorf(control.ErrorInvalidInput, "log archive ID is required")
+	return checkedPathPart(id, "log archive ID", audit.ValidArchiveID)
+}
+
+func checkedPathPart(value, label string, valid func(string) bool) (string, error) {
+	if value == "" {
+		return "", control.Errorf(control.ErrorInvalidInput, "%s is required", label)
 	}
-	if !audit.ValidArchiveID(id) {
-		return "", control.Errorf(control.ErrorInvalidInput, "invalid log archive ID %q", id)
+	if !valid(value) {
+		return "", control.Errorf(control.ErrorInvalidInput, "invalid %s %q", label, value)
 	}
-	return id, nil
+	return value, nil
 }
 
 // tailLines clamps a caller-supplied line count into the range the tail reader

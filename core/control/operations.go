@@ -73,7 +73,7 @@ func (m *Manager) planDownloadApply(
 	name, id string,
 ) (profiles.ProfileDocument, string, error) {
 	if m.downloads == nil {
-		return profiles.ProfileDocument{}, "", Errorf(ErrorInvalidInput, "downloads are not configured")
+		return profiles.ProfileDocument{}, "", errNoDownloads
 	}
 	job, err := m.downloads.Get(ctx, id)
 	if err != nil {

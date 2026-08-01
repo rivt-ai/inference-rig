@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"inferencerig/platform/filedoc"
 )
 
 func writeModel(t *testing.T, body string) string {
@@ -40,7 +42,7 @@ func TestDigestRoundTripDetectsCorruption(t *testing.T) {
 
 func TestVerifyDigestAcceptsAnIntactFile(t *testing.T) {
 	path := writeModel(t, "model bytes")
-	sum, err := hashOf(path)
+	sum, err := filedoc.SHA256File(path)
 	if err != nil {
 		t.Fatal(err)
 	}

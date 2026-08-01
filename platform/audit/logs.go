@@ -343,11 +343,6 @@ func TailArchive(id string, lines int) (string, error) {
 	return tailFileLines(path, lines)
 }
 
-func DeleteArchive(id string) error {
-	_, err := RemoveArchive(id)
-	return err
-}
-
 // RemoveArchive deletes a single archive and reports whether it existed, so
 // callers can answer an unknown ID with a not-found status instead of a
 // silent success.
@@ -400,7 +395,7 @@ func deleteArchives(archives []Archive) (int, error) {
 	deleted := 0
 	var errs error
 	for _, archive := range archives {
-		if err := DeleteArchive(archive.ID); err != nil {
+		if _, err := RemoveArchive(archive.ID); err != nil {
 			errs = errors.Join(errs, err)
 			continue
 		}
@@ -429,7 +424,7 @@ func archiveEntry(entry os.DirEntry) (Archive, bool) {
 }
 
 func archivePath(id string) (string, error) {
-	if filepath.Base(id) != id || archiveNamePattern.FindStringSubmatch(id) == nil {
+	if !ValidArchiveID(id) {
 		return "", fmt.Errorf("invalid log archive %q", id)
 	}
 	dir, err := GetArchiveDir()

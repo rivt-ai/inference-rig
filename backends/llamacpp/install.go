@@ -102,14 +102,7 @@ func (i *installer) activeExecutable() (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	st, err := backends.ReadInstallState(root)
-	if err != nil || st.Active == nil || st.Active.Executable == "" {
-		return "", false
-	}
-	if info, err := os.Stat(st.Active.Executable); err != nil || info.IsDir() {
-		return "", false
-	}
-	return st.Active.Executable, true
+	return backends.ActiveExecutable(root)
 }
 
 // Install installs or upgrades the managed engine and reports what happened.
@@ -153,29 +146,15 @@ func (b *Backend) InstallStatus(context.Context) (backends.InstallStatus, error)
 	if err != nil {
 		return backends.InstallStatus{}, err
 	}
-	state, err := backends.ReadInstallState(root)
-	if err != nil {
-		return backends.InstallStatus{}, err
-	}
-	if state.Active != nil && usableExecutable(state.Active.Executable) {
-		return backends.InstallStatus{
-			Installed: true, Managed: true,
-			Version: state.Active.Version, Path: state.Active.Executable,
-		}, nil
+	status, ok, err := backends.ManagedStatus(root)
+	if err != nil || ok {
+		return status, err
 	}
 	path, err := exec.LookPath(b.opts.Executable)
 	if err != nil {
 		return backends.InstallStatus{}, nil
 	}
 	return backends.InstallStatus{Installed: true, Path: path}, nil
-}
-
-func usableExecutable(path string) bool {
-	if path == "" {
-		return false
-	}
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
 }
 
 func (i *installer) install(ctx context.Context, opts backends.InstallOptions) (backends.InstallResult, error) {
@@ -231,7 +210,7 @@ func (i *installer) provision(ctx context.Context, root string, current backends
 	if err != nil {
 		return backends.InstallResult{}, err
 	}
-	i.retire(root, current)
+	backends.RetirePrevious(root, current, next.Directory)
 	if err := backends.WriteInstallState(root, backends.InstallState{Active: next, Previous: current.Active}); err != nil {
 		return backends.InstallResult{}, err
 	}
@@ -245,7 +224,7 @@ func (i *installer) provision(ctx context.Context, root string, current backends
 // the record of what was installed.
 func (i *installer) activate(root string, rel Release, accel Accel, staging string, payload Payload) (*backends.InstallRecord, error) {
 	final := filepath.Join(root, rel.Version, fmt.Sprintf("%s-%s-%s", i.goos, i.goarch, accel))
-	if !managedPath(root, final) {
+	if !backends.ManagedPath(root, final) {
 		return nil, fmt.Errorf("unsafe install path %q", final)
 	}
 	if err := os.MkdirAll(filepath.Dir(final), 0o700); err != nil {
@@ -272,28 +251,6 @@ func (i *installer) activate(root string, rel Release, accel Accel, staging stri
 		Executable:  filepath.Join(final, relExe),
 		InstalledAt: time.Now().UTC(),
 	}, nil
-}
-
-// retire enforces retention (keep active + previous only): the outgoing active
-// becomes the new previous, so the old previous install directory is removed.
-func (i *installer) retire(root string, current backends.InstallState) {
-	old := current.Previous
-	if old == nil {
-		return
-	}
-	if current.Active != nil && old.Directory == current.Active.Directory {
-		return
-	}
-	if managedPath(root, old.Directory) {
-		_ = os.RemoveAll(old.Directory)
-		_ = os.Remove(filepath.Dir(old.Directory))
-	}
-}
-
-// managedPath reports whether candidate is safely under root.
-func managedPath(root, candidate string) bool {
-	rel, err := filepath.Rel(root, candidate)
-	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
 // VerifyInstall re-hashes the installed executable against the digest recorded

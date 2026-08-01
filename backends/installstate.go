@@ -98,6 +98,66 @@ func WriteInstallState(root string, state InstallState) error {
 	return err
 }
 
+// ActiveExecutable returns the active managed executable recorded under root,
+// and whether it is still a usable file. The path is empty whenever the bool is
+// false, so a caller that ignores the bool cannot pick up a path that was just
+// found to be missing or a directory.
+func ActiveExecutable(root string) (string, bool) {
+	state, err := ReadInstallState(root)
+	if err != nil || state.Active == nil || state.Active.Executable == "" {
+		return "", false
+	}
+	if info, err := os.Stat(state.Active.Executable); err != nil || info.IsDir() {
+		return "", false
+	}
+	return state.Active.Executable, true
+}
+
+// ManagedStatus reports root's active managed install when its executable is
+// still usable. ok is false when there is nothing managed to report, which is
+// the caller's signal to fall back to a host-supplied executable.
+func ManagedStatus(root string) (status InstallStatus, ok bool, err error) {
+	state, err := ReadInstallState(root)
+	if err != nil {
+		return InstallStatus{}, false, err
+	}
+	if path, live := ActiveExecutable(root); live {
+		return InstallStatus{
+			Installed: true, Managed: true,
+			Version: state.Active.Version, Path: path,
+		}, true, nil
+	}
+	return InstallStatus{}, false, nil
+}
+
+// RetirePrevious enforces retention (active + previous only): the install two
+// generations back is removed, so a rollback always has exactly one target.
+// keep names the directory about to become active, which is never removed, and
+// nothing outside root is ever touched — the directory comes from a state
+// document on disk, so it is not trusted to stay inside the engine root.
+func RetirePrevious(root string, state InstallState, keep string) {
+	old := state.Previous
+	if old == nil || old.Directory == "" || old.Directory == keep {
+		return
+	}
+	if state.Active != nil && old.Directory == state.Active.Directory {
+		return
+	}
+	if !ManagedPath(root, old.Directory) {
+		return
+	}
+	_ = os.RemoveAll(old.Directory)
+	// The version directory above it holds nothing else once its last platform
+	// build is gone; a parent that is still populated refuses removal.
+	_ = os.Remove(filepath.Dir(old.Directory))
+}
+
+// ManagedPath reports whether candidate is safely under root.
+func ManagedPath(root, candidate string) bool {
+	rel, err := filepath.Rel(root, candidate)
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
 // RollbackInstall returns root's managed install to its previous record: verify
 // proves that install is still usable (a backend runs its own probe), then the
 // two records swap, so a second rollback undoes the first. Nothing is written

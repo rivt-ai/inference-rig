@@ -21,40 +21,28 @@ type controlBridge struct {
 
 var _ controlv1connect.ControlServiceHandler = controlBridge{}
 
-func (b controlBridge) WatchEvents(
-	ctx context.Context,
-	request *controlv1.WatchEventsRequest,
-	stream *connect.ServerStream[controlv1.WatchEventsResponse],
-) error {
-	upstream, err := b.ControlServiceClient.WatchEvents(ctx, request)
-	if err != nil {
-		return err
-	}
-	return pipeStream(upstream, stream)
+func (b controlBridge) WatchEvents(ctx context.Context, request *controlv1.WatchEventsRequest, stream *connect.ServerStream[controlv1.WatchEventsResponse]) error {
+	return forward(b.ControlServiceClient.WatchEvents(ctx, request))(stream)
 }
 
-func (b controlBridge) WatchModelCatalog(
-	ctx context.Context,
-	request *controlv1.WatchModelCatalogRequest,
-	stream *connect.ServerStream[controlv1.WatchModelCatalogResponse],
-) error {
-	upstream, err := b.ControlServiceClient.WatchModelCatalog(ctx, request)
-	if err != nil {
-		return err
-	}
-	return pipeStream(upstream, stream)
+func (b controlBridge) WatchModelCatalog(ctx context.Context, request *controlv1.WatchModelCatalogRequest, stream *connect.ServerStream[controlv1.WatchModelCatalogResponse]) error {
+	return forward(b.ControlServiceClient.WatchModelCatalog(ctx, request))(stream)
 }
 
-func (b controlBridge) WatchLogs(
-	ctx context.Context,
-	request *controlv1.WatchLogsRequest,
-	stream *connect.ServerStream[controlv1.WatchLogsResponse],
-) error {
-	upstream, err := b.ControlServiceClient.WatchLogs(ctx, request)
-	if err != nil {
-		return err
+func (b controlBridge) WatchLogs(ctx context.Context, request *controlv1.WatchLogsRequest, stream *connect.ServerStream[controlv1.WatchLogsResponse]) error {
+	return forward(b.ControlServiceClient.WatchLogs(ctx, request))(stream)
+}
+
+// forward carries the dial error a client stream method returns alongside the
+// stream itself, so each bridge method is one line: open upstream, copy it
+// down. A failed dial is reported and nothing is copied.
+func forward[T any](upstream *connect.ServerStreamForClient[T], err error) func(*connect.ServerStream[T]) error {
+	return func(downstream *connect.ServerStream[T]) error {
+		if err != nil {
+			return err
+		}
+		return pipeStream(upstream, downstream)
 	}
-	return pipeStream(upstream, stream)
 }
 
 // pipeStream copies an upstream server stream to the downstream one until the

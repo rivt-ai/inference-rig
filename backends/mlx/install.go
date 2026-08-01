@@ -95,17 +95,9 @@ func (b *Backend) InstallStatus(ctx context.Context) (backends.InstallStatus, er
 	if err != nil {
 		return backends.InstallStatus{}, err
 	}
-	state, err := backends.ReadInstallState(root)
-	if err != nil {
-		return backends.InstallStatus{}, err
-	}
-	if state.Active != nil && state.Active.Executable != "" {
-		if info, statErr := os.Stat(state.Active.Executable); statErr == nil && !info.IsDir() {
-			return backends.InstallStatus{
-				Installed: true, Managed: true,
-				Version: state.Active.Version, Path: state.Active.Executable,
-			}, nil
-		}
+	status, ok, err := backends.ManagedStatus(root)
+	if err != nil || ok {
+		return status, err
 	}
 	path, err := exec.LookPath(b.opts.Executable)
 	if err != nil {
@@ -245,26 +237,13 @@ func (i *installer) installPackage(ctx context.Context, root string, in installI
 		Executable:  in.python,
 		InstalledAt: time.Now().UTC(),
 	}
-	i.retire(in.state, record.Directory)
+	backends.RetirePrevious(root, in.state, record.Directory)
 	if err := backends.WriteInstallState(root, backends.InstallState{Active: record, Previous: in.active}); err != nil {
 		return backends.InstallResult{}, err
 	}
 	return backends.InstallResult{
 		Version: in.version, Path: in.python, Changed: true, Message: "installed mlx-lm " + in.version,
 	}, nil
-}
-
-// retire enforces retention (active + previous only): the environment two
-// installs back is removed, so rollback always has exactly one target.
-func (i *installer) retire(state backends.InstallState, active string) {
-	old := state.Previous
-	if old == nil || old.Directory == "" || old.Directory == active {
-		return
-	}
-	if state.Active != nil && old.Directory == state.Active.Directory {
-		return
-	}
-	_ = os.RemoveAll(old.Directory)
 }
 
 func (i *installer) run(ctx context.Context, dir string, progress io.Writer, name string, args ...string) error {
@@ -279,17 +258,7 @@ func (i *installer) activeExecutable() (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	state, err := backends.ReadInstallState(root)
-	if err != nil || state.Active == nil || state.Active.Executable == "" {
-		return "", false
-	}
-	// Report an empty path whenever the bool is false, matching the llama.cpp
-	// backend, so a caller that ignores the bool cannot pick up a path that was
-	// just found to be missing or a directory.
-	if info, err := os.Stat(state.Active.Executable); err != nil || info.IsDir() {
-		return "", false
-	}
-	return state.Active.Executable, true
+	return backends.ActiveExecutable(root)
 }
 
 // VerifyInstall re-hashes the requirements lock against the digest recorded at

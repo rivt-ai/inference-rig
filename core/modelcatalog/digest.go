@@ -63,7 +63,3 @@ func VerifyDigest(path string) (bool, error) {
 	}
 	return got == want, nil
 }
-
-// hashOf exposes the file hash used for verification, for tests and callers
-// recording a digest for a file already on disk.
-func hashOf(path string) (string, error) { return filedoc.SHA256File(path) }

@@ -54,7 +54,7 @@ func (m *Manager) StartCatalogDownload(
 ) (job modeldownload.Job, err error) {
 	defer m.recording(ctx, "download.start", &err)()
 	if m.downloads == nil {
-		return job, Errorf(ErrorInvalidInput, "downloads are not configured")
+		return job, errNoDownloads
 	}
 	_, plan, err := m.ResolveModel(ctx, backendName, reference, variantReference)
 	if err != nil {

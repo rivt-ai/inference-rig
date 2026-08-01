@@ -78,3 +78,7 @@ func MapSentinel(err error, table []SentinelKind) error {
 	}
 	return err
 }
+
+// errNoDownloads is the single answer for every download call made against a
+// manager wired without a downloader.
+var errNoDownloads = Errorf(ErrorInvalidInput, "downloads are not configured")

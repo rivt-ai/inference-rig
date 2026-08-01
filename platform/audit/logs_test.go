@@ -111,10 +111,10 @@ func TestArchiveLogListsTailsAndDeletes(t *testing.T) {
 	if err != nil || text != "log\n" {
 		t.Fatalf("TailArchive text=%q err=%v", text, err)
 	}
-	if err := DeleteArchive(id); err != nil {
+	if _, err := RemoveArchive(id); err != nil {
 		t.Fatal(err)
 	}
-	if err := DeleteArchive(id); err != nil {
+	if _, err := RemoveArchive(id); err != nil {
 		t.Fatalf("repeated delete: %v", err)
 	}
 	archives, err = ListArchives()

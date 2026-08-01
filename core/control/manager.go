@@ -229,27 +229,28 @@ func (m *Manager) DeleteProfile(ctx context.Context, name string) (result profil
 }
 
 // InstallBackend runs a backend's managed installer.
-func (m *Manager) InstallBackend(ctx context.Context, name string, opts backends.InstallOptions) (result backends.InstallResult, err error) {
-	defer m.recording(ctx, "backend.install", &err)()
-	backend, err := m.Backend(name)
-	if err != nil {
-		return result, err
-	}
-	result, err = backend.Install(ctx, opts)
-	if err != nil {
-		err = CoreError(ErrorRuntime, err.Error(), err)
-	}
-	return result, err
+func (m *Manager) InstallBackend(ctx context.Context, name string, opts backends.InstallOptions) (backends.InstallResult, error) {
+	return m.installAction(ctx, "backend.install", name, func(b backends.Backend) (backends.InstallResult, error) {
+		return b.Install(ctx, opts)
+	})
 }
 
 // RollbackBackend returns a backend's managed engine to its previous install.
-func (m *Manager) RollbackBackend(ctx context.Context, name string) (result backends.InstallResult, err error) {
-	defer m.recording(ctx, "backend.rollback", &err)()
+func (m *Manager) RollbackBackend(ctx context.Context, name string) (backends.InstallResult, error) {
+	return m.installAction(ctx, "backend.rollback", name, func(b backends.Backend) (backends.InstallResult, error) {
+		return b.Rollback(ctx)
+	})
+}
+
+// installAction audits one managed-install lifecycle call and gives whatever
+// the engine reports a runtime error kind, which is what both callers need.
+func (m *Manager) installAction(ctx context.Context, action, name string, run func(backends.Backend) (backends.InstallResult, error)) (result backends.InstallResult, err error) {
+	defer m.recording(ctx, action, &err)()
 	backend, err := m.Backend(name)
 	if err != nil {
 		return result, err
 	}
-	result, err = backend.Rollback(ctx)
+	result, err = run(backend)
 	if err != nil {
 		err = CoreError(ErrorRuntime, err.Error(), err)
 	}
@@ -470,7 +471,7 @@ func (m *Manager) ResolveProfileModel(ctx context.Context, name string) (backend
 func (m *Manager) StartDownload(ctx context.Context, name string, force bool) (job modeldownload.Job, err error) {
 	defer m.recording(ctx, "download.start", &err)()
 	if m.downloads == nil {
-		return job, Errorf(ErrorInvalidInput, "downloads are not configured")
+		return job, errNoDownloads
 	}
 	_, plan, err := m.ResolveProfileModel(ctx, name)
 	if err != nil {
@@ -488,7 +489,7 @@ func (m *Manager) StartDownload(ctx context.Context, name string, force bool) (j
 
 func (m *Manager) GetDownload(ctx context.Context, id string) (modeldownload.Job, error) {
 	if m.downloads == nil {
-		return modeldownload.Job{}, Errorf(ErrorInvalidInput, "downloads are not configured")
+		return modeldownload.Job{}, errNoDownloads
 	}
 	job, err := m.downloads.Get(ctx, id)
 	return job, mapDownloadError(err)
@@ -496,7 +497,7 @@ func (m *Manager) GetDownload(ctx context.Context, id string) (modeldownload.Job
 
 func (m *Manager) CancelDownload(ctx context.Context, id string) (modeldownload.Job, error) {
 	if m.downloads == nil {
-		return modeldownload.Job{}, Errorf(ErrorInvalidInput, "downloads are not configured")
+		return modeldownload.Job{}, errNoDownloads
 	}
 	job, err := m.downloads.Cancel(ctx, id)
 	return job, mapDownloadError(err)
