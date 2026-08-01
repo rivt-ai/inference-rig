@@ -3,7 +3,7 @@ import { toast } from 'svelte-sonner';
 import { apiUrl, createApiClient } from '../api';
 import { isLoopbackHost, loadSession, saveApiBase, saveToken, takeLaunchToken } from '../session';
 import { canApplyDownload, chooseProfileSelection, isTerminalDownloadState } from '../tasks';
-import { capabilitiesFor, singleActiveProfileWarning } from '../backends';
+import { capabilitiesFor, runtimeReplacementWarning } from '../backends';
 import { engineArgsFromRows, rowsFromEngineArgs } from '../engineArgs';
 import { modelProfile, nextFreePort, templateProfile, type ProfileTemplate } from '../profileTemplates';
 import { createInferenceRigState } from '../state/createInferenceRigState.svelte';
@@ -75,6 +75,7 @@ export function createInferenceRigClient() {
     restartProfile,
     stopRuntime,
     stopProfile,
+    resetRuntimes,
     loadProfiles,
     selectProfile,
     populateProfile,
@@ -136,6 +137,7 @@ export function createInferenceRigClient() {
     });
     connectCatalogEvents();
     refreshTimer = window.setInterval(() => {
+      refreshServerInfo().catch(showError);
       refreshRuntimeStatus().catch(showError);
       refreshSignals().catch(() => undefined);
       refreshEvents().catch(() => undefined);
@@ -273,24 +275,29 @@ export function createInferenceRigClient() {
   // startWarning is what makes single_active_profile visible before the fact
   // rather than after: on MLX, starting B stops A, and the user is told so.
   function startWarning(name: string) {
-    return singleActiveProfileWarning(capabilities(), state.activeProfileNames, name);
+    return runtimeReplacementWarning(capabilities(), state.profiles, state.activeProfileNames, name);
   }
 
   async function refreshServerInfo() {
     const info = await api.getInfo();
     state.autostartProfiles = info.autostartProfiles;
     state.defaultProfile = info.autostartProfiles[0] || '';
+    state.activeBackend = info.activeBackend;
     return info;
   }
 
   async function refreshRuntimeStatus() {
     const status = await api.getRuntimeStatus();
+    state.profileRuntimeStates = Object.fromEntries(
+      status.profiles.map((profile) => [profile.name, profile.status?.state || 'stopped'])
+    );
     state.activeProfileNames = status.profiles
-      .filter((profile) => profile.name && profile.status?.state !== 'stopped' && profile.status?.state !== 'failed')
+      .filter((profile) => profile.name && profile.status?.state !== 'stopped')
       .map((profile) => profile.name);
-    state.runtimeStatus.status = status.status?.state || 'stopped';
-    state.runtimeStatus.detail = status.status?.detail || '-';
-    state.runtimeStatus.checkedAt = status.status?.checkedAt || '';
+    const visible = status.profiles.find((profile) => profile.status?.state && profile.status.state !== 'stopped')?.status ?? status.status;
+    state.runtimeStatus.status = visible?.state || 'stopped';
+    state.runtimeStatus.detail = visible?.detail || '-';
+    state.runtimeStatus.checkedAt = visible?.checkedAt || '';
     errorMessage = '';
   }
 
@@ -392,17 +399,18 @@ export function createInferenceRigClient() {
     });
   }
 
-  async function startSelectedProfile() {
-    await startProfile(requireSelectedProfile());
+  async function startSelectedProfile(replace = false) {
+    await startProfile(requireSelectedProfile(), replace);
   }
 
-  async function startProfile(name: string) {
+  async function startProfile(name: string, replace = false) {
     await runTask('start profile', async () => {
-      const response = await api.startRuntime(name);
+      const response = await api.startRuntime(name, replace);
       state.lastOperation = response.result || null;
       log(`Started ${name}.`);
       toast.success(`Started ${name}`);
       await refreshRuntimeStatus();
+      await refreshServerInfo();
       await loadProfiles({ select: name, force: true });
     });
   }
@@ -429,6 +437,7 @@ export function createInferenceRigClient() {
       log('Stopped active profiles.');
       toast.success('Stopped active profiles');
       await refreshRuntimeStatus();
+      await refreshServerInfo();
       await loadProfiles({ force: true });
     });
   }
@@ -440,7 +449,20 @@ export function createInferenceRigClient() {
       log(`Stopped ${name}.`);
       toast.success(`Stopped ${name}`);
       await refreshRuntimeStatus();
+      await refreshServerInfo();
       await loadProfiles({ select: name, force: true });
+    });
+  }
+
+  async function resetRuntimes() {
+    await runTask('reset runtimes', async () => {
+      const response = await api.resetRuntimes();
+      state.lastOperation = response.result || null;
+      log('Reset runtimes.');
+      toast.success('Runtimes reset');
+      await refreshRuntimeStatus();
+      await refreshServerInfo();
+      await loadProfiles({ force: true });
     });
   }
 

@@ -1,4 +1,4 @@
-import type { Accelerator, BackendCapabilities, BackendInfo, Signals } from './gen/inferencerig/control/v1/control_pb';
+import type { Accelerator, BackendCapabilities, BackendInfo, Profile, Signals } from './gen/inferencerig/control/v1/control_pb';
 
 // NO_CAPABILITIES is the conservative default used before ListBackends has
 // answered, or for a backend the server did not describe. Every flag off means
@@ -53,6 +53,31 @@ export function singleActiveProfileWarning(
   const displaced = activeProfileNames.filter((name) => name !== target);
   if (!displaced.length) return null;
   return `${displaced.join(', ')} will be stopped: this backend runs one profile at a time.`;
+}
+
+// runtimeReplacementWarning also covers router processes: one process binds
+// the address of the profile that started it, so activating a profile on a
+// different address requires replacing that process even when the backend can
+// otherwise hold several profiles.
+export function runtimeReplacementWarning(
+  capabilities: BackendCapabilities,
+  profiles: Profile[],
+  activeProfileNames: string[],
+  target: string
+): string | null {
+  const exclusive = singleActiveProfileWarning(capabilities, activeProfileNames, target);
+  if (exclusive) return exclusive;
+  const targetProfile = profiles.find((profile) => profile.name === target);
+  if (!targetProfile) return null;
+  const displaced = profiles.filter(
+    (profile) =>
+      activeProfileNames.includes(profile.name) &&
+      profile.name !== target &&
+      profile.backend === targetProfile.backend &&
+      (profile.host !== targetProfile.host || profile.port !== targetProfile.port)
+  );
+  if (!displaced.length) return null;
+  return `${displaced.map((profile) => profile.name).join(', ')} will be stopped: the target uses a different listen address.`;
 }
 
 // installUnavailableReason explains a managed installer that cannot run here,

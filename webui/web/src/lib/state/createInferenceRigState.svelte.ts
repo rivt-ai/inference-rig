@@ -48,6 +48,8 @@ export function createInferenceRigState() {
     profilesLoaded: false,
     selectedProfileName: '',
     activeProfileNames: [] as string[],
+    activeBackend: '',
+    profileRuntimeStates: {} as Record<string, string>,
     autostartProfiles: [] as string[],
     defaultProfile: '',
     currentProfile: null as Profile | null,
