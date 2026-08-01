@@ -41,7 +41,7 @@ func (p *systemPage) View(width, height int, data snapshot) string {
 			resourceRow("RAM", usedPercent(used, total), bytePair(used, total)),
 		)
 		resourceRows = append(resourceRows, acceleratorRows(signals.GetAccelerators())...)
-		resourceRows = append(resourceRows, diskRows(signals.GetDisks())...)
+		resourceRows = append(resourceRows, diskRows(signals.GetDisks(), modelsBytes(data.local.GetModels()))...)
 		for _, warning := range signals.GetWarnings() {
 			resourceRows = append(resourceRows, warningStyle.Render(warning))
 		}
@@ -52,7 +52,6 @@ func (p *systemPage) View(width, height int, data snapshot) string {
 		tuikit.Field("Profiles", fmt.Sprint(data.info.GetProfiles())),
 		tuikit.Field("Backends", fmt.Sprint(data.info.GetBackends())),
 		tuikit.Field("Running", fmt.Sprint(len(data.info.GetRunningProfiles()))),
-		tuikit.Field("Models space used", modelsSpaceUsed(data.local.GetModels())),
 		tuikit.Field("Commit", build.GetCommit()),
 	}
 	// Grow both panels together so added GPU/disk rows stay inside the border.
@@ -67,14 +66,12 @@ func (p *systemPage) View(width, height int, data snapshot) string {
 	return p.vp.View()
 }
 
-// modelsSpaceUsed reports what the downloaded models themselves occupy, which
-// is a different number from the model directory's filesystem usage above.
-func modelsSpaceUsed(models []*controlv1.LocalModel) string {
+func modelsBytes(models []*controlv1.LocalModel) uint64 {
 	var total int64
 	for _, model := range models {
 		total += model.GetSizeBytes()
 	}
-	return fmt.Sprintf("%s (%d models)", tuikit.FormatBytes(total), len(models))
+	return uint64(total)
 }
 
 var meter = tuikit.NewMeter(20, green)
@@ -124,11 +121,18 @@ func acceleratorRows(accelerators []*controlv1.Accelerator) []string {
 	return rows
 }
 
-func diskRows(disks []*controlv1.Disk) []string {
+// diskRows meters each filesystem, except that the model storage entry reports
+// what the models themselves occupy of that filesystem: its telemetry is the
+// whole mount point, which on most hosts is just the root row repeated.
+func diskRows(disks []*controlv1.Disk, modelsUsed uint64) []string {
 	rows := make([]string, 0, len(disks))
 	for _, disk := range disks {
-		detail := strings.TrimSpace(bytePair(disk.GetUsedBytes(), disk.GetTotalBytes()) + " " + disk.GetPath())
-		rows = append(rows, resourceRow(diskLabel(disk.GetLabel()), int(math.Round(disk.GetUsedPercent())), detail))
+		used, percent := disk.GetUsedBytes(), int(math.Round(disk.GetUsedPercent()))
+		if disk.GetLabel() == "model_storage" {
+			used, percent = modelsUsed, usedPercent(modelsUsed, disk.GetTotalBytes())
+		}
+		detail := strings.TrimSpace(bytePair(used, disk.GetTotalBytes()) + " " + disk.GetPath())
+		rows = append(rows, resourceRow(diskLabel(disk.GetLabel()), percent, detail))
 	}
 	return rows
 }
@@ -136,7 +140,7 @@ func diskRows(disks []*controlv1.Disk) []string {
 func diskLabel(label string) string {
 	switch label {
 	case "model_storage":
-		return "ModelDir"
+		return "Models"
 	case "root":
 		return "Root"
 	case "":

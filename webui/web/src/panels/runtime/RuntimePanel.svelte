@@ -258,9 +258,13 @@
       <Card.Content class="grid gap-4 md:grid-cols-2">
         {#each appState.disks as disk (disk.path)}
           <ResourceMeter
-            label={disk.label || disk.path}
-            percent={disk.usedPercent || percent(Number(disk.usedBytes), Number(disk.totalBytes))}
-            detail={`${formatBytes(Number(disk.freeBytes))} free of ${formatBytes(Number(disk.totalBytes))}`}
+            label={disk.label === 'model_storage' ? 'Models' : disk.label || disk.path}
+            percent={disk.label === 'model_storage'
+              ? percent(localModelBytes, Number(disk.totalBytes))
+              : disk.usedPercent || percent(Number(disk.usedBytes), Number(disk.totalBytes))}
+            detail={disk.label === 'model_storage'
+              ? `${formatBytes(localModelBytes)} used by models of ${formatBytes(Number(disk.totalBytes))}`
+              : `${formatBytes(Number(disk.freeBytes))} free of ${formatBytes(Number(disk.totalBytes))}`}
           />
         {/each}
       </Card.Content>
