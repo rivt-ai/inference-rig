@@ -129,9 +129,15 @@ See `config.example.yaml`.
 
 - `make test`, `make lint`, `make verify` — required before committing
 - `make generate` (proto), `make webui` (frontend assets)
+- `make coverage` — scoped Go coverage; fails below `GO_COVERAGE_MIN`
+- `make e2e` — compiled processes against a real pinned llama.cpp and GGUF;
+  `make e2e-browser` for the Chromium workflow over the same harness;
+  `make e2e-live-mlx` for Apple Silicon. Fixtures are provisioned, never
+  skipped.
 - `constructor_guard_test.go` enforces one exported `New*` per concrete type
 - Integration tests: `test/control_integration_test.go`; end-to-end:
-  `test/e2e/`
+  `test/e2e/`. What each layer does and does not prove is defined in
+  `docs/hardware-validation.md`.
 
 Related docs: `docs/porting-matrix.md`, `docs/hardware-validation.md`,
 `docs/system-coverage-and-e2e-plan.md`, `docs/agents/`.
