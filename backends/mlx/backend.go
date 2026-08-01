@@ -158,11 +158,7 @@ func (b *Backend) engineRoot() (string, error) {
 	if b.opts.EngineRoot != "" {
 		return b.opts.EngineRoot, nil
 	}
-	home, err := config.Home()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, "engine", Name), nil
+	return backends.EngineRoot(Name)
 }
 
 var _ backends.Backend = (*Backend)(nil)

@@ -120,7 +120,14 @@ catalog policy. Optional facets sit *outside* the interface (e.g.
 config.yaml          profiles/<name>/profile.yaml
 models/              cache/hf-catalog/
 run/control.sock     run/inferencerig.pid
+engine/<backend>/state.json
 ```
+
+`engine/<backend>/state.json` is the managed-install record: one neutral
+`backends.InstallState` (active + previous `InstallRecord`) per backend, written
+by every install and swapped by `backend rollback`. Read it with
+`backends.ReadInstallState(backends.EngineRoot(name))` — it is the machine-
+readable provenance a release receipt or diagnostic command reports.
 
 Backend-specific settings live in per-profile YAML, never in `config.Config`.
 See `config.example.yaml`.

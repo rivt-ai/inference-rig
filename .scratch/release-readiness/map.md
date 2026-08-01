@@ -152,6 +152,16 @@ research tickets do not.
   (`ArtifactPlan.Revision`) while llama.cpp's network-free `Resolve` stays
   unpinned; scheme, host allowlist, redirect count and a max transfer size are
   enforced on redirects as well as the first request.
+- [08 — Harden engine installation and rollback](issues/08-engine-install-hardening.md)
+  — One neutral `backends.InstallRecord` (source, version, digest, platform,
+  accelerator, time) at `${INFERENCERIG_HOME}/engine/<backend>/state.json`,
+  active + previous, replacing both backends' bespoke state shapes; this is what
+  the release receipt and `doctor` read. llama.cpp extracts with `archive/tar`
+  and rejects traversal, escaping links and non-plain modes; a staged binary must
+  answer `--version` before it is activated. MLX installs an embedded
+  `requirements.lock` with `--no-deps` into a version-scoped venv and refuses any
+  version it has no lock for. `Backend.Rollback` joins the contract interface and
+  ships as `backend rollback <backend>`.
 - [10 — Correct documentation and evidence levels](issues/10-docs-evidence-correction.md)
   — Four evidence levels defined and named (contract → control-stack →
   CI-tested → hardware), with platform support kept separate from
