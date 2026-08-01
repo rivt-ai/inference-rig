@@ -24,6 +24,20 @@ type dispatchClient struct {
 	err   error
 }
 
+type localPollClient struct {
+	testClient
+	models map[string]string
+	err    error
+}
+
+func (c localPollClient) ListLocalModels(_ context.Context, request *controlv1.ListLocalModelsRequest) (*controlv1.ListLocalModelsResponse, error) {
+	if c.err != nil {
+		return nil, c.err
+	}
+	path := c.models[request.GetBackend()]
+	return &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: path}}}, nil
+}
+
 func (c *dispatchClient) record(name string) error {
 	c.calls = append(c.calls, name)
 	return c.err
@@ -137,17 +151,36 @@ func TestModelsPageCreatesAValidNeutralProfile(t *testing.T) {
 	}
 }
 
-func TestBackendSwitchCannotCreateFromStaleLocalRows(t *testing.T) {
-	page := newModelsPage()
-	page.active = paneLocal
-	data := snapshot{
-		backends:     &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "old"}, {Name: "new"}}},
-		local:        &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: "/old/model"}}},
-		localBackend: "old",
+func TestBackendSwitchWaitsForMatchingLocalPoll(t *testing.T) {
+	app := &dashboard{
+		data: snapshot{
+			backends:     &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "one"}, {Name: "two"}}},
+			local:        &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: "/one/model"}}},
+			localBackend: "one", warnings: map[string]string{},
+		},
+		models: newModelsPage(),
 	}
-	page.Update(keyMsg("]"), data)
-	if cmd := page.Update(keyMsg("n"), data); cmd != nil {
+	app.models.active = paneLocal
+	app.models.Update(keyMsg("]"), app.data)
+	if cmd := app.models.Update(keyMsg("n"), app.data); cmd != nil {
 		t.Fatalf("stale local row produced request %#v", cmd())
+	}
+
+	client := localPollClient{models: map[string]string{"two": "/two/model"}}
+	app.applyPoll(poll(context.Background(), client, "two", nil, false)().(pollResult))
+	request := app.models.Update(keyMsg("n"), app.data)().(rpcRequest)
+	if request.create.GetBackend() != "two" || request.create.GetModelSource() != "/two/model" {
+		t.Fatalf("refreshed create request = %#v", request)
+	}
+
+	app.models.Update(keyMsg("["), app.data)
+	failed := localPollClient{models: client.models, err: errors.New("local unavailable")}
+	app.applyPoll(poll(context.Background(), failed, "one", nil, false)().(pollResult))
+	if app.data.localBackend != "two" || app.data.local.GetModels()[0].GetPath() != "/two/model" {
+		t.Fatalf("failed poll lost last good local snapshot: %#v", app.data.local)
+	}
+	if cmd := app.models.Update(keyMsg("n"), app.data); cmd != nil {
+		t.Fatalf("failed refresh exposed stale create request %#v", cmd())
 	}
 }
 

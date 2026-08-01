@@ -81,10 +81,8 @@ func (p *modelsPage) navigate(msg tea.KeyPressMsg, data snapshot) (tea.Cmd, bool
 	switch msg.String() {
 	case "tab":
 		p.active = (p.active + 1) % modelPanes
-		p.disarm()
 	case "shift+tab":
 		p.active = (p.active + modelPanes - 1) % modelPanes
-		p.disarm()
 	case "[":
 		p.moveBackend(-1, data.backends)
 		return func() tea.Msg { return refreshMsg{} }, true
@@ -92,19 +90,19 @@ func (p *modelsPage) navigate(msg tea.KeyPressMsg, data snapshot) (tea.Cmd, bool
 		p.moveBackend(1, data.backends)
 		return func() tea.Msg { return refreshMsg{} }, true
 	case "up":
-		p.move(-1)
+		p.table().MoveUp(1)
 	case "down":
-		p.move(1)
+		p.table().MoveDown(1)
 	case "/":
 		if p.active == paneCatalog {
 			p.search.Update(msg)
 		}
 	case "esc":
-		p.disarm()
 		p.search.Update(msg)
 	default:
 		return nil, false
 	}
+	p.disarm()
 	return nil, true
 }
 
@@ -144,16 +142,6 @@ func (p *modelsPage) moveBackend(delta int, backends *controlv1.ListBackendsResp
 	if count := len(backends.GetBackends()); count > 0 {
 		p.backendIndex = (p.backendIndex + count + delta) % count
 	}
-}
-
-func (p *modelsPage) move(delta int) {
-	current := p.table()
-	if delta < 0 {
-		current.MoveUp(1)
-	} else {
-		current.MoveDown(1)
-	}
-	p.disarm()
 }
 
 func (p *modelsPage) table() *table.Model {
@@ -235,7 +223,9 @@ func (p *modelsPage) restart(data snapshot) tea.Cmd {
 	})
 }
 
-func (p *modelsPage) disarm() { p.status.Disarm() }
+func (p *modelsPage) disarm() {
+	p.status.Disarm()
+}
 
 func (p *modelsPage) complete(msg actionMsg) {
 	if msg.err != nil || msg.notice != "" {
