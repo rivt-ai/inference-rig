@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"image/color"
-	"net"
 	"os"
 	"os/exec"
 	"runtime"
@@ -144,7 +143,7 @@ func (p *servicesPage) View(width, height int, data snapshot, manage bool) strin
 			[]string{tuikit.Field("PID", pidText(controlStatus)), tuikit.Field("Uptime", uptimeText(controlStatus)), tuikit.Field("Config", shortPath(configPath)), tuikit.Field("Log", shortPath(logPath))},
 			[]string{"Start", "Stop", "Status"}, manage),
 		webServiceBox(column, webStatus, external, p, manage,
-			[]string{tuikit.Field("Address", listenAddress()), tuikit.Field("Base URL", publicURL(listenAddress())), tuikit.Field("MCP endpoint", "/mcp"), tuikit.Field("Transport", "Streamable HTTP")}),
+			[]string{tuikit.Field("Address", listenAddress()), tuikit.Field("Base URL", publicURL(listenAddress())), tuikit.Field("Auth", authPosture()), tuikit.Field("MCP endpoint", "/mcp")}),
 		runtimeBox(column, 10, data, p.action[panelRuntime], p.focus == panelRuntime),
 	}
 	help := tuikit.HelpLine(
@@ -303,27 +302,31 @@ func persistWeb(ctx context.Context, client controlv1connect.ControlServiceClien
 	return err
 }
 
-func listenAddress() string {
+func gatewayConfig() config.Config {
 	cfg, err := config.Load()
 	if err != nil {
 		cfg = config.Default()
 	}
-	return cfg.ListenAddr
+	return cfg
 }
 
-func publicURL(address string) string {
-	host, port, err := net.SplitHostPort(address)
-	if err != nil {
-		host = address
+func listenAddress() string { return gatewayConfig().ListenAddr }
+
+func publicURL(address string) string { return config.BrowseURL(address) }
+
+// authPosture is the gateway's auth state as a field value. Someone who never
+// saw the startup message must still be able to tell an open gateway from a
+// protected one, so the unauthenticated case says what it means rather than
+// reading as a normal setting.
+func authPosture() string {
+	cfg := gatewayConfig()
+	if !cfg.Security.DisableAuth {
+		return "token required"
 	}
-	host = strings.Trim(host, "[]")
-	if host == "" || host == "0.0.0.0" || host == "::" {
-		host = "127.0.0.1"
+	if cfg.AllowsNonLoopback() {
+		return "DISABLED — EXPOSED"
 	}
-	if port == "" {
-		return "http://" + host
-	}
-	return "http://" + net.JoinHostPort(host, port)
+	return "DISABLED (loopback)"
 }
 
 func openBrowser(target string) error {
