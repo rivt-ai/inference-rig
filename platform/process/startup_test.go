@@ -109,28 +109,36 @@ func TestCheckStartupFailure(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			home := t.TempDir()
-			t.Setenv(config.ProjectHomeEnv, home)
-			path := filepath.Join(home, "run", config.ProjectName+".pid")
-			if test.write {
-				if err := pidfile.New(path).Write(test.pid); err != nil {
-					t.Fatal(err)
-				}
-			}
+			path := writePIDFixture(t, test.pid, test.write)
 
 			err := CheckStartupFailure(config.ProjectName)
 			if (err != nil) != test.wantErr {
 				t.Fatalf("CheckStartupFailure = %v, wantErr %v", err, test.wantErr)
 			}
+			if !test.write {
+				return
+			}
 			// Read-only by contract: a diagnostic calls this, so it must not
 			// clean up the evidence the way pidfile.Running would.
-			if test.write {
-				if _, statErr := os.Stat(path); statErr != nil {
-					t.Errorf("PID file was removed: %v", statErr)
-				}
+			if _, statErr := os.Stat(path); statErr != nil {
+				t.Errorf("PID file was removed: %v", statErr)
 			}
 		})
 	}
+}
+
+func writePIDFixture(t *testing.T, pid int, write bool) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv(config.ProjectHomeEnv, home)
+	path := filepath.Join(home, "run", config.ProjectName+".pid")
+	if !write {
+		return path
+	}
+	if err := pidfile.New(path).Write(pid); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func TestSignificantTailPrefersTheErrorLine(t *testing.T) {

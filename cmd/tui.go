@@ -26,8 +26,9 @@ func tuiCommand() *cobra.Command {
 	var socket string
 	command := &cobra.Command{
 		Use: "tui", Short: "Open the interactive control dashboard", Args: cobra.NoArgs,
+		SilenceUsage: true, SilenceErrors: true,
 		RunE: func(command *cobra.Command, _ []string) error {
-			return runTUI(command, socket)
+			return reportStartupFailure(command, runTUI(command, socket))
 		},
 	}
 	command.Flags().StringVar(&socket, "socket", "", "control Unix socket")
@@ -119,6 +120,13 @@ func waitForControl(ctx context.Context, client controlClient) error {
 	for {
 		if _, err := client.Health(waitCtx, &controlv1.HealthRequest{}); err == nil {
 			return nil
+		}
+		// StartDetached catches a daemon that dies in its first moments. This
+		// catches one that got further — bound nothing, failed a readiness
+		// probe, crashed on an autostart profile — and reports the daemon's own
+		// error immediately instead of timing out five seconds later with none.
+		if err := process.CheckStartupFailure(config.ProjectName); err != nil {
+			return err
 		}
 		select {
 		case <-waitCtx.Done():

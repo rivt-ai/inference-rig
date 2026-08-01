@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"net"
 	"slices"
@@ -15,6 +16,7 @@ import (
 
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
+	"inferencerig/platform/process"
 )
 
 const (
@@ -191,7 +193,7 @@ func (d *dashboard) updateAction(msg tea.Msg) tea.Cmd {
 	case actionMsg:
 		if msg.err != nil {
 			d.notice = ""
-			d.data.warnings["action"] = msg.err.Error()
+			d.data.warnings["action"] = actionWarning(msg.err)
 		} else {
 			delete(d.data.warnings, "action")
 			d.notice = msg.notice
@@ -287,6 +289,18 @@ func (d *dashboard) applyPoll(result pollResult) {
 		next.controlLog, next.engineLog, next.webLog = current.controlLog, current.engineLog, current.webLog
 	}
 	d.data, d.refreshing = next, false
+}
+
+// actionWarning reduces an action error to something the status bar can hold.
+// That bar is one line shared with every other active warning, so a daemon
+// startup failure contributes its summary; the log path and the daemon's own
+// error stay in the service log the Services page already points at.
+func actionWarning(err error) string {
+	var failure *process.StartupError
+	if errors.As(err, &failure) {
+		return failure.Summary()
+	}
+	return err.Error()
 }
 
 func (d *dashboard) status() (string, tuikit.Level) {
