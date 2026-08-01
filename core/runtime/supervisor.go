@@ -110,12 +110,13 @@ type Supervisor struct {
 	pid, pgid int
 	now       func() time.Time
 	client    *http.Client
+	alive     func(int) bool
 }
 
 // NewSupervisor returns a Supervisor for spec, applying neutral timing defaults.
 func NewSupervisor(spec LaunchSpec) *Supervisor {
 	spec.applyDefaults()
-	return &Supervisor{spec: spec, now: time.Now, client: http.DefaultClient}
+	return &Supervisor{spec: spec, now: time.Now, client: http.DefaultClient, alive: pidfile.Alive}
 }
 
 func (s *Supervisor) Status(context.Context) (Status, error) {
@@ -149,9 +150,13 @@ func (s *Supervisor) Recover(ctx context.Context) (bool, error) {
 	if !exists {
 		return false, err
 	}
-	if err != nil || !pidfile.Alive(pid) {
+	if err != nil {
 		_ = file.Remove(0)
 		return false, recoveryError(RecoveryStalePIDFile, "stale PID file", err)
+	}
+	if !s.alive(pid) {
+		_ = file.Remove(pid)
+		return false, recoveryError(RecoveryStalePIDFile, "stale PID file", nil)
 	}
 	pgid, err := syscall.Getpgid(pid)
 	if err != nil || pgid != pid {

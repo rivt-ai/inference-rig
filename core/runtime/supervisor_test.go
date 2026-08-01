@@ -231,6 +231,25 @@ func TestSupervisorRecoveryClassifications(t *testing.T) {
 	})
 }
 
+func TestSupervisorStalePIDCleanupPreservesReplacement(t *testing.T) {
+	spec := fakeSpec(t, "server", "")
+	recordedPID, replacementPID := os.Getpid(), os.Getpid()+1
+	writeSupervisorPID(t, spec, recordedPID)
+	sup := NewSupervisor(spec)
+	sup.alive = func(int) bool {
+		writeSupervisorPID(t, spec, replacementPID)
+		return false
+	}
+
+	if _, err := sup.Recover(context.Background()); RecoveryClass(err) != RecoveryStalePIDFile {
+		t.Fatalf("Recover error = %v", err)
+	}
+	pid, exists, err := pidfile.New(filepath.Join(spec.PIDDir, spec.Name+".pid")).Read()
+	if err != nil || !exists || pid != replacementPID {
+		t.Fatalf("replacement PID file = pid %d, exists %v, err %v", pid, exists, err)
+	}
+}
+
 func TestSupervisorStartStopLifecycle(t *testing.T) {
 	spec := fakeSpec(t, "server", "")
 	sup := NewSupervisor(spec)
