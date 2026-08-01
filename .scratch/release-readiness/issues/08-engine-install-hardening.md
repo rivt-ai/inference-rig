@@ -1,7 +1,7 @@
 # 08 — Harden engine installation and rollback
 
 Type: task
-Status: open
+Status: claimed
 Blocked by: none
 Milestone: A
 Roadmap: P1 #9
