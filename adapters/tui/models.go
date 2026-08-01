@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"fmt"
 	"image/color"
 	"slices"
@@ -270,17 +271,10 @@ func catalogTitle(data snapshot) string {
 // names a file inside a repository — while the source is what every profile
 // carries, so reading only the reference left the column blank for every
 // profile that points straight at a model.
-func profileModel(item *controlv1.Profile) string {
-	if reference := item.GetModelReference(); reference != "" {
-		return reference
-	}
-	return item.GetModelSource()
-}
-
 func (p *modelsPage) setRows(data snapshot) {
 	profiles := make([]table.Row, 0, len(data.profiles.GetProfiles()))
 	for _, item := range data.profiles.GetProfiles() {
-		row := table.Row{item.GetName(), item.GetBackend(), profileModel(item), profileRuntimeState(data.runtimes, item.GetName())}
+		row := table.Row{item.GetName(), item.GetBackend(), cmp.Or(item.GetModelReference(), item.GetModelSource()), profileRuntimeState(data.runtimes, item.GetName())}
 		if backendConflictReason(data.info, item) != "" {
 			for i := range row {
 				row[i] = mutedStyle.Render(row[i])
@@ -334,7 +328,10 @@ func (p *modelsPage) detail(width, height int, data snapshot) string {
 	case paneProfiles:
 		if item := selectedItem(data.profiles.GetProfiles(), p.profiles.Cursor()); item != nil {
 			state := profileRuntimeState(data.runtimes, item.GetName())
-			rows = []string{theme.StatusTitle(item.GetName(), state, accent, green, width), tuikit.Field("Backend", item.GetBackend()), tuikit.Field("Model", tuikit.TruncMiddle(profileModel(item), width-12)), tuikit.Field("Listen", fmt.Sprintf("%s:%d", item.GetHost(), item.GetPort()))}
+			rows = []string{theme.StatusTitle(item.GetName(), state, accent, green, width), tuikit.Field("Backend", item.GetBackend()), tuikit.Field("Model", tuikit.TruncMiddle(cmp.Or(item.GetModelReference(), item.GetModelSource()), width-12)), tuikit.Field("Listen", fmt.Sprintf("%s:%d", item.GetHost(), item.GetPort()))}
+			if reason := backendConflictReason(data.info, item); reason != "" {
+				rows = append(rows, warningStyle.Render(reason))
+			}
 		}
 	case paneCatalog:
 		rows = append(rows, mutedStyle.Render("/: search catalog · i: install selected backend"))
@@ -351,10 +348,10 @@ func (p *modelsPage) detail(width, height int, data snapshot) string {
 }
 
 func backendConflictReason(info *controlv1.GetInfoResponse, profile *controlv1.Profile) string {
-	if profile == nil || info.GetActiveBackend() == "" || info.GetActiveBackend() == profile.GetBackend() {
-		return ""
+	if active := info.GetActiveBackend(); profile != nil && active != "" && active != profile.GetBackend() {
+		return fmt.Sprintf("%s is active — reset to start %s profiles", active, profile.GetBackend())
 	}
-	return fmt.Sprintf("%s is active — reset to start %s profiles", info.GetActiveBackend(), profile.GetBackend())
+	return ""
 }
 
 func startNeedsReplace(data snapshot, target *controlv1.Profile) bool {

@@ -201,6 +201,9 @@ func TestModelsPageKeysRequestDownloadAndCancel(t *testing.T) {
 func TestProfilesOnAnotherBackendOfferResetInline(t *testing.T) {
 	page := newModelsPage()
 	data := snapshot{info: &controlv1.GetInfoResponse{ActiveBackend: "backend-a"}, profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Name: "coder", Backend: "backend-b"}}}}
+	if detail := page.detail(100, 8, data); !strings.Contains(detail, "backend-a is active — reset to start backend-b profiles") {
+		t.Fatalf("selected profile detail omitted conflict reason: %q", detail)
+	}
 	if cmd := page.Update(keyMsg("enter"), data); cmd != nil {
 		t.Fatal("the first Enter reset without confirmation")
 	}
