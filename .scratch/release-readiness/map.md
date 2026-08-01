@@ -175,6 +175,11 @@ research tickets do not.
   0%-covered function on a required path" clause has never been audited. The
   enforced coverage gate is **68** (in `e2e.yml`), not the Makefile's 65.
   Nothing in the repo claims hardware validation; no runs are recorded.
+- [20 — Render the active backend and replace in the UIs](issues/20-active-backend-in-the-uis.md)
+  — TUI and web now show the active backend and exact slot states, keep
+  cross-backend profiles visible but dimmed, offer a confirmed inline reset,
+  and confirm exclusive or incompatible-address replacement before sending
+  `replace: true`.
 
 ## Not yet specified
 
