@@ -30,6 +30,7 @@ var mutatingProcedures = map[string]struct{}{
 	controlv1connect.ControlServiceSetProfileAutostartProcedure:    {},
 	controlv1connect.ControlServiceSetStartupServicesProcedure:     {},
 	controlv1connect.ControlServiceInstallBackendProcedure:         {},
+	controlv1connect.ControlServiceRollbackBackendProcedure:        {},
 	controlv1connect.ControlServiceStartRuntimeProcedure:           {},
 	controlv1connect.ControlServiceStopRuntimeProcedure:            {},
 	controlv1connect.ControlServiceRestartRuntimeProcedure:         {},

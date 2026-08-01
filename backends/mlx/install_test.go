@@ -57,13 +57,26 @@ func TestInstallCreatesPinnedEnvironmentAndIsIdempotent(t *testing.T) {
 	if b.executable() != first.Path {
 		t.Fatalf("executable = %q", b.executable())
 	}
+}
+
+func TestInstallRecordsProvenance(t *testing.T) {
+	root := t.TempDir()
+	b := New(Options{
+		EngineRoot: root, Executable: "/usr/bin/python3", runner: &stubRunner{},
+		goos: "darwin", goarch: "arm64",
+	})
+	if _, err := b.Install(context.Background(), backends.InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
 	state, err := backends.ReadInstallState(root)
 	if err != nil || state.Active == nil {
 		t.Fatalf("state = %#v, err = %v", state, err)
 	}
 	record := *state.Active
-	if record.Backend != Name || record.Version != ManagedVersion || record.Source != "pypi:"+lockFileName ||
-		record.Platform != "darwin/arm64" || record.Digest == "" || record.InstalledAt.IsZero() {
+	if record.Backend != Name || record.Version != ManagedVersion || record.Source != "pypi:"+lockFileName {
+		t.Fatalf("record = %#v", record)
+	}
+	if record.Platform != "darwin/arm64" || record.Digest == "" || record.InstalledAt.IsZero() {
 		t.Fatalf("record = %#v", record)
 	}
 }

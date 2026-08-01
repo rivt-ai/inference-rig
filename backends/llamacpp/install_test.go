@@ -2,7 +2,6 @@ package llamacpp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -119,9 +118,6 @@ func TestRollbackRestoresPreviousInstall(t *testing.T) {
 	if _, err := b.Install(context.Background(), backends.InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.Rollback(context.Background()); !errors.Is(err, backends.ErrNoPreviousInstall) {
-		t.Fatalf("rollback with one install = %v, want ErrNoPreviousInstall", err)
-	}
 	if _, err := b.Install(context.Background(), backends.InstallOptions{Version: "b2", Upgrade: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -129,12 +125,28 @@ func TestRollbackRestoresPreviousInstall(t *testing.T) {
 	if err != nil || back.Version != "b1" || !back.Changed {
 		t.Fatalf("rollback = %#v, err = %v", back, err)
 	}
-	state, err := backends.ReadInstallState(root)
-	if err != nil || state.Active == nil || state.Active.Version != "b1" || state.Previous.Version != "b2" {
-		t.Fatalf("state after rollback = %#v, err = %v", state, err)
-	}
 	if exe, ok := b.installer.activeExecutable(); !ok || exe != back.Path {
 		t.Fatalf("activeExecutable = %q, %v; want %q", exe, ok, back.Path)
+	}
+}
+
+// TestRollbackIsItselfReversible: the two records swap rather than one being
+// dropped, so a rollback of a rollback returns the version it came from.
+func TestRollbackIsItselfReversible(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "engine")
+	b := New(Options{EngineRoot: root, Fetcher: stubFetcher{version: "b1"}})
+	if _, err := b.Install(context.Background(), backends.InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Install(context.Background(), backends.InstallOptions{Version: "b2", Upgrade: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Rollback(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	state, err := backends.ReadInstallState(root)
+	if err != nil || state.Active.Version != "b1" || state.Previous.Version != "b2" {
+		t.Fatalf("state after rollback = %#v, err = %v", state, err)
 	}
 	forward, err := b.Rollback(context.Background())
 	if err != nil || forward.Version != "b2" {

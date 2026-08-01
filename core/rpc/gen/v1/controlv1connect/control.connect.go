@@ -53,6 +53,9 @@ const (
 	// ControlServiceInstallBackendProcedure is the fully-qualified name of the ControlService's
 	// InstallBackend RPC.
 	ControlServiceInstallBackendProcedure = "/inferencerig.control.v1.ControlService/InstallBackend"
+	// ControlServiceRollbackBackendProcedure is the fully-qualified name of the ControlService's
+	// RollbackBackend RPC.
+	ControlServiceRollbackBackendProcedure = "/inferencerig.control.v1.ControlService/RollbackBackend"
 	// ControlServiceGetBackendInstallStatusProcedure is the fully-qualified name of the
 	// ControlService's GetBackendInstallStatus RPC.
 	ControlServiceGetBackendInstallStatusProcedure = "/inferencerig.control.v1.ControlService/GetBackendInstallStatus"
@@ -152,6 +155,11 @@ type ControlServiceClient interface {
 	PutProfile(context.Context, *v1.PutProfileRequest) (*v1.PutProfileResponse, error)
 	DeleteProfile(context.Context, *v1.DeleteProfileRequest) (*v1.DeleteProfileResponse, error)
 	InstallBackend(context.Context, *v1.InstallBackendRequest) (*v1.InstallBackendResponse, error)
+	// RollbackBackend returns a managed engine to its previously recorded
+	// installation.
+	// The response is InstallBackendResponse: a rollback reports the same thing
+	// an install does — which version is now active and where it lives.
+	RollbackBackend(context.Context, *v1.RollbackBackendRequest) (*v1.InstallBackendResponse, error)
 	GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error)
 	StartRuntime(context.Context, *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error)
 	StopRuntime(context.Context, *v1.StopRuntimeRequest) (*v1.StopRuntimeResponse, error)
@@ -242,6 +250,12 @@ func NewControlServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+ControlServiceInstallBackendProcedure,
 			connect.WithSchema(controlServiceMethods.ByName("InstallBackend")),
+			connect.WithClientOptions(opts...),
+		),
+		rollbackBackend: connect.NewClient[v1.RollbackBackendRequest, v1.InstallBackendResponse](
+			httpClient,
+			baseURL+ControlServiceRollbackBackendProcedure,
+			connect.WithSchema(controlServiceMethods.ByName("RollbackBackend")),
 			connect.WithClientOptions(opts...),
 		),
 		getBackendInstallStatus: connect.NewClient[v1.GetBackendInstallStatusRequest, v1.GetBackendInstallStatusResponse](
@@ -436,6 +450,7 @@ type controlServiceClient struct {
 	putProfile              *connect.Client[v1.PutProfileRequest, v1.PutProfileResponse]
 	deleteProfile           *connect.Client[v1.DeleteProfileRequest, v1.DeleteProfileResponse]
 	installBackend          *connect.Client[v1.InstallBackendRequest, v1.InstallBackendResponse]
+	rollbackBackend         *connect.Client[v1.RollbackBackendRequest, v1.InstallBackendResponse]
 	getBackendInstallStatus *connect.Client[v1.GetBackendInstallStatusRequest, v1.GetBackendInstallStatusResponse]
 	startRuntime            *connect.Client[v1.StartRuntimeRequest, v1.StartRuntimeResponse]
 	stopRuntime             *connect.Client[v1.StopRuntimeRequest, v1.StopRuntimeResponse]
@@ -525,6 +540,15 @@ func (c *controlServiceClient) DeleteProfile(ctx context.Context, req *v1.Delete
 // InstallBackend calls inferencerig.control.v1.ControlService.InstallBackend.
 func (c *controlServiceClient) InstallBackend(ctx context.Context, req *v1.InstallBackendRequest) (*v1.InstallBackendResponse, error) {
 	response, err := c.installBackend.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// RollbackBackend calls inferencerig.control.v1.ControlService.RollbackBackend.
+func (c *controlServiceClient) RollbackBackend(ctx context.Context, req *v1.RollbackBackendRequest) (*v1.InstallBackendResponse, error) {
+	response, err := c.rollbackBackend.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -798,6 +822,11 @@ type ControlServiceHandler interface {
 	PutProfile(context.Context, *v1.PutProfileRequest) (*v1.PutProfileResponse, error)
 	DeleteProfile(context.Context, *v1.DeleteProfileRequest) (*v1.DeleteProfileResponse, error)
 	InstallBackend(context.Context, *v1.InstallBackendRequest) (*v1.InstallBackendResponse, error)
+	// RollbackBackend returns a managed engine to its previously recorded
+	// installation.
+	// The response is InstallBackendResponse: a rollback reports the same thing
+	// an install does — which version is now active and where it lives.
+	RollbackBackend(context.Context, *v1.RollbackBackendRequest) (*v1.InstallBackendResponse, error)
 	GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error)
 	StartRuntime(context.Context, *v1.StartRuntimeRequest) (*v1.StartRuntimeResponse, error)
 	StopRuntime(context.Context, *v1.StopRuntimeRequest) (*v1.StopRuntimeResponse, error)
@@ -884,6 +913,12 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 		ControlServiceInstallBackendProcedure,
 		svc.InstallBackend,
 		connect.WithSchema(controlServiceMethods.ByName("InstallBackend")),
+		connect.WithHandlerOptions(opts...),
+	)
+	controlServiceRollbackBackendHandler := connect.NewUnaryHandlerSimple(
+		ControlServiceRollbackBackendProcedure,
+		svc.RollbackBackend,
+		connect.WithSchema(controlServiceMethods.ByName("RollbackBackend")),
 		connect.WithHandlerOptions(opts...),
 	)
 	controlServiceGetBackendInstallStatusHandler := connect.NewUnaryHandlerSimple(
@@ -1082,6 +1117,8 @@ func NewControlServiceHandler(svc ControlServiceHandler, opts ...connect.Handler
 			controlServiceDeleteProfileHandler.ServeHTTP(w, r)
 		case ControlServiceInstallBackendProcedure:
 			controlServiceInstallBackendHandler.ServeHTTP(w, r)
+		case ControlServiceRollbackBackendProcedure:
+			controlServiceRollbackBackendHandler.ServeHTTP(w, r)
 		case ControlServiceGetBackendInstallStatusProcedure:
 			controlServiceGetBackendInstallStatusHandler.ServeHTTP(w, r)
 		case ControlServiceStartRuntimeProcedure:
@@ -1177,6 +1214,10 @@ func (UnimplementedControlServiceHandler) DeleteProfile(context.Context, *v1.Del
 
 func (UnimplementedControlServiceHandler) InstallBackend(context.Context, *v1.InstallBackendRequest) (*v1.InstallBackendResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.InstallBackend is not implemented"))
+}
+
+func (UnimplementedControlServiceHandler) RollbackBackend(context.Context, *v1.RollbackBackendRequest) (*v1.InstallBackendResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("inferencerig.control.v1.ControlService.RollbackBackend is not implemented"))
 }
 
 func (UnimplementedControlServiceHandler) GetBackendInstallStatus(context.Context, *v1.GetBackendInstallStatusRequest) (*v1.GetBackendInstallStatusResponse, error) {

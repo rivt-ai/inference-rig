@@ -14,6 +14,11 @@ service ControlService {
   rpc PutProfile(PutProfileRequest) returns (PutProfileResponse);
   rpc DeleteProfile(DeleteProfileRequest) returns (DeleteProfileResponse);
   rpc InstallBackend(InstallBackendRequest) returns (InstallBackendResponse);
+  // RollbackBackend returns a managed engine to its previously recorded
+  // installation.
+  // The response is InstallBackendResponse: a rollback reports the same thing
+  // an install does — which version is now active and where it lives.
+  rpc RollbackBackend(RollbackBackendRequest) returns (InstallBackendResponse);
   rpc GetBackendInstallStatus(GetBackendInstallStatusRequest) returns (GetBackendInstallStatusResponse);
   rpc StartRuntime(StartRuntimeRequest) returns (StartRuntimeResponse);
   rpc StopRuntime(StopRuntimeRequest) returns (StopRuntimeResponse);
@@ -134,6 +139,7 @@ message InstallBackendResponse {
   bool changed = 4;
   string message = 5;
 }
+message RollbackBackendRequest { string backend = 1; }
 message GetBackendInstallStatusRequest { string backend = 1; }
 message GetBackendInstallStatusResponse {
   bool ok = 1;
