@@ -88,6 +88,7 @@ research tickets do not.
   already existed. `inferencerig config validate` calls the same function, so it
   agrees with startup by construction, and dials nothing. The invalid-security
   combination is left to ticket 09, which owns making it an error at all.
+- [03 — Decide backend concurrency semantics](issues/03-backend-concurrency-semantics.md)
   — No new contract surface: `SingleActiveProfile` + `RuntimeActivator` already
   distinguish exclusive (MLX) from router (llama.cpp) backends, and the manager
   simply starts honouring them. One backend active at a time globally; the
