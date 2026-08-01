@@ -83,6 +83,19 @@ describe('RuntimePanel dashboard', () => {
     expect(app.stopProfile).toHaveBeenCalledWith('qwen');
   });
 
+  // Confirming an action has to dismiss its own dialog: bits-ui's Action button
+  // is styling only and never closes the dialog for us, so a restart used to
+  // leave the operator staring at the confirmation they had already answered.
+  it('closes the confirmation once the action is taken', async () => {
+    const user = userEvent.setup();
+    const { app } = dashboard();
+    await user.click(screen.getByRole('button', { name: 'Restart' }));
+    await user.click(screen.getByRole('button', { name: 'Restart profile' }));
+    expect(app.restartProfile).toHaveBeenCalledWith('qwen');
+    await tick();
+    expect(screen.queryByText('Restart qwen?')).not.toBeInTheDocument();
+  });
+
   it('retains metrics while marking a failed refresh stale', async () => {
     const { state } = dashboard();
     state.signalsLastError = 'collector unavailable';

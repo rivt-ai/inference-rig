@@ -102,9 +102,10 @@
     if (!app.errorMessage) duplicateOpen = false;
   }
 
+  // Confirming closes the dialog itself, so there is nothing to hold open on a
+  // failure — a delete that fails reports through the shell's error banner.
   async function deleteProfile() {
     await app.deleteProfile();
-    if (!app.errorMessage) deleteOpen = false;
   }
 
   function removeRow(index: number) {
