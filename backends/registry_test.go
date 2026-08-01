@@ -40,3 +40,26 @@ func TestRegistryRegisterAndLookup(t *testing.T) {
 		t.Fatalf("names = %v, want [llamacpp mlx]", got)
 	}
 }
+
+// sharedBackend claims to serve several profiles at once without offering a way
+// to say which one, which leaves its runtime slot with no defined behaviour.
+type sharedBackend struct{ *backendtest.Fake }
+
+func (b *sharedBackend) Capabilities() backends.Capabilities {
+	capabilities := b.Fake.Capabilities()
+	capabilities.SingleActiveProfile = false
+	return capabilities
+}
+
+// A backend is either exclusive or a router. The registry is where that is
+// enforced, because a manager handed the third combination would have to guess
+// whether starting a second profile spawns, replaces or activates.
+func TestRegistryRejectsAMultiProfileBackendWithoutAnActivator(t *testing.T) {
+	r := backends.NewRegistry()
+	if err := r.Register(&sharedBackend{Fake: backendtest.New("shared")}); err == nil {
+		t.Fatal("backend serving several profiles without a RuntimeActivator accepted")
+	}
+	if _, ok := r.Lookup("shared"); ok {
+		t.Fatal("rejected backend reached the registry")
+	}
+}

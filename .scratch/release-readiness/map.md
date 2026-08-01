@@ -80,6 +80,14 @@ research tickets do not.
   `allow_exposed_without_auth`; posture shown in startup log, `/health`, TUI
   badge and a non-loopback-only web banner; redact credentials only, not paths
   or argv; `AllowedOrigin` becomes a list, no `X-Forwarded-*` trust.
+- [02 — Fail fast on invalid configuration](issues/02-fail-fast-config.md)
+  — One new function, `config.LoadOrDefault()`: defaults on `fs.ErrNotExist`
+  alone, every other error fails startup. Replaces the error-swallowing loads in
+  `bootstrap/service.go`, `cmd/web.go` and the TUI's `autostartServices` (whose
+  `os.IsNotExist` guard never fired against a wrapped error). Strict decoding
+  already existed. `inferencerig config validate` calls the same function, so it
+  agrees with startup by construction, and dials nothing. The invalid-security
+  combination is left to ticket 09, which owns making it an error at all.
 - [03 — Decide backend concurrency semantics](issues/03-backend-concurrency-semantics.md)
   — No new contract surface: `SingleActiveProfile` + `RuntimeActivator` already
   distinguish exclusive (MLX) from router (llama.cpp) backends, and the manager
@@ -89,6 +97,19 @@ research tickets do not.
   `runtimeSlot{process, profiles}` keyed by backend. No client can kill a
   running engine implicitly — conflict unless `replace: true`. Non-active
   backend profiles stay listed but render unstartable with the reason.
+- [04 — Explicit runtime state machine](issues/04-runtime-state-machine.md) —
+  `core/control/slot.go` owns one `runtimeSlot` with an explicit state
+  (`stopped`/`reconciling`/`starting`/`activating`/`running`/`stopping`/`failed`/
+  `orphaned`); the manager mutex is held only to reserve and commit, so a cold
+  start blocks neither status nor another profile's lifecycle call, and losers
+  get a typed conflict rather than a queue. Every transition carries an
+  operation ID, profile, backend and typed result into the event stream and
+  audit log. `replace`, `active_backend` and `ResetRuntimes` landed on the wire
+  (plus CLI `--replace`/`runtime reset` and the MCP equivalents), and the
+  registry now rejects a backend that is neither exclusive nor a router. A
+  router profile listening on a different address than the running process needs
+  `replace` too — ticket 03 had not spotted that the router binds the starting
+  profile's address.
 - [12 — Decide release identity, channels and signing](issues/12-release-identity.md)
   — Repo goes public before the first tag (it is private today, which would
   break the install one-liner and bill the macOS MLX job); first release is
@@ -100,6 +121,16 @@ research tickets do not.
   Apache-derived is in the tree — only `llamarig`/`mlxrig` licensing is left to
   confirm. `release.yml` already does more than expected, so ticket 14 shrinks.
 
+- [07 — Persist downloads and recover partial artifacts](issues/07-download-persistence.md)
+  — Job records persist atomically to `<home>/state/downloads` and
+  `Manager.Recover` reconciles at startup (re-queue, complete, or discard a
+  `.part`, each logged); a partial resumes only on a `206` whose
+  `Content-Range` matches, otherwise the transfer restarts; `ArtifactItem`
+  carries a SHA-256 that is verified before finalize and removes the artifact
+  on mismatch; MLX pins snapshot URIs to the repository commit
+  (`ArtifactPlan.Revision`) while llama.cpp's network-free `Resolve` stays
+  unpinned; scheme, host allowlist, redirect count and a max transfer size are
+  enforced on redirects as well as the first request.
 - [10 — Correct documentation and evidence levels](issues/10-docs-evidence-correction.md)
   — Four evidence levels defined and named (contract → control-stack →
   CI-tested → hardware), with platform support kept separate from

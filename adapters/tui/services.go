@@ -260,10 +260,7 @@ func processAction(name string, action int, args []string) error {
 
 func autostartServices() tea.Cmd {
 	return func() tea.Msg {
-		cfg, err := config.Load()
-		if os.IsNotExist(err) {
-			cfg, err = config.Default(), nil
-		}
+		cfg, err := config.LoadOrDefault()
 		if err != nil {
 			return actionMsg{err: err}
 		}

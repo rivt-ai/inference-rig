@@ -1,7 +1,7 @@
 # 13 — Research: release supply-chain toolchain
 
 Type: research
-Status: open
+Status: claimed
 Blocked by: none
 Milestone: B
 Roadmap: P0 #4

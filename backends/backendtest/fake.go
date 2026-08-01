@@ -155,12 +155,16 @@ func (f *Fake) InstallStatus(context.Context) (backends.InstallStatus, error) {
 	}, nil
 }
 
-// Capabilities advertises a single-file, discrete-VRAM, managed-install backend.
+// Capabilities advertises a single-file, discrete-VRAM, managed-install backend
+// that serves one profile at a time. Exclusive is the fake's default because it
+// implements no RuntimeActivator: a backend claiming to serve several profiles
+// without one has no defined runtime-slot behaviour and the registry rejects it.
 func (f *Fake) Capabilities() backends.Capabilities {
 	return backends.Capabilities{
 		SingleFileArtifacts: true,
 		DiscreteVRAM:        true,
 		ManagedInstall:      true,
+		SingleActiveProfile: true,
 	}
 }
 

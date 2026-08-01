@@ -87,6 +87,14 @@ func TestCanonicalControlStackWithBothBackends(t *testing.T) {
 		t.Fatalf("backends = %#v, err = %v", listed, err)
 	}
 	assertRuntime(t, ctx, client, "single")
+	// One backend serves at a time. A profile naming the other one conflicts
+	// rather than killing the running engine, and a reset is what switches.
+	if started, err := client.StartRuntime(ctx, &controlv1.StartRuntimeRequest{Profile: "snapshot"}); err == nil {
+		t.Fatalf("starting a second backend's profile without a reset = %#v", started)
+	}
+	if _, err := client.ResetRuntimes(ctx, &controlv1.ResetRuntimesRequest{}); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
 	assertRuntime(t, ctx, client, "snapshot")
 	single, err := client.ResolveProfileModel(ctx, &controlv1.ResolveProfileModelRequest{Profile: "single"})
 	if err != nil || single.GetPlan().GetMultiFile() {

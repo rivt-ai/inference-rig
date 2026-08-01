@@ -46,6 +46,7 @@ type Job struct {
 	ReceivedBytes int64   `json:"received_bytes"`
 	TotalBytes    int64   `json:"total_bytes"`
 	Percent       float64 `json:"percent"`
+	Revision      string  `json:"revision,omitempty"`
 	Error         string  `json:"error,omitempty"`
 	StartedAt     string  `json:"started_at,omitempty"`
 	CompletedAt   string  `json:"completed_at,omitempty"`

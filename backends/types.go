@@ -53,11 +53,13 @@ type Materialization struct {
 }
 
 // ArtifactRef is a concrete artifact a resolved model is composed of — one
-// file, identified neutrally by a fetch URI and a name.
+// file, identified neutrally by a fetch URI and a name. SHA256 is the catalog's
+// digest for the file when it publishes one; empty means unverifiable.
 type ArtifactRef struct {
 	Name      string
 	URI       string
 	SizeBytes int64
+	SHA256    string
 }
 
 // ResolvedModel is the outcome of mapping a profile's model source/reference to
@@ -72,22 +74,28 @@ type ResolvedModel struct {
 	Metadata  map[string]string
 }
 
-// ArtifactItem is one unit of a download plan.
+// ArtifactItem is one unit of a download plan. SHA256, when set, is verified
+// before the artifact is accepted.
 type ArtifactItem struct {
 	URI        string
 	Filename   string
 	TargetPath string
 	SizeBytes  int64
+	SHA256     string
 }
 
 // ArtifactPlan is a neutral, executor-ready download plan. It covers both a
 // single-file artifact (one item) and a multi-file snapshot (many items) with
 // no engine branch; the Phase-8 download executor consumes this type.
+// Revision is the immutable repository revision the items were pinned to, when
+// the source repository has one; a plan without it fetches whatever the source
+// serves now.
 type ArtifactPlan struct {
 	MultiFile  bool
 	TargetRoot string
 	Items      []ArtifactItem
 	TotalBytes int64
+	Revision   string
 }
 
 // HostResources describes the machine a fit estimate runs against. It carries
