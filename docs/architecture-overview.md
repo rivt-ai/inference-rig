@@ -146,5 +146,5 @@ See `config.example.yaml`.
   `test/e2e/`. What each layer does and does not prove is defined in
   `docs/hardware-validation.md`.
 
-Related docs: `docs/porting-matrix.md`, `docs/hardware-validation.md`,
-`docs/system-coverage-and-e2e-plan.md`, `docs/agents/`.
+Related docs: `docs/hardware-validation.md`, `docs/reverse-proxy.md`,
+`docs/agents/`.

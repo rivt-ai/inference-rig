@@ -58,7 +58,7 @@ func (w *Wizard) run(ctx context.Context, input io.Reader, output io.Writer, for
 	if !interactive(input, output) {
 		return Result{}, fmt.Errorf(
 			"no %s config found at %s; run `%s setup` in an interactive terminal",
-			config.ProjectDisplayName, paths.Config, config.ProjectName,
+			config.ProjectDisplayName, paths.Config, config.CommandName,
 		)
 	}
 	if exists {
@@ -100,7 +100,7 @@ func printSummary(output io.Writer, paths Paths, write filedoc.WriteResult) {
 			"  1. Open `%s` to use the TUI, or the web interface\n"+
 			"  2. Create a profile and download a model for it\n"+
 			"  3. Start the profile from the TUI, CLI, or web interface\n",
-		config.ProjectDisplayName, paths.Config, config.ProjectName,
+		config.ProjectDisplayName, paths.Config, config.CommandName,
 	)
 	if write.BackupPath != "" {
 		_, _ = fmt.Fprintf(output, "\nPrevious config backup: %s\n", write.BackupPath)
