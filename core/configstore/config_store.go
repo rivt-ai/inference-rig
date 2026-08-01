@@ -105,14 +105,32 @@ func removeProfileAutostart(current *yaml.Node, name string) bool {
 
 // mutateDocument applies mutate to the parsed config.yaml document and, when
 // it reports a change, validates and atomically rewrites the file preserving
-// comments and formatting.
+// comments and formatting. The file must already be valid: an ordinary edit
+// has no business rewriting a config nobody has diagnosed.
 func (s *FileStore) mutateDocument(ctx context.Context, mutate func(*yaml.Node) bool) (WriteResult, error) {
+	return s.applyDocument(ctx, mutate, true)
+}
+
+// Repair applies mutate to a config.yaml that does not currently load, then
+// validates the result before writing. It is how a diagnostic fixes the file
+// that is actually broken — the one mutateDocument refuses to touch.
+//
+// The output is still validated, so a repair cannot leave the file worse than
+// it found it. It cannot fix YAML syntax errors: the document must still parse
+// into a node tree for a mutation to have anything to act on.
+func (s *FileStore) Repair(ctx context.Context, mutate func(*yaml.Node) bool) (WriteResult, error) {
+	return s.applyDocument(ctx, mutate, false)
+}
+
+func (s *FileStore) applyDocument(
+	ctx context.Context, mutate func(*yaml.Node) bool, requireLoadable bool,
+) (WriteResult, error) {
 	if err := ctx.Err(); err != nil {
 		return WriteResult{}, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, data, _, err := s.readParsed()
+	data, err := s.readForMutation(requireLoadable)
 	if err != nil {
 		return WriteResult{}, err
 	}
@@ -202,6 +220,31 @@ func (s *FileStore) Validate(_ context.Context, content string) error {
 		return fmt.Errorf("%w: %w", ErrMalformed, err)
 	}
 	return nil
+}
+
+// readForMutation returns the raw file, optionally insisting it currently
+// loads. Repair skips that precondition; the output check in applyDocument is
+// what actually guards the write.
+func (s *FileStore) readForMutation(requireLoadable bool) ([]byte, error) {
+	if requireLoadable {
+		_, data, _, err := s.readParsed()
+		return data, err
+	}
+	info, err := os.Stat(s.path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("config.yaml not found: %w", err)
+		}
+		return nil, fmt.Errorf("stat config.yaml: %w", err)
+	}
+	if info.Size() > s.limitBytes {
+		return nil, ErrTooLarge
+	}
+	data, err := os.ReadFile(s.path)
+	if err != nil {
+		return nil, fmt.Errorf("read config.yaml: %w", err)
+	}
+	return data, nil
 }
 
 func (s *FileStore) readParsed() (os.FileInfo, []byte, config.Config, error) {
