@@ -211,12 +211,17 @@ func (p *modelsPage) destroy(data snapshot, confirm bool) tea.Cmd {
 func requestCmd(request rpcRequest) tea.Cmd { return func() tea.Msg { return request } }
 
 func (p *modelsPage) createProfile(data snapshot) tea.Cmd {
+	backend := p.backend(data.backends)
 	model := selectedItem(data.local.GetModels(), p.local.Cursor())
-	if p.active != paneLocal || model == nil {
+	if p.active != paneLocal || model == nil || data.localBackend != backend {
 		return nil
 	}
+	port, err := nextProfilePort(data.profiles.GetProfiles())
+	if err != nil {
+		return func() tea.Msg { return actionMsg{err: err} }
+	}
 	path := model.GetPath()
-	profile := &controlv1.Profile{Name: fmt.Sprintf("model-%08x", crc32.ChecksumIEEE([]byte(path))), Backend: p.backend(data.backends), ModelSource: path, Host: "127.0.0.1", Port: nextProfilePort(data.profiles.GetProfiles())}
+	profile := &controlv1.Profile{Name: fmt.Sprintf("model-%08x", crc32.ChecksumIEEE([]byte(path))), Backend: backend, ModelSource: path, Host: "127.0.0.1", Port: port}
 	return requestCmd(rpcRequest{kind: rpcPutProfile, create: profile, notice: "profile created"})
 }
 
@@ -230,9 +235,7 @@ func (p *modelsPage) restart(data snapshot) tea.Cmd {
 	})
 }
 
-func (p *modelsPage) disarm() {
-	p.status.Disarm()
-}
+func (p *modelsPage) disarm() { p.status.Disarm() }
 
 func (p *modelsPage) complete(msg actionMsg) {
 	if msg.err != nil || msg.notice != "" {
@@ -403,13 +406,19 @@ func profileRuntimeState(runtimes *controlv1.GetRuntimeStatusResponse, name stri
 	return "Stopped"
 }
 
-func nextProfilePort(items []*controlv1.Profile) int32 {
-	for port := int32(8080); port <= 65535; port++ {
-		if !slices.ContainsFunc(items, func(item *controlv1.Profile) bool { return item.GetPort() == port }) {
-			return port
+func nextProfilePort(items []*controlv1.Profile) (int32, error) {
+	used := make([]bool, 65536)
+	for _, item := range items {
+		if port := item.GetPort(); port >= 8080 && port <= 65535 {
+			used[port] = true
 		}
 	}
-	return 8080
+	for port := int32(8080); port <= 65535; port++ {
+		if !used[port] {
+			return port, nil
+		}
+	}
+	return 0, fmt.Errorf("no available profile port")
 }
 
 func selectedItem[T any](items []T, index int) T { item, _ := selected(items, index); return item }

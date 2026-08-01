@@ -32,6 +32,7 @@ type snapshot struct {
 	profiles                      *controlv1.ListProfilesResponse
 	catalog                       *controlv1.ListModelCatalogResponse
 	local                         *controlv1.ListLocalModelsResponse
+	localBackend                  string
 	signals                       *controlv1.GetSignalsResponse
 	events                        *controlv1.ListEventsResponse
 	downloads                     []*controlv1.ModelDownload
@@ -271,7 +272,7 @@ func (d *dashboard) applyPoll(result pollResult) {
 	// The catalog arrives on its own command, so a poll never carries one.
 	next.catalog, next.catalogPending = current.catalog, current.catalogPending
 	if !result.ok["local"] {
-		next.local = current.local
+		next.local, next.localBackend = current.local, current.localBackend
 	}
 	if !result.ok["signals"] {
 		next.signals = current.signals
@@ -372,7 +373,7 @@ func poll(ctx context.Context, client controlv1connect.ControlServiceClient, bac
 		defer cancel()
 		p := &poller{
 			ctx: pollCtx, client: client, backend: backend,
-			result: pollResult{value: snapshot{warnings: map[string]string{}, refreshed: time.Now(), downloads: downloads}, ok: map[string]bool{}},
+			result: pollResult{value: snapshot{warnings: map[string]string{}, refreshed: time.Now(), downloads: downloads, localBackend: backend}, ok: map[string]bool{}},
 		}
 		if !local {
 			p.result.ok["logs"] = true

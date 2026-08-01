@@ -123,9 +123,10 @@ func TestModelsPageCreatesAValidNeutralProfile(t *testing.T) {
 	page := newModelsPage()
 	page.active = paneLocal
 	data := snapshot{
-		backends: &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "neutral"}}},
-		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Port: 8080}}},
-		local:    &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: "/models/demo"}}},
+		backends:     &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "neutral"}}},
+		profiles:     &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Port: 8080}}},
+		local:        &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: "/models/demo"}}},
+		localBackend: "neutral",
 	}
 	request := page.Update(keyMsg("n"), data)().(rpcRequest)
 	if request.kind != rpcPutProfile || request.create.GetBackend() != "neutral" || request.create.GetModelSource() != "/models/demo" || request.create.GetHost() != "127.0.0.1" || request.create.GetPort() != 8081 {
@@ -133,6 +134,46 @@ func TestModelsPageCreatesAValidNeutralProfile(t *testing.T) {
 	}
 	if err := profiles.ValidateName(request.create.GetName()); err != nil {
 		t.Fatalf("generated profile name is invalid: %v", err)
+	}
+}
+
+func TestBackendSwitchCannotCreateFromStaleLocalRows(t *testing.T) {
+	page := newModelsPage()
+	page.active = paneLocal
+	data := snapshot{
+		backends:     &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "old"}, {Name: "new"}}},
+		local:        &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: "/old/model"}}},
+		localBackend: "old",
+	}
+	page.Update(keyMsg("]"), data)
+	if cmd := page.Update(keyMsg("n"), data); cmd != nil {
+		t.Fatalf("stale local row produced request %#v", cmd())
+	}
+}
+
+func TestNextProfilePortReportsExhaustion(t *testing.T) {
+	profiles := make([]*controlv1.Profile, 0, 65535-8080+1)
+	for port := int32(8080); port <= 65535; port++ {
+		profiles = append(profiles, &controlv1.Profile{Port: port})
+	}
+	if port, err := nextProfilePort(profiles); err == nil || port != 0 {
+		t.Fatalf("exhausted ports returned port=%d err=%v", port, err)
+	}
+	page := newModelsPage()
+	page.active = paneLocal
+	cmd := page.Update(keyMsg("n"), snapshot{
+		backends:     &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "neutral"}}},
+		profiles:     &controlv1.ListProfilesResponse{Profiles: profiles},
+		local:        &controlv1.ListLocalModelsResponse{Models: []*controlv1.LocalModel{{Path: "/models/demo"}}},
+		localBackend: "neutral",
+	})
+	if msg := cmd().(actionMsg); !strings.Contains(msg.err.Error(), "no available profile port") {
+		t.Fatalf("exhaustion warning = %v", msg.err)
+	}
+
+	profiles = profiles[:len(profiles)-1]
+	if port, err := nextProfilePort(profiles); err != nil || port != 65535 {
+		t.Fatalf("last available port=%d err=%v", port, err)
 	}
 }
 
