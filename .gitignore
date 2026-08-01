@@ -42,7 +42,7 @@ $RECYCLE.BIN/
 
 # ─── Go ─────────────────────────────────────────────────────
 # Binaries and build output
-inferencerig
+/inferencerig
 .inferencerig
 custom-golangci-lint
 /dist/
@@ -65,6 +65,8 @@ coverage.html
 *.pprof
 cpu.out
 mem.out
+# Coverage reports and provisioned E2E fixtures
+artifacts/
 # Go workspace / vendor / env
 go.work
 go.work.sum
@@ -74,17 +76,21 @@ vendor/
 !.env.example
 
 # ─── Generated protobuf / buf code ──────────────────────────
-core/rpc/gen/v1
 webui/web/src/lib/gen/
 
 # ─── Web UI (Svelte / Vite / pnpm) ──────────────────────────
 node_modules/
-webui/dist/
 webui/node_modules/
 webui/screenshots/
 webui/.svelte-kit/
 webui/.vite/
 webui/build/
+# The build output is not committed, but the directory must survive a fresh
+# clone: `//go:embed all:dist` fails to compile against a missing directory.
+# Excluding `webui/dist/` itself would make the negation below unreachable, so
+# the contents are excluded instead.
+webui/dist/*
+!webui/dist/.gitkeep
 webui/coverage/
 webui/playwright-report/
 webui/test-results/

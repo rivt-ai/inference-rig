@@ -1,0 +1,57 @@
+.PHONY: build test lint lint-ci verify generate webui coverage e2e e2e-browser e2e-live-mlx
+
+CUSTOM_LINT ?= ./custom-golangci-lint
+
+# Minimum scoped coverage over hand-written Go production code. Ratchet this
+# value rather than editing scripts/go-coverage.sh.
+GO_COVERAGE_MIN ?= 65
+
+custom-golangci-lint: .custom-gcl.yml
+	golangci-lint custom
+
+build:
+	go build ./...
+
+test:
+	go test ./...
+
+lint: custom-golangci-lint
+	$(CUSTOM_LINT) run ./...
+
+lint-ci: lint
+
+verify: test lint
+
+generate:
+	buf generate
+
+webui:
+	cd webui && pnpm run build
+
+coverage:
+	GO_COVERAGE_MIN=$(GO_COVERAGE_MIN) ./scripts/go-coverage.sh
+
+# Provision the pinned llama.cpp build and GGUF model, then run the compiled
+# process E2E against them. Provisioning failure is fatal by design.
+#
+# The web app is a prerequisite because the gateway test asserts the real built
+# shell is served; a conditional assertion there would be the same silent skip
+# this suite exists to remove.
+e2e: webui
+	eval "$$(./scripts/provision-e2e-llamacpp.sh)" && \
+		go test -tags=e2e ./test/e2e -count=1 -timeout=15m
+
+# One Chromium workflow against the same real harness. Kept separate from
+# `make e2e` because it additionally needs Playwright's browser download.
+e2e-browser: webui
+	eval "$$(./scripts/provision-e2e-llamacpp.sh)" && \
+		go test -tags="e2e e2ebrowser" ./test/e2e -run TestBrowserProfileLifecycle -count=1 -timeout=20m
+
+# Apple Silicon hardware validation. It lives behind its own target and build
+# tag so selecting it can never turn the llama.cpp suite into a skip, or the
+# reverse.
+e2e-live-mlx: webui
+	go test -tags=e2emlx ./test/e2e -count=1 -timeout=15m
+
+analyze:
+	go tool sizeanalyzer -html report.html
