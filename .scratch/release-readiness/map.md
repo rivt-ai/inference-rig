@@ -100,6 +100,17 @@ research tickets do not.
   Apache-derived is in the tree — only `llamarig`/`mlxrig` licensing is left to
   confirm. `release.yml` already does more than expected, so ticket 14 shrinks.
 
+- [08 — Harden engine installation and rollback](issues/08-engine-install-hardening.md)
+  — One neutral `backends.InstallRecord` (source, version, digest, platform,
+  accelerator, time) at `${INFERENCERIG_HOME}/engine/<backend>/state.json`,
+  active + previous, replacing both backends' bespoke state shapes; this is what
+  the release receipt and `doctor` read. llama.cpp extracts with `archive/tar`
+  and rejects traversal, escaping links and non-plain modes; a staged binary must
+  answer `--version` before it is activated. MLX installs an embedded
+  `requirements.lock` with `--no-deps` into a version-scoped venv and refuses any
+  version it has no lock for. `Backend.Rollback` joins the contract interface and
+  ships as `backend rollback <backend>`.
+
 ## Not yet specified
 
 Milestone C (operational quality) is in scope but not yet sharp — each item

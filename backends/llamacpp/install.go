@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"inferencerig/backends"
-	"inferencerig/config"
 )
 
 // Accel is a llama.cpp compute backend (accelerator) selection.
@@ -94,11 +93,7 @@ func (i *installer) resolveRoot() (string, error) {
 	if i.root != "" {
 		return i.root, nil
 	}
-	home, err := config.Home()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, "engine", Name), nil
+	return backends.EngineRoot(Name)
 }
 
 // activeExecutable returns the path of the active managed router binary, if any.

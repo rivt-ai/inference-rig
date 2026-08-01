@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"inferencerig/config"
 	"inferencerig/platform/filedoc"
 )
 
@@ -51,6 +52,18 @@ type InstallRecord struct {
 type InstallState struct {
 	Active   *InstallRecord `json:"active,omitempty"`
 	Previous *InstallRecord `json:"previous,omitempty"`
+}
+
+// EngineRoot is where backend name keeps its managed install and its state
+// document. It is shared rather than per-backend so anything reading install
+// records — a release receipt, diagnostics — can find them from the backend
+// name alone.
+func EngineRoot(name string) (string, error) {
+	home, err := config.Home()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, "engine", name), nil
 }
 
 // ReadInstallState decodes root/state.json. A missing file yields the zero
