@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"inferencerig/bootstrap"
 	"inferencerig/core/doctor"
 	"inferencerig/core/rpc"
 	controlv1 "inferencerig/core/rpc/gen/v1"
@@ -34,9 +35,10 @@ func (h healthClient) Health(ctx context.Context) error {
 }
 
 type doctorFlags struct {
-	asJSON  bool
-	fix     bool
-	fixWith string
+	asJSON       bool
+	fix          bool
+	fixWith      string
+	verifyModels bool
 }
 
 func doctorCommand(validate func(context.Context) error) *cobra.Command {
@@ -55,6 +57,8 @@ func doctorCommand(validate func(context.Context) error) *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&flags.asJSON, "json", false, "print the report as JSON")
+	command.Flags().BoolVar(&flags.verifyModels, "verify-models", false,
+		"re-hash model files against their recorded digests (reads every byte of model storage)")
 	command.Flags().BoolVar(&flags.fix, "fix", false, "choose a repair interactively")
 	command.Flags().StringVar(&flags.fixWith, "fix-with", "",
 		"apply a named repair without prompting ("+strings.Join(doctor.RemedyIDs(), ", ")+")")
@@ -67,7 +71,7 @@ func doctorCommand(validate func(context.Context) error) *cobra.Command {
 }
 
 func runDoctor(command *cobra.Command, validate func(context.Context) error, flags doctorFlags) error {
-	report, err := diagnose(command, validate)
+	report, err := diagnose(command, validate, flags)
 	if err != nil {
 		return err
 	}
@@ -83,10 +87,14 @@ func runDoctor(command *cobra.Command, validate func(context.Context) error, fla
 	return nil
 }
 
-func diagnose(command *cobra.Command, validate func(context.Context) error) (doctor.Report, error) {
+func diagnose(
+	command *cobra.Command, validate func(context.Context) error, flags doctorFlags,
+) (doctor.Report, error) {
 	return doctor.NewRunner(doctor.Options{
 		ValidateConfig: validate,
 		DialControl:    dialHealth,
+		Inventory:      bootstrap.Inventory,
+		VerifyModels:   flags.verifyModels,
 	}).Run(command.Context())
 }
 
@@ -114,7 +122,7 @@ func fixAndRediagnose(
 	command.Printf("\nApplied %s to %s\n  previous version saved to %s\n\n",
 		result.RemedyID, report.ConfigPath, result.BackupPath)
 
-	after, err := diagnose(command, validate)
+	after, err := diagnose(command, validate, flags)
 	if err != nil {
 		return err
 	}

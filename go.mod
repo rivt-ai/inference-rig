@@ -9,6 +9,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.2
 	connectrpc.com/connect v1.20.0
 	github.com/antonikliment/tuikit v0.2.2
+	github.com/dustin/go-humanize v1.0.1
 	github.com/shirou/gopsutil/v4 v4.26.4
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/term v0.45.0
@@ -62,7 +63,6 @@ require (
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect

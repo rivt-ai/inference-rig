@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"inferencerig/backends"
+	"inferencerig/core/modelcatalog"
 	"inferencerig/platform/filedoc"
 )
 
@@ -271,7 +272,16 @@ func (m *Manager) downloadItem(ctx context.Context, id string, item backends.Art
 	if item.SizeBytes > 0 && total != item.SizeBytes {
 		return fmt.Errorf("artifact size %d differs from expected %d", total, item.SizeBytes)
 	}
-	return verifyDigest(destination, item.SHA256)
+	if err := verifyDigest(destination, item.SHA256); err != nil {
+		return err
+	}
+	// The digest was just proven against this file. Keeping it is what lets a
+	// later integrity check verify anything; recomputing it here costs nothing
+	// because the check above already read the whole file.
+	if strings.HasPrefix(item.SHA256, "sha256:") {
+		return modelcatalog.RecordDigest(destination, strings.TrimPrefix(item.SHA256, "sha256:"))
+	}
+	return modelcatalog.RecordDigest(destination, item.SHA256)
 }
 
 // resumeOffset reports where the transfer continues: offset when the server

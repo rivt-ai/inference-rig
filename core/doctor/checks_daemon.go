@@ -2,13 +2,16 @@ package doctor
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"inferencerig/config"
+	"inferencerig/core/control"
 	"inferencerig/platform/audit"
 	"inferencerig/platform/pidfile"
 	"inferencerig/platform/process"
@@ -19,6 +22,9 @@ import (
 const socketDialTimeout = 500 * time.Millisecond
 
 const startCommand = "inferencerig serve --detach"
+
+// recentFailureLimit bounds what the report shows; the journal keeps more.
+const recentFailureLimit = 5
 
 // checkPIDFile distinguishes "not running" from "recorded as running, and
 // isn't" — the second means the daemon died rather than being stopped, which is
@@ -149,4 +155,37 @@ func checkRecentLog(_ context.Context, e *env) Check {
 // in the run directory.
 func pidFilePath(paths config.Paths) string {
 	return filepath.Join(filepath.Dir(paths.ControlSocket), config.ProjectName+".pid")
+}
+
+// checkRecentFailures reads the on-disk failure journal.
+//
+// It reads the file directly rather than asking the daemon, which is the whole
+// point: the daemon's in-memory event history is gone after a restart, and a
+// diagnostic runs precisely when the daemon is not there to ask.
+func checkRecentFailures(_ context.Context, e *env) Check {
+	const id, title = "failures.recent", "recent failures"
+	path, err := config.FailureJournalPath()
+	if err != nil {
+		return skip(id, title, "the failure journal could not be located")
+	}
+	entries, err := control.NewFileJournal(path, 0).Recent(recentFailureLimit)
+	if err != nil {
+		return skip(id, title, "the failure journal could not be read").withDetail(err.Error())
+	}
+	if len(entries) == 0 {
+		return ok(id, title, "none recorded")
+	}
+	lines := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		line := entry.Time.Local().Format(time.RFC3339) + "  " + entry.Action
+		if entry.Profile != "" {
+			line += " " + entry.Profile
+		}
+		if entry.Detail != "" {
+			line += ": " + entry.Detail
+		}
+		lines = append(lines, line)
+	}
+	return warn(id, title, fmt.Sprintf("%d recorded", len(entries))).
+		withDetail(path + "\n" + strings.Join(lines, "\n"))
 }

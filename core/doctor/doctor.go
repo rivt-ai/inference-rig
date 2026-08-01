@@ -12,6 +12,7 @@ package doctor
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"inferencerig/config"
@@ -29,6 +30,12 @@ type Options struct {
 	ValidateConfig func(context.Context) error
 	// DialControl reaches a running daemon. Nil means daemon checks skip.
 	DialControl func(socket string) (HealthChecker, error)
+	// Inventory answers what only the backend registry can: engine installs,
+	// accelerators and model storage. Nil skips those checks.
+	Inventory func(context.Context, bool) (Inventory, error)
+	// VerifyModels re-hashes model files against their recorded digests. Off by
+	// default: it reads every byte of storage that can run to hundreds of GB.
+	VerifyModels bool
 	// Now defaults to time.Now.
 	Now func() time.Time
 }
@@ -52,6 +59,19 @@ type env struct {
 	cfg     config.Config
 	loadErr error
 	opts    Options
+
+	// The inventory is built once and shared: three checks read it, and
+	// probing accelerators shells out to nvidia-smi.
+	inventoryOnce sync.Once
+	inventoryVal  Inventory
+	inventoryErr  error
+}
+
+func (e *env) inventory(ctx context.Context) (Inventory, error) {
+	e.inventoryOnce.Do(func() {
+		e.inventoryVal, e.inventoryErr = e.opts.Inventory(ctx, e.opts.VerifyModels)
+	})
+	return e.inventoryVal, e.inventoryErr
 }
 
 type check func(context.Context, *env) Check
@@ -70,6 +90,10 @@ func NewRunner(opts Options) *Runner {
 		checkSocket,
 		checkDaemonReachable,
 		checkRecentLog,
+		checkRecentFailures,
+		checkEngines,
+		checkAccelerators,
+		checkModels,
 	}}
 }
 
