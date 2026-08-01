@@ -180,3 +180,26 @@ func assertBackupWritten(t *testing.T, path string) {
 		t.Errorf("backup missing: %v", err)
 	}
 }
+
+// A newly added key is annotated so the operator can tell later what changed
+// the file. The annotation has to introduce the key, not trail it — a
+// HeadComment set on the value of a mapping pair is emitted after the "key:".
+func TestRepairAnnotatesAnAddedKeyAboveIt(t *testing.T) {
+	store, path := newBrokenStore(t)
+	if _, err := store.RepairAllowExposed(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := strings.Split(readFile(t, path), "\n")
+	for i, line := range lines {
+		if !strings.Contains(line, "allow_exposed_without_auth") {
+			continue
+		}
+		if i == 0 || !strings.Contains(lines[i-1], "doctor --fix") {
+			t.Fatalf("the annotation does not precede the key it explains:\n%s",
+				strings.Join(lines, "\n"))
+		}
+		return
+	}
+	t.Fatal("allow_exposed_without_auth was not added")
+}

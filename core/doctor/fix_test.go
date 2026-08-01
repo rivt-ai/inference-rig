@@ -118,7 +118,7 @@ func TestWriteRemedyOptionsCarriesLiteralEdits(t *testing.T) {
 	}
 	text := out.String()
 	for _, want := range []string{
-		"listen_addr: 127.0.0.1:7000",
+		"listen_addr: 127.0.0.1:0",
 		"disable_auth: false",
 		"allow_exposed_without_auth: true",
 		"--fix-with=bind-loopback",

@@ -32,7 +32,9 @@ func runDoctorCommand(t *testing.T, body string, args ...string) (string, error)
 }
 
 // The exact configuration that motivated this command.
-const brokenConfig = "listen_addr: \"0.0.0.0:7000\"\nsecurity: {disable_auth: true}\n"
+// Port 0 keeps the port check deterministic; a fixed port is free or taken
+// depending on what else this machine happens to be running.
+const brokenConfig = "listen_addr: \"0.0.0.0:0\"\nsecurity: {disable_auth: true}\n"
 
 func TestDoctorCommandDiagnosesBrokenConfig(t *testing.T) {
 	output, err := runDoctorCommand(t, brokenConfig)
@@ -41,7 +43,7 @@ func TestDoctorCommandDiagnosesBrokenConfig(t *testing.T) {
 		t.Fatal("doctor exited 0 with a config the daemon would reject")
 	}
 	text := output
-	for _, want := range []string{"[FAIL]", "127.0.0.1:7000", "disable_auth: false", "allow_exposed_without_auth"} {
+	for _, want := range []string{"[FAIL]", "127.0.0.1:0", "disable_auth: false", "allow_exposed_without_auth"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("output missing %q:\n%s", want, text)
 		}
@@ -49,7 +51,7 @@ func TestDoctorCommandDiagnosesBrokenConfig(t *testing.T) {
 }
 
 func TestDoctorCommandExitsZeroOnHealthyInstall(t *testing.T) {
-	output, err := runDoctorCommand(t, "listen_addr: \"127.0.0.1:7000\"\n")
+	output, err := runDoctorCommand(t, "listen_addr: \"127.0.0.1:0\"\n")
 
 	if err != nil {
 		t.Fatalf("doctor err = %v, want nil:\n%s", err, output)
@@ -118,7 +120,7 @@ func TestDoctorFixWithRepairsTheConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(body), "127.0.0.1:7000") {
+	if !strings.Contains(string(body), "127.0.0.1:0") {
 		t.Errorf("config was not repaired:\n%s", body)
 	}
 	// The operator is shown the result, not just told a write happened.

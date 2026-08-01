@@ -34,7 +34,7 @@ func checkConfigValid(ctx context.Context, e *env) Check {
 		// The one failure with known, named ways out.
 		return fail(exposedWithoutAuthID, title, "authentication is disabled on a bind that reaches the network").
 			withDetail(err.Error()).
-			withRemedies(exposureRemedies(e.cfg.ListenAddr)...)
+			withRemedies(exposureRemedies(e.listenAddr())...)
 	default:
 		return fail(exposedWithoutAuthID, title, "startup would reject this configuration").
 			withDetail(err.Error())

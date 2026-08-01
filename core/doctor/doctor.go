@@ -12,8 +12,11 @@ package doctor
 
 import (
 	"context"
+	"os"
 	"sync"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"inferencerig/config"
 )
@@ -121,4 +124,28 @@ func (r *Runner) Run(ctx context.Context) (Report, error) {
 		report.Counts[result.Status]++
 	}
 	return report, nil
+}
+
+// listenAddr is the address the config actually names, which is not always what
+// cfg holds: a config that fails validation comes back as the zero value, and
+// reporting the compiled-in default there would show a remedy naming a port the
+// operator never configured — while the repair, which reads the file, changed a
+// different one.
+func (e *env) listenAddr() string {
+	if e.loadErr == nil && e.cfg.ListenAddr != "" {
+		return e.cfg.ListenAddr
+	}
+	data, err := os.ReadFile(e.paths.Config)
+	if err != nil {
+		return e.cfg.ListenAddr
+	}
+	// Decoded without validation and without KnownFields: the file is already
+	// known to be invalid, and only this one field is being read.
+	var raw struct {
+		ListenAddr string `yaml:"listen_addr"`
+	}
+	if err := yaml.Unmarshal(data, &raw); err != nil || raw.ListenAddr == "" {
+		return e.cfg.ListenAddr
+	}
+	return raw.ListenAddr
 }

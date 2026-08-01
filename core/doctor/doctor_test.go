@@ -15,9 +15,13 @@ import (
 
 // brokenConfig is the failure this package was built for: authentication off
 // on a bind that reaches the network.
-const brokenConfig = "listen_addr: \"0.0.0.0:7000\"\nsecurity: {disable_auth: true}\n"
+//
+// Port 0 rather than a real one so the port check is deterministic: net.Listen
+// always succeeds on 0, where any fixed port is free or taken depending on what
+// else the machine happens to be running.
+const brokenConfig = "listen_addr: \"0.0.0.0:0\"\nsecurity: {disable_auth: true}\n"
 
-const healthyConfig = "listen_addr: \"127.0.0.1:7000\"\n"
+const healthyConfig = "listen_addr: \"127.0.0.1:0\"\n"
 
 func writeConfig(t *testing.T, body string) string {
 	t.Helper()
@@ -85,7 +89,7 @@ func TestDoctorReportsExposedWithoutAuthWithAllThreeRemedies(t *testing.T) {
 		t.Errorf("remedies = %v, want %v", ids, want)
 	}
 	// The loopback remedy must keep the configured port, not reset it.
-	if edit := check.Remedies[0].ConfigEdit; !strings.Contains(edit, "127.0.0.1:7000") {
+	if edit := check.Remedies[0].ConfigEdit; !strings.Contains(edit, "127.0.0.1:0") {
 		t.Errorf("loopback remedy = %q, want the configured port preserved", edit)
 	}
 }
@@ -208,7 +212,7 @@ func TestDoctorFlagsWorldWritablePaths(t *testing.T) {
 // An opted-in exposed bind loads by design, so it is not a failure — but it is
 // the most consequential setting here and must not pass silently.
 func TestDoctorWarnsOnOptedInExposedBind(t *testing.T) {
-	writeConfig(t, "listen_addr: \"0.0.0.0:7000\"\n"+
+	writeConfig(t, "listen_addr: \"0.0.0.0:0\"\n"+
 		"security: {disable_auth: true, allow_exposed_without_auth: true}\n")
 
 	report := runDoctor(t, Options{ValidateConfig: realValidator})
@@ -242,7 +246,7 @@ func TestWriteTextIncludesRemediesAndCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := out.String()
-	for _, want := range []string{"[FAIL]", "127.0.0.1:7000", "allow_exposed_without_auth", "1 FAIL"} {
+	for _, want := range []string{"[FAIL]", "127.0.0.1:0", "allow_exposed_without_auth", "1 FAIL"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("rendered report missing %q:\n%s", want, text)
 		}
@@ -267,7 +271,7 @@ func dialFails(string) (HealthChecker, error) {
 }
 
 func TestPortCheckReportsAvailablePort(t *testing.T) {
-	writeConfig(t, "listen_addr: \"127.0.0.1:0\"\n")
+	writeConfig(t, healthyConfig)
 
 	report := runDoctor(t, Options{ValidateConfig: realValidator})
 
@@ -296,5 +300,19 @@ func TestPortCheckNamesTheOwnerOfAnOccupiedPort(t *testing.T) {
 	// acceptable — but the detail must never be empty.
 	if check.Detail == "" {
 		t.Error("an occupied port was reported with no explanation")
+	}
+}
+
+// A config that fails validation comes back from LoadOrDefault as the zero
+// value, so the remedy preview used to name the compiled-in default port while
+// the repair — which reads the file — changed a different one.
+func TestRemedyPreviewNamesThePortFromTheFileNotTheDefault(t *testing.T) {
+	writeConfig(t, "listen_addr: \"0.0.0.0:9999\"\nsecurity: {disable_auth: true}\n")
+
+	report := runDoctor(t, Options{ValidateConfig: realValidator})
+
+	edit := find(t, report, "config.valid").Remedies[0].ConfigEdit
+	if !strings.Contains(edit, "127.0.0.1:9999") {
+		t.Errorf("remedy = %q, want the port the file actually names", edit)
 	}
 }

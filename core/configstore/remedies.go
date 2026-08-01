@@ -75,10 +75,12 @@ func setScalar(root *yaml.Node, path []string, value, tag string) bool {
 	if current := mappingValue(parent, leaf); current != nil {
 		return assignScalar(current, value, tag)
 	}
+	// The comment goes on the key, not the value: a HeadComment on the value of
+	// a mapping pair is emitted after the "key:" it is meant to introduce.
 	parent.Content = append(parent.Content,
-		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: leaf},
-		&yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: value,
-			HeadComment: "set by `inferencerig doctor --fix`"})
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: leaf,
+			HeadComment: "set by `inferencerig doctor --fix`"},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: value})
 	return true
 }
 
