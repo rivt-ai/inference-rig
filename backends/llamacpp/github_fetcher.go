@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -91,33 +90,40 @@ func decodeRelease(r io.Reader) (Release, error) {
 }
 
 // Fetch downloads and extracts the prebuilt asset for accel, returning the
-// staged llama-server path.
-func (f *githubFetcher) Fetch(ctx context.Context, rel Release, accel Accel, dir string, progress io.Writer) (string, error) {
+// staged payload.
+func (f *githubFetcher) Fetch(ctx context.Context, rel Release, accel Accel, dir string, progress io.Writer) (Payload, error) {
 	asset, err := f.selectAsset(rel, accel)
 	if err != nil {
-		return "", err
+		return Payload{}, err
 	}
 	if asset.Size <= 0 || !strings.HasPrefix(asset.Digest, "sha256:") {
-		return "", fmt.Errorf("release asset %s lacks a SHA256 digest or size", asset.Name)
+		return Payload{}, fmt.Errorf("release asset %s lacks a SHA256 digest or size", asset.Name)
 	}
 	if _, err := fmt.Fprintln(progress, "download "+asset.Name+"..."); err != nil {
-		return "", err
+		return Payload{}, err
 	}
 	archive := filepath.Join(dir, "release.tar.gz")
 	hash, size, err := download(ctx, f.http(), asset.URL, archive)
 	if err != nil {
-		return "", err
+		return Payload{}, err
 	}
 	if size != asset.Size || !strings.EqualFold(hash, strings.TrimPrefix(asset.Digest, "sha256:")) {
-		return "", fmt.Errorf("release asset integrity check failed")
+		return Payload{}, fmt.Errorf("release asset integrity check failed")
 	}
 	if _, err := fmt.Fprintln(progress, "extract prebuilt..."); err != nil {
-		return "", err
+		return Payload{}, err
 	}
-	if err := extractTarGz(ctx, archive, dir); err != nil {
-		return "", err
+	if err := extractTarGz(archive, dir); err != nil {
+		return Payload{}, err
 	}
-	return findExecutable(dir)
+	if err := os.Remove(archive); err != nil {
+		return Payload{}, err
+	}
+	executable, err := findExecutable(dir)
+	if err != nil {
+		return Payload{}, err
+	}
+	return Payload{Executable: executable, Source: asset.URL, Digest: "sha256:" + hash}, nil
 }
 
 // selectAsset chooses the prebuilt tarball for the host/accelerator.
@@ -167,17 +173,6 @@ func download(ctx context.Context, client *http.Client, url, destination string)
 		return "", 0, copyErr
 	}
 	return hex.EncodeToString(hash.Sum(nil)), size, closeErr
-}
-
-func extractTarGz(ctx context.Context, archive, destination string) error {
-	if err := os.MkdirAll(destination, 0o700); err != nil {
-		return err
-	}
-	out, err := exec.CommandContext(ctx, "tar", "-xzf", archive, "-C", destination).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("extract archive: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	return nil
 }
 
 func findExecutable(root string) (string, error) {

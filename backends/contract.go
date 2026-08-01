@@ -53,6 +53,11 @@ type Backend interface {
 	// Install installs or upgrades the managed engine and reports what happened.
 	Install(ctx context.Context, opts InstallOptions) (InstallResult, error)
 
+	// Rollback returns the managed engine to its previously recorded
+	// installation, reporting the restored version. It fails with
+	// ErrNoPreviousInstall when nothing is recorded to return to.
+	Rollback(ctx context.Context) (InstallResult, error)
+
 	// InstallStatus reports whether the engine is currently usable.
 	InstallStatus(ctx context.Context) (InstallStatus, error)
 

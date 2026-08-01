@@ -2,9 +2,11 @@ package llamacpp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"inferencerig/backends"
@@ -70,9 +72,73 @@ func TestInstallUpgradeAndRetention(t *testing.T) {
 	if _, err := os.Stat(firstDir); !os.IsNotExist(err) {
 		t.Fatalf("oldest install retained after retention: %v", err)
 	}
-	st, err := backends.ReadInstallState[installState](root)
+	st, err := backends.ReadInstallState(root)
 	if err != nil || st.Previous == nil || st.Previous.Version != "b2" {
 		t.Fatalf("state previous = %#v, err = %v", st.Previous, err)
+	}
+}
+
+func TestInstallRecordsProvenance(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "engine")
+	b := New(Options{EngineRoot: root, Fetcher: stubFetcher{version: "b1"}})
+	if _, err := b.Install(context.Background(), backends.InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := backends.ReadInstallState(root)
+	if err != nil || state.Active == nil {
+		t.Fatalf("state = %#v, err = %v", state, err)
+	}
+	got := *state.Active
+	if got.Backend != Name || got.Version != "b1" || got.Source != "stub://b1" || got.Digest != "sha256:b1" {
+		t.Fatalf("record = %#v", got)
+	}
+	if got.Platform != runtime.GOOS+"/"+runtime.GOARCH || got.Accelerator == "" || got.InstalledAt.IsZero() {
+		t.Fatalf("record = %#v", got)
+	}
+}
+
+func TestInstallRejectsPayloadFailingItsProbe(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "engine")
+	good := New(Options{EngineRoot: root, Fetcher: stubFetcher{version: "b1"}})
+	if _, err := good.Install(context.Background(), backends.InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	broken := New(Options{EngineRoot: root, Fetcher: stubFetcher{version: "b2", script: "#!/bin/sh\nexit 3\n"}})
+	if _, err := broken.Install(context.Background(), backends.InstallOptions{}); err == nil {
+		t.Fatal("a payload that fails its version probe was activated")
+	}
+	state, err := backends.ReadInstallState(root)
+	if err != nil || state.Active == nil || state.Active.Version != "b1" {
+		t.Fatalf("active install replaced by a failing payload: %#v, err = %v", state.Active, err)
+	}
+}
+
+func TestRollbackRestoresPreviousInstall(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "engine")
+	b := New(Options{EngineRoot: root, Fetcher: stubFetcher{version: "b1"}})
+	if _, err := b.Install(context.Background(), backends.InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Rollback(context.Background()); !errors.Is(err, backends.ErrNoPreviousInstall) {
+		t.Fatalf("rollback with one install = %v, want ErrNoPreviousInstall", err)
+	}
+	if _, err := b.Install(context.Background(), backends.InstallOptions{Version: "b2", Upgrade: true}); err != nil {
+		t.Fatal(err)
+	}
+	back, err := b.Rollback(context.Background())
+	if err != nil || back.Version != "b1" || !back.Changed {
+		t.Fatalf("rollback = %#v, err = %v", back, err)
+	}
+	state, err := backends.ReadInstallState(root)
+	if err != nil || state.Active == nil || state.Active.Version != "b1" || state.Previous.Version != "b2" {
+		t.Fatalf("state after rollback = %#v, err = %v", state, err)
+	}
+	if exe, ok := b.installer.activeExecutable(); !ok || exe != back.Path {
+		t.Fatalf("activeExecutable = %q, %v; want %q", exe, ok, back.Path)
+	}
+	forward, err := b.Rollback(context.Background())
+	if err != nil || forward.Version != "b2" {
+		t.Fatalf("second rollback = %#v, err = %v", forward, err)
 	}
 }
 

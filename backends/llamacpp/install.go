@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"inferencerig/backends"
 	"inferencerig/config"
@@ -46,25 +47,29 @@ type ReleaseAsset struct {
 	Size   int64
 }
 
+// Payload is a staged engine payload: the executable to activate plus the
+// provenance recorded for it.
+type Payload struct {
+	Executable string
+	// Source is where the payload came from (the release asset URL).
+	Source string
+	// Digest is the verified content digest of the downloaded asset.
+	Digest string
+}
+
 // Fetcher resolves and provisions the managed engine payload. The default
 // GitHub fetcher hits the network; tests inject a hermetic stub so the install
 // state machine (idempotency, activation, retention) is exercised offline.
 type Fetcher interface {
 	// Resolve reports the release to install for accel; version "" means latest.
 	Resolve(ctx context.Context, accel Accel, version string) (Release, error)
-	// Fetch places the engine payload under dir and returns the executable path.
-	Fetch(ctx context.Context, rel Release, accel Accel, dir string, progress io.Writer) (string, error)
+	// Fetch places the engine payload under dir and describes what it staged.
+	Fetch(ctx context.Context, rel Release, accel Accel, dir string, progress io.Writer) (Payload, error)
 }
 
-type record struct {
-	Version, Directory, Executable string
-	Accel                          Accel
-}
-
-type installState struct {
-	Active   *record `json:"active,omitempty"`
-	Previous *record `json:"previous,omitempty"`
-}
+// probeTimeout bounds the version probe a staged binary must answer before it
+// is allowed to become the active install.
+const probeTimeout = 30 * time.Second
 
 // installer is the managed llama.cpp install/upgrade state machine. Ported and
 // neutralized from llamarig core/llamainstall (install/state/detection/
@@ -102,7 +107,7 @@ func (i *installer) activeExecutable() (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	st, err := backends.ReadInstallState[installState](root)
+	st, err := backends.ReadInstallState(root)
 	if err != nil || st.Active == nil || st.Active.Executable == "" {
 		return "", false
 	}
@@ -119,6 +124,33 @@ func (b *Backend) Install(ctx context.Context, opts backends.InstallOptions) (ba
 	return b.installer.install(ctx, opts)
 }
 
+// Rollback returns the managed install to the previously recorded version. The
+// retention policy keeps that install on disk, so restoring it is a state swap
+// once its binary answers the version probe.
+func (b *Backend) Rollback(ctx context.Context) (backends.InstallResult, error) {
+	b.installer.mu.Lock()
+	defer b.installer.mu.Unlock()
+	root, err := b.installer.resolveRoot()
+	if err != nil {
+		return backends.InstallResult{}, err
+	}
+	return backends.RollbackInstall(ctx, root, func(ctx context.Context, rec backends.InstallRecord) error {
+		return probeExecutable(ctx, rec.Executable)
+	})
+}
+
+// probeExecutable proves a binary is the runnable engine before it is trusted:
+// a payload that cannot answer --version must never become the active install.
+func probeExecutable(ctx context.Context, executable string) error {
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, executable, "--version").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("version probe of %s failed: %w: %s", executable, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // InstallStatus reports a valid managed binary first, then falls back to the
 // configured host executable.
 func (b *Backend) InstallStatus(context.Context) (backends.InstallStatus, error) {
@@ -126,7 +158,7 @@ func (b *Backend) InstallStatus(context.Context) (backends.InstallStatus, error)
 	if err != nil {
 		return backends.InstallStatus{}, err
 	}
-	state, err := backends.ReadInstallState[installState](root)
+	state, err := backends.ReadInstallState(root)
 	if err != nil {
 		return backends.InstallStatus{}, err
 	}
@@ -161,7 +193,7 @@ func (i *installer) install(ctx context.Context, opts backends.InstallOptions) (
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return backends.InstallResult{}, fmt.Errorf("create engine root: %w", err)
 	}
-	current, err := backends.ReadInstallState[installState](root)
+	current, err := backends.ReadInstallState(root)
 	if err != nil {
 		return backends.InstallResult{}, err
 	}
@@ -173,7 +205,7 @@ func (i *installer) install(ctx context.Context, opts backends.InstallOptions) (
 	if err != nil {
 		return backends.InstallResult{}, err
 	}
-	if current.Active != nil && current.Active.Version == rel.Version && current.Active.Accel == accel && !opts.Force {
+	if current.Active != nil && current.Active.Version == rel.Version && current.Active.Accelerator == string(accel) && !opts.Force {
 		return backends.InstallResult{
 			Version: rel.Version, Path: current.Active.Executable, Changed: false,
 			Message: "llama.cpp " + rel.Version + " already installed",
@@ -182,7 +214,7 @@ func (i *installer) install(ctx context.Context, opts backends.InstallOptions) (
 	return i.provision(ctx, root, current, rel, accel, opts.Progress)
 }
 
-func (i *installer) provision(ctx context.Context, root string, current installState, rel Release, accel Accel, progress io.Writer) (backends.InstallResult, error) {
+func (i *installer) provision(ctx context.Context, root string, current backends.InstallState, rel Release, accel Accel, progress io.Writer) (backends.InstallResult, error) {
 	if progress == nil {
 		progress = io.Discard
 	}
@@ -191,16 +223,21 @@ func (i *installer) provision(ctx context.Context, root string, current installS
 		return backends.InstallResult{}, err
 	}
 	defer func() { _ = os.RemoveAll(staging) }()
-	stagedExe, err := i.fetcher.Fetch(ctx, rel, accel, staging, progress)
+	payload, err := i.fetcher.Fetch(ctx, rel, accel, staging, progress)
 	if err != nil {
 		return backends.InstallResult{}, err
 	}
-	next, err := i.activate(root, rel, accel, staging, stagedExe)
+	// Probe while the payload is still staged: a binary that fails here is
+	// discarded with the staging directory and never replaces a working install.
+	if err := probeExecutable(ctx, payload.Executable); err != nil {
+		return backends.InstallResult{}, err
+	}
+	next, err := i.activate(root, rel, accel, staging, payload)
 	if err != nil {
 		return backends.InstallResult{}, err
 	}
 	i.retire(root, current)
-	if err := backends.WriteInstallState(root, installState{Active: next, Previous: current.Active}); err != nil {
+	if err := backends.WriteInstallState(root, backends.InstallState{Active: next, Previous: current.Active}); err != nil {
 		return backends.InstallResult{}, err
 	}
 	return backends.InstallResult{
@@ -209,13 +246,18 @@ func (i *installer) provision(ctx context.Context, root string, current installS
 	}, nil
 }
 
-// activate moves the staged payload into its final managed location.
-func (i *installer) activate(root string, rel Release, accel Accel, staging, stagedExe string) (*record, error) {
+// activate moves the staged payload into its final managed location and returns
+// the record of what was installed.
+func (i *installer) activate(root string, rel Release, accel Accel, staging string, payload Payload) (*backends.InstallRecord, error) {
 	final := filepath.Join(root, rel.Version, fmt.Sprintf("%s-%s-%s", i.goos, i.goarch, accel))
 	if !managedPath(root, final) {
 		return nil, fmt.Errorf("unsafe install path %q", final)
 	}
 	if err := os.MkdirAll(filepath.Dir(final), 0o700); err != nil {
+		return nil, err
+	}
+	relExe, err := filepath.Rel(staging, payload.Executable)
+	if err != nil {
 		return nil, err
 	}
 	if err := os.RemoveAll(final); err != nil {
@@ -224,16 +266,22 @@ func (i *installer) activate(root string, rel Release, accel Accel, staging, sta
 	if err := os.Rename(staging, final); err != nil {
 		return nil, fmt.Errorf("activate install: %w", err)
 	}
-	relExe, err := filepath.Rel(staging, stagedExe)
-	if err != nil {
-		return nil, err
-	}
-	return &record{Version: rel.Version, Accel: accel, Directory: final, Executable: filepath.Join(final, relExe)}, nil
+	return &backends.InstallRecord{
+		Backend:     Name,
+		Version:     rel.Version,
+		Source:      payload.Source,
+		Digest:      payload.Digest,
+		Platform:    i.goos + "/" + i.goarch,
+		Accelerator: string(accel),
+		Directory:   final,
+		Executable:  filepath.Join(final, relExe),
+		InstalledAt: time.Now().UTC(),
+	}, nil
 }
 
 // retire enforces retention (keep active + previous only): the outgoing active
 // becomes the new previous, so the old previous install directory is removed.
-func (i *installer) retire(root string, current installState) {
+func (i *installer) retire(root string, current backends.InstallState) {
 	old := current.Previous
 	if old == nil {
 		return
