@@ -193,6 +193,10 @@ research tickets do not.
   cross-backend profiles visible but dimmed, offer a confirmed inline reset,
   and confirm exclusive or incompatible-address replacement before sending
   `replace: true`.
+- [21 — Make TUI profile creation and restart reachable](issues/21-tui-create-and-restart.md)
+  — `n` on a downloaded local model creates a complete neutral profile through
+  `PutProfile`; `R` on a selected running profile confirms before
+  `RestartRuntime`, with RPC validation errors and completion state visible.
 
 ## Not yet specified
 

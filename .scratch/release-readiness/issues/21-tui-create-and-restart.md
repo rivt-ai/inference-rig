@@ -1,7 +1,7 @@
 # 21 — Make TUI profile creation and restart reachable
 
 Type: task
-Status: claimed
+Status: resolved
 Blocked by: 20
 Milestone: A
 Roadmap: quality gate prerequisite
@@ -28,3 +28,22 @@ Acceptance:
   and clear state.
 - Focused TUI tests pass.
 - `make test` and `make lint` pass.
+
+## Answer
+
+Resolved 2026-08-01. On the Models page, `n` on a selected downloaded local
+model now creates a backend-neutral structured profile through the existing
+`PutProfile` RPC. The TUI supplies every required common field: a safe stable
+name derived from the model path, the selected backend, the local model path,
+loopback host, and the next unused port from 8080. Canonical and backend
+validation remain server-owned, and failures appear through the dashboard's
+existing action warning.
+
+`R` on the selected running profile uses the existing press-again confirmation
+and dispatches `RestartRuntime`. Restart is explicit on the service request, so
+the second runtime row's existing action index still means stop; the
+confirmation is clear once dispatched. The Models page now reuses one status
+owner for create/start/restart/cleanup results instead of carrying parallel
+confirmation state, keeping the module under the enforced Go LOC budget.
+
+Focused `go test ./adapters/tui`, `make test`, and `make lint` pass.
