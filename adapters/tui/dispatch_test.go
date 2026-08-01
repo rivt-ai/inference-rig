@@ -200,22 +200,14 @@ func TestModelsPageKeysRequestDownloadAndCancel(t *testing.T) {
 
 func TestProfilesOnAnotherBackendOfferResetInline(t *testing.T) {
 	page := newModelsPage()
-	data := snapshot{
-		info:     &controlv1.GetInfoResponse{ActiveBackend: "backend-a"},
-		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Name: "coder", Backend: "backend-b"}}},
-	}
-
+	data := snapshot{info: &controlv1.GetInfoResponse{ActiveBackend: "backend-a"}, profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Name: "coder", Backend: "backend-b"}}}}
 	if cmd := page.Update(keyMsg("enter"), data); cmd != nil {
 		t.Fatal("the first Enter reset without confirmation")
 	}
 	if rows := page.statusRows("", data); !strings.Contains(rows, "backend-a is active — reset to start backend-b profiles") {
 		t.Fatalf("inline reset reason missing from %q", rows)
 	}
-	cmd := page.Update(keyMsg("enter"), data)
-	if cmd == nil {
-		t.Fatal("the confirmed reset produced no request")
-	}
-	if request := cmd().(rpcRequest); request.kind != rpcReset {
+	if request := page.Update(keyMsg("enter"), data)().(rpcRequest); request.kind != rpcReset {
 		t.Fatalf("request = %#v, want reset", request)
 	}
 }
@@ -223,23 +215,14 @@ func TestProfilesOnAnotherBackendOfferResetInline(t *testing.T) {
 func TestExclusiveBackendStartConfirmsThenReplaces(t *testing.T) {
 	page := newModelsPage()
 	data := snapshot{
-		info: &controlv1.GetInfoResponse{ActiveBackend: "backend-a", RunningProfiles: []string{"chat"}},
-		backends: &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{
-			Name: "backend-a", Capabilities: &controlv1.BackendCapabilities{SingleActiveProfile: true},
-		}}},
-		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{
-			{Name: "coder", Backend: "backend-a"}, {Name: "chat", Backend: "backend-a"},
-		}},
+		info:     &controlv1.GetInfoResponse{ActiveBackend: "backend-a", RunningProfiles: []string{"chat"}},
+		backends: &controlv1.ListBackendsResponse{Backends: []*controlv1.BackendInfo{{Name: "backend-a", Capabilities: &controlv1.BackendCapabilities{SingleActiveProfile: true}}}},
+		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Name: "coder", Backend: "backend-a"}, {Name: "chat", Backend: "backend-a"}}},
 	}
-
 	if cmd := page.Update(keyMsg("enter"), data); cmd != nil {
 		t.Fatal("the first Enter replaced without confirmation")
 	}
-	cmd := page.Update(keyMsg("enter"), data)
-	if cmd == nil {
-		t.Fatal("the confirmed replacement produced no request")
-	}
-	request := cmd().(rpcRequest)
+	request := page.Update(keyMsg("enter"), data)().(rpcRequest)
 	if request.kind != rpcStart || !request.replace {
 		t.Fatalf("request = %#v, want replacing start", request)
 	}
@@ -249,11 +232,8 @@ func TestProfileRowsShowTransitionalRuntimeStates(t *testing.T) {
 	page := newModelsPage()
 	data := snapshot{
 		profiles: &controlv1.ListProfilesResponse{Profiles: []*controlv1.Profile{{Name: "coder", Backend: "backend-a"}}},
-		runtimes: &controlv1.GetRuntimeStatusResponse{Profiles: []*controlv1.ProfileRuntimeStatus{{
-			Name: "coder", Status: &controlv1.RuntimeStatus{State: "activating"},
-		}}},
+		runtimes: &controlv1.GetRuntimeStatusResponse{Profiles: []*controlv1.ProfileRuntimeStatus{{Name: "coder", Status: &controlv1.RuntimeStatus{State: "activating"}}}},
 	}
-
 	page.setRows(data)
 	if got := page.profiles.Rows()[0][3]; got != "Activating" {
 		t.Fatalf("state = %q, want Activating", got)

@@ -498,15 +498,6 @@ type rpcRequest struct {
 	notice                     string
 }
 
-func running(info *controlv1.GetInfoResponse, profile string) bool {
-	for _, name := range info.GetRunningProfiles() {
-		if name == profile {
-			return true
-		}
-	}
-	return false
-}
-
 func selected[T any](items []T, index int) (T, bool) {
 	var zero T
 	if index < 0 || index >= len(items) {

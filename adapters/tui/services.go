@@ -200,7 +200,7 @@ func runtimeBox(width, height int, data snapshot, index int, focused bool) strin
 	// "running" is the state, not a countable noun: pluralising it read "0
 	// runnings" for the most common case on a fresh install.
 	rows := []string{theme.StatusTitle("Runtimes", fmt.Sprintf("%d running", len(profiles)), cyan, green, width)}
-	rows = append(rows, tuikit.Field("Active backend", valueOr(data.info.GetActiveBackend(), "none")))
+	rows = append(rows, tuikit.Field("Active backend", data.info.GetActiveBackend()))
 	if len(profiles) == 0 {
 		rows = append(rows, mutedStyle.Render("No running profiles"))
 	} else {
@@ -223,13 +223,6 @@ func runtimeBox(width, height int, data snapshot, index int, focused bool) strin
 	}
 	rows = append(rows, theme.ActionRow(cyan, 0, []string{label}, focused && len(profiles) > 0))
 	return panel(cyan, focused, width, height, lipgloss.JoinVertical(lipgloss.Left, rows...))
-}
-
-func valueOr(value, fallback string) string {
-	if value != "" {
-		return value
-	}
-	return fallback
 }
 
 func runServiceAction(ctx context.Context, client controlv1connect.ControlServiceClient, request serviceRequest) tea.Cmd {
