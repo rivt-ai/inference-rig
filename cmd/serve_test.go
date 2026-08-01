@@ -12,7 +12,7 @@ func TestRootIncludesDaemonCommands(t *testing.T) {
 	if root.RunE == nil {
 		t.Fatal("bare command does not launch the TUI")
 	}
-	for _, name := range []string{"serve", "daemon", "setup", "tui", "web"} {
+	for _, name := range []string{"serve", "daemon", "setup", "tui", "web", "doctor"} {
 		if command, _, err := root.Find([]string{name}); err != nil || command.Name() != name {
 			t.Fatalf("command %q not registered: command=%v err=%v", name, command, err)
 		}
