@@ -7,7 +7,9 @@ package config
 import (
 	"bytes"
 	"cmp"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"os"
@@ -91,6 +93,19 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	return LoadFile(path)
+}
+
+// LoadOrDefault is what every entry point should call. It returns the defaults
+// only when no config file exists; a syntax error, an unknown key, a failed
+// validation or an unreadable file is returned instead, so a machine the
+// operator believes is configured never silently serves the defaults with its
+// security settings, paths and listen address reverted.
+func LoadOrDefault() (Config, error) {
+	cfg, err := Load()
+	if errors.Is(err, fs.ErrNotExist) {
+		return Default(), nil
+	}
+	return cfg, err
 }
 
 // LoadFile reads and parses the configuration at path.
