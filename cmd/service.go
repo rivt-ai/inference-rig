@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"inferencerig/config"
 	"inferencerig/platform/filedoc"
@@ -121,13 +122,18 @@ func installService(command *cobra.Command) error {
 
 func activateService(command *cobra.Command, manager, path string, run serviceRunner) error {
 	if manager == "systemd" {
-		if err := run(command, "systemctl", "--user", "daemon-reload"); err != nil {
-			return err
+		commands := [][]string{{"--user", "daemon-reload"}, {"--user", "enable", config.ProjectName + ".service"}, {"--user", "restart", config.ProjectName + ".service"}}
+		for _, args := range commands {
+			if err := run(command, "systemctl", args...); err != nil {
+				return err
+			}
 		}
-		return run(command, "systemctl", "--user", "enable", "--now", config.ProjectName+".service")
+		return nil
 	}
 	domain := fmt.Sprintf("gui/%d", os.Getuid())
-	_ = run(command, "launchctl", "bootout", domain, path)
+	if err := run(command, "launchctl", "bootout", domain, path); err != nil && !nativeServiceAbsent(err) {
+		return err
+	}
 	return run(command, "launchctl", "bootstrap", domain, path)
 }
 
@@ -140,10 +146,14 @@ func uninstallService(command *cobra.Command) error {
 }
 
 func deactivateService(command *cobra.Command, manager, path string, run serviceRunner) error {
+	var err error
 	if manager == "systemd" {
-		_ = run(command, "systemctl", "--user", "disable", "--now", config.ProjectName+".service")
+		err = run(command, "systemctl", "--user", "disable", "--now", config.ProjectName+".service")
 	} else {
-		_ = run(command, "launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), path)
+		err = run(command, "launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), path)
+	}
+	if err != nil && !nativeServiceAbsent(err) {
+		return err
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
@@ -154,8 +164,22 @@ func deactivateService(command *cobra.Command, manager, path string, run service
 	return nil
 }
 
+func nativeServiceAbsent(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "could not find service") || strings.Contains(message, "does not exist") ||
+		strings.Contains(message, "not loaded") || strings.Contains(message, "no such process")
+}
+
 func runNative(command *cobra.Command, name string, args ...string) error {
 	process := exec.CommandContext(command.Context(), name, args...)
-	process.Stdout, process.Stderr = command.OutOrStdout(), command.ErrOrStderr()
-	return process.Run()
+	output, err := process.CombinedOutput()
+	writer := command.OutOrStdout()
+	if err != nil {
+		writer = command.ErrOrStderr()
+	}
+	_, _ = writer.Write(output)
+	if detail := strings.TrimSpace(string(output)); err != nil && detail != "" {
+		return fmt.Errorf("%s: %w", detail, err)
+	}
+	return err
 }

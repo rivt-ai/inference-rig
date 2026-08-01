@@ -167,6 +167,29 @@ func TestAutostartContinuesAfterOneProfileFails(t *testing.T) {
 	}
 }
 
+type failingStatusStore struct{ ProfileStore }
+
+func (*failingStatusStore) Get(context.Context, string) (profiles.ProfileDocument, error) {
+	return profiles.ProfileDocument{}, errors.New("profile store unavailable")
+}
+
+func TestAutostartReportsStatusFailureAndContinues(t *testing.T) {
+	manager, _ := lifecycleManager(t, backendtest.New("test"), &fakeRuntime{}, "one", "two")
+	manager.profiles = &failingStatusStore{ProfileStore: manager.profiles}
+	if err := manager.autostartProfiles(t.Context(), []string{"two", "one"}, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	outcomes := 0
+	for _, event := range manager.Events().List() {
+		if event.Action == "runtime.autostart" && !event.Success && strings.Contains(event.Detail, "profile store unavailable") {
+			outcomes++
+		}
+	}
+	if outcomes != 2 {
+		t.Fatalf("autostart outcomes = %d, want both profiles", outcomes)
+	}
+}
+
 func TestAutostartRouterProfilesRequireOneListenAddress(t *testing.T) {
 	manager, _ := lifecycleManager(t, &routerAutostartBackend{Fake: backendtest.New("test")}, &fakeRuntime{}, "one")
 	if _, err := manager.PutProfile(t.Context(), "two", profileYAMLOnPort("two", "https://example.test/m", 8081), true); err != nil {

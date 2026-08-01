@@ -42,6 +42,22 @@ func TestLaunchAgentReinstallBootsOutBeforeBootstrap(t *testing.T) {
 	}
 }
 
+func TestSystemdReinstallReloadsEnablesAndRestarts(t *testing.T) {
+	var calls []string
+	run := func(_ *cobra.Command, name string, args ...string) error {
+		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
+		return nil
+	}
+	if err := activateService(&cobra.Command{}, "systemd", "", run); err != nil {
+		t.Fatal(err)
+	}
+	want := "systemctl --user daemon-reload\nsystemctl --user enable inferencerig.service\nsystemctl --user restart inferencerig.service"
+	if strings.Join(calls, "\n") != want {
+		t.Fatalf("calls = %v", calls)
+	}
+}
+
+//nolint:gocognit // The paired native-manager table proves both absent-error vocabularies and file removal.
 func TestServiceUninstallRemovesFileWhenNativeServiceIsAbsent(t *testing.T) {
 	for _, manager := range []string{"systemd", "launchd"} {
 		t.Run(manager, func(t *testing.T) {
@@ -53,7 +69,10 @@ func TestServiceUninstallRemovesFileWhenNativeServiceIsAbsent(t *testing.T) {
 				if slices.Contains(args, "daemon-reload") {
 					return nil
 				}
-				return errors.New("not found")
+				if manager == "systemd" {
+					return errors.New("Unit inferencerig.service does not exist")
+				}
+				return errors.New("Could not find service")
 			}
 			if err := deactivateService(&cobra.Command{}, manager, path, run); err != nil {
 				t.Fatal(err)
@@ -62,6 +81,20 @@ func TestServiceUninstallRemovesFileWhenNativeServiceIsAbsent(t *testing.T) {
 				t.Fatalf("service file remains: %v", err)
 			}
 		})
+	}
+}
+
+func TestServiceUninstallPreservesDefinitionOnNativeFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "service")
+	if err := os.WriteFile(path, []byte("service"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	run := func(*cobra.Command, string, ...string) error { return errors.New("permission denied") }
+	if err := deactivateService(&cobra.Command{}, "launchd", path, run); err == nil {
+		t.Fatal("uninstall ignored native failure")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("service definition was removed: %v", err)
 	}
 }
 

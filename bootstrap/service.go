@@ -102,23 +102,10 @@ func NewService() (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	modelStorageDir := cfg.ModelStorageDir
-	if modelStorageDir == "" {
-		modelStorageDir, err = config.DefaultModelStorageDir()
-		if err != nil {
-			return nil, err
-		}
-	}
-	modelStorageDir = config.ExpandHome(modelStorageDir)
-	registry := backends.NewRegistry()
-	if err := all.Register(registry, all.Options{ModelStorageDir: modelStorageDir}); err != nil {
-		return nil, err
-	}
-	paths, err := config.ResolvePaths()
+	registry, store, paths, modelStorageDir, err := controlInputs(cfg)
 	if err != nil {
 		return nil, err
 	}
-	store := profiles.NewFileStore(paths.Profiles, 0, registry.BackendLookup())
 	downloads := modeldownload.New(modeldownload.Options{
 		StateDir: paths.DownloadState, Logger: slog.Default(),
 	})
@@ -133,27 +120,60 @@ func NewService() (*Service, error) {
 		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: paths.CatalogCache, CacheTTL: time.Hour}),
 		Config:    configstore.NewFileStore(paths.Config, 0),
 	})
-	if err := prepareRuntimes(context.Background(), manager, cfg.AutostartProfiles); err != nil {
-		return nil, err
-	}
 	path, handler := rpc.ControlHandler(rpc.NewControlService(manager))
 	server, err := rpc.NewServer(path, handler)
 	if err != nil {
 		return nil, err
 	}
-	home, err := config.Home()
-	if err != nil {
-		_ = server.Listener.Close()
-		return nil, err
-	}
-	file := pidfile.New(filepath.Join(home, "run", config.ProjectName+".pid"))
+	file := pidfile.New(filepath.Join(paths.Home, "run", config.ProjectName+".pid"))
 	pid := os.Getpid()
 	if err := file.Write(pid); err != nil {
 		_ = server.Listener.Close()
 		_ = os.Remove(server.SocketPath)
 		return nil, err
 	}
-	return &Service{Manager: manager, Server: server, pidFile: file, pid: pid}, nil
+	service := &Service{Manager: manager, Server: server, pidFile: file, pid: pid}
+	if err := prepareRuntimes(context.Background(), manager, cfg.AutostartProfiles); err != nil {
+		_ = service.Shutdown(context.Background())
+		return nil, err
+	}
+	return service, nil
+}
+
+func controlInputs(cfg config.Config) (*backends.Registry, *profiles.FileStore, config.Paths, string, error) {
+	modelStorageDir := cfg.ModelStorageDir
+	if modelStorageDir == "" {
+		var err error
+		modelStorageDir, err = config.DefaultModelStorageDir()
+		if err != nil {
+			return nil, nil, config.Paths{}, "", err
+		}
+	}
+	modelStorageDir = config.ExpandHome(modelStorageDir)
+	registry := backends.NewRegistry()
+	if err := all.Register(registry, all.Options{ModelStorageDir: modelStorageDir}); err != nil {
+		return nil, nil, config.Paths{}, "", err
+	}
+	paths, err := config.ResolvePaths()
+	if err != nil {
+		return nil, nil, config.Paths{}, "", err
+	}
+	store := profiles.NewFileStore(paths.Profiles, 0, registry.BackendLookup())
+	return registry, store, paths, modelStorageDir, nil
+}
+
+// ValidateConfig checks configuration and its referenced profiles without
+// opening the daemon socket or starting a runtime.
+func ValidateConfig(ctx context.Context) error {
+	cfg, err := config.LoadOrDefault()
+	if err != nil {
+		return err
+	}
+	registry, store, _, _, err := controlInputs(cfg)
+	if err != nil {
+		return err
+	}
+	return control.NewManager(control.Dependencies{Registry: registry, Profiles: store}).ValidateAutostart(ctx, cfg.AutostartProfiles)
 }
 
 func prepareRuntimes(ctx context.Context, manager *control.Manager, autostart []string) error {

@@ -68,5 +68,7 @@ loaded registrations. The systemd unit uses bounded restart limiting; the
 LaunchAgent uses `RunAtLoad` without `KeepAlive`, avoiding an unbounded crash
 loop. Final validation passed `systemd-analyze verify`, XML parsing, the web
 build and 117 web tests, `make test`, and `make lint` at 12,264 production Go
-lines under the nearest 50-line ceiling of 12,300. macOS execution remains for
+lines under the original nearest 50-line ceiling of 12,300. Review hardening
+raised the integrated total to 12,307 and the ceiling to its nearest 50, 12,350.
+macOS execution remains for
 the planned final hardware validation.

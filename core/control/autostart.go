@@ -24,7 +24,7 @@ func (m *Manager) ValidateAutostart(ctx context.Context, names []string) error {
 	for _, name := range names {
 		doc, candidate, err := m.profileBackend(ctx, name)
 		if err != nil {
-			return err
+			return Errorf(ErrorInvalidInput, "autostart profile %q is invalid: %v", name, err)
 		}
 		candidateAddress := net.JoinHostPort(doc.Effective.Listen.Host, strconv.Itoa(doc.Effective.Listen.Port))
 		if backend == "" {
@@ -66,7 +66,8 @@ func (m *Manager) autostartProfile(ctx context.Context, name string, attempts in
 	started := time.Now()
 	status, err := m.RuntimeStatus(ctx, name)
 	if err != nil {
-		return err
+		m.recordAutostart(ctx, name, "status failed: "+err.Error(), started, err)
+		return ctx.Err()
 	}
 	if status.State == coreruntime.Running {
 		m.recordAutostart(ctx, name, "already running after reconciliation", started, nil)

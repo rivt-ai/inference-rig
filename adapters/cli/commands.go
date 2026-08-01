@@ -37,13 +37,15 @@ type dialer func(string, time.Duration) (controlv1connect.ControlServiceClient, 
 type call func(context.Context, controlv1connect.ControlServiceClient, []string) (proto.Message, error)
 
 // Commands returns the full canonical-RPC-backed CLI.
-func Commands(dial dialer) []*cobra.Command {
+func Commands(dial dialer, validators ...func(context.Context) error) []*cobra.Command {
 	if dial == nil {
 		panic("cli: dial function is required")
 	}
+	validators = append(validators, func(context.Context) error { _, err := config.LoadOrDefault(); return err })
+	validate := validators[0]
 	return []*cobra.Command{
 		healthCommand(dial), infoCommand(dial), profileCommand(dial), modelCommand(dial), backendCommand(dial),
-		runtimeCommand(dial), signalsCommand(dial), eventsCommand(dial), configCommand(dial),
+		runtimeCommand(dial), signalsCommand(dial), eventsCommand(dial), configCommand(dial, validate),
 	}
 }
 
@@ -208,20 +210,20 @@ func eventsCommand(dial dialer) *cobra.Command {
 	return group
 }
 
-func configCommand(dial dialer) *cobra.Command {
+func configCommand(dial dialer, validate func(context.Context) error) *cobra.Command {
 	group := &cobra.Command{Use: "config", Short: "Manage daemon configuration"}
 	group.AddCommand(rpcCommand("startup [service...]", "Set startup services", cobra.ArbitraryArgs, dial,
 		func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
 			return client.SetStartupServices(ctx, &controlv1.SetStartupServicesRequest{Services: args})
 		}))
-	group.AddCommand(configValidateCommand())
+	group.AddCommand(configValidateCommand(validate))
 	return group
 }
 
 // configValidateCommand answers "would the daemon start with this file?"
 // without a daemon: it runs the same config.LoadOrDefault the entry points do,
 // so its verdict and its message are startup's, by construction.
-func configValidateCommand() *cobra.Command {
+func configValidateCommand(validate func(context.Context) error) *cobra.Command {
 	return &cobra.Command{
 		Use: "validate", Short: "Check the config file the way startup does", Args: cobra.NoArgs,
 		// The error IS the output here; a usage dump after it buries the
@@ -232,7 +234,7 @@ func configValidateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, err := config.LoadOrDefault(); err != nil {
+			if err := validate(command.Context()); err != nil {
 				return err
 			}
 			if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {

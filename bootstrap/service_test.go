@@ -51,6 +51,43 @@ func TestServiceRunsCanonicalControlSocket(t *testing.T) {
 	}
 }
 
+func TestSecondDaemonFailsBeforeAutostartCanLaunchAnEngine(t *testing.T) {
+	home, bin := t.TempDir(), t.TempDir()
+	t.Setenv(config.ProjectHomeEnv, home)
+	t.Setenv("PATH", bin)
+	marker := filepath.Join(home, "engine-started")
+	executable := filepath.Join(bin, "llama-server")
+	if err := os.WriteFile(executable, []byte("#!/bin/sh\n: > "+marker+"\nexit 1\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("autostart_profiles: []\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	profileDir := filepath.Join(home, "profiles", "auto")
+	if err := os.MkdirAll(profileDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	profile := "version: 1\nname: auto\nbackend: llamacpp\nmodel:\n  source: /missing/model.gguf\nlisten:\n  host: 127.0.0.1\n  port: 19877\n"
+	if err := os.WriteFile(filepath.Join(profileDir, "profile.yaml"), []byte(profile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	first, err := NewService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = first.Shutdown(t.Context()) })
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("autostart_profiles: [auto]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if second, err := NewService(); err == nil {
+		_ = second.Shutdown(t.Context())
+		t.Fatal("second daemon unexpectedly acquired the control socket")
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("engine launched before daemon resources were acquired: %v", err)
+	}
+}
+
 //nolint:gocyclo // One bootstrap scenario proves failed autostart, health, state, and event visibility together.
 func TestServiceStaysHealthyWhenAutostartExhaustsRetries(t *testing.T) {
 	home := t.TempDir()
