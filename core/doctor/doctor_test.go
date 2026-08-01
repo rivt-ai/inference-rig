@@ -265,3 +265,36 @@ func TestDoctorStartsNothing(t *testing.T) {
 func dialFails(string) (HealthChecker, error) {
 	return nil, fmt.Errorf("dial must not be attempted without a listener")
 }
+
+func TestPortCheckReportsAvailablePort(t *testing.T) {
+	writeConfig(t, "listen_addr: \"127.0.0.1:0\"\n")
+
+	report := runDoctor(t, Options{ValidateConfig: realValidator})
+
+	if got := find(t, report, "port.listen").Status; got != StatusOK {
+		t.Errorf("port.listen = %q, want ok for a free port", got)
+	}
+}
+
+// An occupied port is why a daemon fails to bind, so the check has to name who
+// is holding it rather than just reporting a bind error.
+func TestPortCheckNamesTheOwnerOfAnOccupiedPort(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = listener.Close() }()
+	writeConfig(t, fmt.Sprintf("listen_addr: %q\n", listener.Addr().String()))
+
+	report := runDoctor(t, Options{ValidateConfig: realValidator})
+
+	check := find(t, report, "port.listen")
+	if check.Status != StatusFail {
+		t.Fatalf("port.listen = %q, want fail for an occupied port", check.Status)
+	}
+	// The owner lookup needs privileges on some systems, so a partial answer is
+	// acceptable — but the detail must never be empty.
+	if check.Detail == "" {
+		t.Error("an occupied port was reported with no explanation")
+	}
+}

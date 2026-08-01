@@ -66,6 +66,7 @@ func NewRunner(opts Options) *Runner {
 		checkAuthPosture,
 		checkPermissions,
 		checkPIDFile,
+		checkPort,
 		checkSocket,
 		checkDaemonReachable,
 		checkRecentLog,

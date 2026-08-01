@@ -11,6 +11,7 @@ import (
 	"inferencerig/config"
 	"inferencerig/platform/audit"
 	"inferencerig/platform/pidfile"
+	"inferencerig/platform/process"
 )
 
 // socketDialTimeout bounds the staleness probe. A live daemon accepts on a Unix
@@ -36,13 +37,34 @@ func checkPIDFile(_ context.Context, e *env) Check {
 		return ok(id, title, "not running").
 			withRemedies(Remedy{ID: "start-daemon", Title: "start the control daemon", Command: startCommand})
 	case pidfile.Alive(pid):
-		return ok(id, title, "running as pid "+strconv.Itoa(pid))
+		return identifyDaemon(id, title, pid)
 	default:
 		return warn(id, title, "pid "+strconv.Itoa(pid)+" is recorded but no longer running").
 			withDetail("The daemon exited without clearing " + path +
 				". The next start or stop removes the stale file.").
 			withRemedies(Remedy{ID: "start-daemon", Title: "start the control daemon", Command: startCommand})
 	}
+}
+
+// identifyDaemon confirms the live PID is actually this binary. PIDs are
+// recycled, so "something with this PID exists" is not evidence the daemon is
+// running — an unrelated process inheriting the number would otherwise be
+// reported as a healthy daemon.
+func identifyDaemon(id, title string, pid int) Check {
+	running := "running as pid " + strconv.Itoa(pid)
+	self, err := os.Executable()
+	if err != nil {
+		return ok(id, title, running)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := process.SameExecutable(ctx, pid, self); err != nil {
+		// Not a failure on its own: the daemon may legitimately be an older
+		// build, or the process may be unreadable without more privilege.
+		return warn(id, title, running+", but it is not this binary").
+			withDetail(err.Error() + "\nThe recorded PID may have been recycled, or the daemon may be a different build.")
+	}
+	return ok(id, title, running)
 }
 
 // checkSocket reports whether anything is accepting on the control socket. A
