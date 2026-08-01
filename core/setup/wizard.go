@@ -13,11 +13,11 @@ import (
 	"strings"
 
 	"charm.land/huh/v2"
-	"charm.land/lipgloss/v2"
 
 	"inferencerig/config"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
+	"inferencerig/internal/prompt"
 )
 
 var ErrCancelled = errors.New("setup cancelled")
@@ -104,7 +104,7 @@ func (w *Wizard) collect(ctx context.Context, paths Paths, input io.Reader, outp
 			}, []any{&answers, &startup}),
 			huh.NewConfirm().Title("Write configuration?").Value(&proceed),
 		),
-	).WithTheme(huh.ThemeFunc(tealStyles)).WithInput(input).WithOutput(output)
+	).WithTheme(prompt.Theme()).WithInput(input).WithOutput(output)
 
 	if err := runForm(ctx, form); err != nil {
 		return Answers{}, err
@@ -163,7 +163,7 @@ func (w *Wizard) ensureBackend(ctx context.Context, input io.Reader, output io.W
 	install := true
 	form := huh.NewForm(huh.NewGroup(huh.NewConfirm().
 		Title("The selected backend is not installed. Install it now?").
-		Value(&install))).WithTheme(huh.ThemeFunc(tealStyles)).WithInput(input).WithOutput(output)
+		Value(&install))).WithTheme(prompt.Theme()).WithInput(input).WithOutput(output)
 	if err := runForm(ctx, form); err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ var runForm = func(ctx context.Context, form *huh.Form) error {
 func requireConfirm(ctx context.Context, input io.Reader, output io.Writer, title string) error {
 	proceed := false
 	form := huh.NewForm(huh.NewGroup(huh.NewConfirm().Title(title).Value(&proceed))).
-		WithTheme(huh.ThemeFunc(tealStyles)).WithInput(input).WithOutput(output)
+		WithTheme(prompt.Theme()).WithInput(input).WithOutput(output)
 	if err := runForm(ctx, form); err != nil {
 		return err
 	}
@@ -264,22 +264,4 @@ func reviewSummary(paths Paths, answers Answers, startup string) string {
 		"Authentication:    " + authSummary(answers) + "\n" +
 		"Startup services:  " + strings.Join(startupServices(startup), ", ") + "\n" +
 		"Backend:           " + answers.Backend
-}
-
-func tealStyles(isDark bool) *huh.Styles {
-	teal := lipgloss.Color("14")
-	styles := huh.ThemeCharm(isDark)
-	styles.Focused.SelectSelector = styles.Focused.SelectSelector.Foreground(teal)
-	styles.Focused.NextIndicator = styles.Focused.NextIndicator.Foreground(teal)
-	styles.Focused.PrevIndicator = styles.Focused.PrevIndicator.Foreground(teal)
-	styles.Focused.MultiSelectSelector = styles.Focused.MultiSelectSelector.Foreground(teal)
-	styles.Focused.FocusedButton = styles.Focused.FocusedButton.Background(teal)
-	styles.Focused.Next = styles.Focused.FocusedButton
-	styles.Focused.TextInput.Prompt = styles.Focused.TextInput.Prompt.Foreground(teal)
-	styles.Blurred = styles.Focused
-	styles.Blurred.Base = styles.Focused.Base.BorderStyle(lipgloss.HiddenBorder())
-	styles.Blurred.Card = styles.Blurred.Base
-	styles.Blurred.NextIndicator = lipgloss.NewStyle()
-	styles.Blurred.PrevIndicator = lipgloss.NewStyle()
-	return styles
 }

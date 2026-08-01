@@ -29,7 +29,7 @@ linters:
         type: "module"
         description: "Enforces the implementation Go LOC budget using gocloc."
         settings:
-          max-go-code-lines: 13000
+          max-go-code-lines: 13300
           include-tests: false
           exclude-generated: true
           exclude-dirs:

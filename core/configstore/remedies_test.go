@@ -90,27 +90,12 @@ func TestRepairRemediesFixTheConfigAndKeepComments(t *testing.T) {
 			if !strings.Contains(body, test.want) {
 				t.Errorf("config does not contain %q:\n%s", test.want, body)
 			}
-			// The whole point of repairing rather than regenerating.
-			for _, keep := range []string{
-				"# InferenceRig configuration",
-				"# auth is off while we work on the reverse proxy",
-				"model_storage_dir: /srv/models",
-				"ornith-9b-mtp-kl-Q8_0",
-			} {
-				if !strings.Contains(body, keep) {
-					t.Errorf("repair dropped %q:\n%s", keep, body)
-				}
-			}
+			assertPreservedUserContent(t, body)
 			// A repair that leaves the config still broken is worse than none.
 			if _, err := config.Parse([]byte(body)); err != nil {
 				t.Errorf("repaired config still does not load: %v\n%s", err, body)
 			}
-			if result.BackupPath == "" {
-				t.Error("no backup was written")
-			}
-			if _, err := os.Stat(result.BackupPath); err != nil {
-				t.Errorf("backup missing: %v", err)
-			}
+			assertBackupWritten(t, result.BackupPath)
 		})
 	}
 }
@@ -167,5 +152,31 @@ func TestRepairRefusesMalformedYAML(t *testing.T) {
 	}
 	if readFile(t, path) != body {
 		t.Error("a failed repair modified the file")
+	}
+}
+
+// The whole point of repairing rather than regenerating: the operator's
+// comments and hand-edited fields survive.
+func assertPreservedUserContent(t *testing.T, body string) {
+	t.Helper()
+	for _, keep := range []string{
+		"# InferenceRig configuration",
+		"# auth is off while we work on the reverse proxy",
+		"model_storage_dir: /srv/models",
+		"ornith-9b-mtp-kl-Q8_0",
+	} {
+		if !strings.Contains(body, keep) {
+			t.Errorf("repair dropped %q:\n%s", keep, body)
+		}
+	}
+}
+
+func assertBackupWritten(t *testing.T, path string) {
+	t.Helper()
+	if path == "" {
+		t.Fatal("no backup was written")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("backup missing: %v", err)
 	}
 }

@@ -95,3 +95,70 @@ func TestDoctorCommandSilencesUsage(t *testing.T) {
 		t.Errorf("doctor printed a usage dump:\n%s", output)
 	}
 }
+
+func TestDoctorFixWithRepairsTheConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(config.ProjectHomeEnv, home)
+	path := filepath.Join(home, "config.yaml")
+	if err := os.WriteFile(path, []byte(brokenConfig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	root := NewRootCommand()
+	root.SilenceErrors = true
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"doctor", "--fix-with=bind-loopback"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("doctor --fix-with err = %v:\n%s", err, out.String())
+	}
+
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "127.0.0.1:7000") {
+		t.Errorf("config was not repaired:\n%s", body)
+	}
+	// The operator is shown the result, not just told a write happened.
+	if !strings.Contains(out.String(), "Applied bind-loopback") {
+		t.Errorf("output does not report what was applied:\n%s", out.String())
+	}
+	if _, err := config.LoadFile(path); err != nil {
+		t.Errorf("repaired config does not load: %v", err)
+	}
+}
+
+// --fix cannot prompt without a terminal, and must not pick a security posture
+// on the operator's behalf.
+func TestDoctorFixRefusesWithoutATerminal(t *testing.T) {
+	output, err := runDoctorCommand(t, brokenConfig, "--fix")
+
+	if err == nil {
+		t.Fatal("--fix succeeded with no terminal to prompt on")
+	}
+	for _, want := range []string{"interactive terminal", "--fix-with=bind-loopback", "disable_auth: false"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("output missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestDoctorRejectsUnknownRemedy(t *testing.T) {
+	_, err := runDoctorCommand(t, brokenConfig, "--fix-with=nonsense")
+	if err == nil {
+		t.Fatal("doctor accepted an unknown remedy")
+	}
+}
+
+// Repairing writes to disk and prompts; neither belongs in a stream something
+// else is parsing.
+func TestDoctorRejectsFixWithJSON(t *testing.T) {
+	if _, err := runDoctorCommand(t, brokenConfig, "--fix", "--json"); err == nil {
+		t.Error("--fix --json was accepted")
+	}
+	if _, err := runDoctorCommand(t, brokenConfig, "--fix", "--fix-with=bind-loopback"); err == nil {
+		t.Error("--fix --fix-with was accepted")
+	}
+}
