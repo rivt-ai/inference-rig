@@ -7,10 +7,9 @@ import (
 	"io"
 	"os"
 
-	"golang.org/x/term"
-
 	"inferencerig/config"
 	"inferencerig/platform/filedoc"
+	"inferencerig/platform/terminal"
 )
 
 type Paths struct {
@@ -81,9 +80,7 @@ func (w *Wizard) run(ctx context.Context, input io.Reader, output io.Writer, for
 }
 
 func interactive(input io.Reader, output io.Writer) bool {
-	in, inOK := input.(interface{ Fd() uintptr })
-	out, outOK := output.(interface{ Fd() uintptr })
-	return inOK && outOK && term.IsTerminal(int(in.Fd())) && term.IsTerminal(int(out.Fd()))
+	return terminal.IsInteractive(input, output)
 }
 
 func pathExists(path string) (bool, error) {

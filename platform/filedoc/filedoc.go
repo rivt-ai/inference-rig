@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -170,4 +171,19 @@ func timestampSuffix() string {
 		return now
 	}
 	return now + "-" + hex.EncodeToString(suffix[:])
+}
+
+// SHA256File hashes a file without loading it into memory. Engine and model
+// artifacts run to gigabytes, so the whole-slice SHA256Hex is not an option.
+func SHA256File(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = file.Close() }()
+	digest := sha256.New()
+	if _, err := io.Copy(digest, file); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(digest.Sum(nil)), nil
 }

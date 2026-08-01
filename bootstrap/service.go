@@ -116,7 +116,7 @@ func NewService() (*Service, error) {
 		Registry: registry, Profiles: store,
 		Downloads: downloads,
 		Signals:   telemetry(registry, modelStorageDir),
-		Audit:     control.NewSlogSink(slog.Default()),
+		Audit:     auditSinks(),
 		Catalog:   modelcatalog.NewClient(modelcatalog.ClientOptions{CacheDir: paths.CatalogCache, CacheTTL: time.Hour}),
 		Config:    configstore.NewFileStore(paths.Config, 0),
 	})
@@ -222,4 +222,17 @@ func (s *Service) Shutdown(ctx context.Context) error {
 		err = errors.Join(err, removeErr)
 	}
 	return err
+}
+
+// auditSinks composes the daemon's audit destinations: the structured log, and
+// a bounded on-disk journal of failures that outlives the process. The
+// in-memory event store the manager adds is lost on restart, which is exactly
+// when an operator asks what went wrong.
+func auditSinks() control.AuditSink {
+	sinks := control.MultiAuditSink{control.NewSlogSink(slog.Default())}
+	path, err := config.FailureJournalPath()
+	if err != nil {
+		return sinks
+	}
+	return append(sinks, control.NewFileJournal(path, 0))
 }

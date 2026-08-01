@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"inferencerig/config"
@@ -121,4 +122,53 @@ func RollbackInstall(ctx context.Context, root string, verify func(context.Conte
 		Version: restored.Version, Path: restored.Executable, Changed: true,
 		Message: "rolled back to " + restored.Backend + " " + restored.Version,
 	}, nil
+}
+
+// DigestVerification reports whether an installed payload still matches the
+// digest recorded when it was installed.
+type DigestVerification struct {
+	Path      string `json:"path"`
+	Algorithm string `json:"algorithm"`
+	Expected  string `json:"expected"`
+	Actual    string `json:"actual"`
+	Matched   bool   `json:"matched"`
+	Skipped   bool   `json:"skipped"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+// InstallDigestVerifier is the optional backend facet that re-hashes what it
+// installed and compares against the record.
+//
+// It is a facet rather than shared code because only the backend knows what its
+// digest covers: llama.cpp records the hash of an executable, MLX the hash of a
+// requirements lock. A neutral verifier would have to switch on backend name to
+// know which, and nothing outside a backend is allowed that knowledge.
+type InstallDigestVerifier interface {
+	VerifyInstall(ctx context.Context, record InstallRecord) (DigestVerification, error)
+}
+
+// VerifyRecordedDigest compares one file against record.Digest.
+//
+// A record with no digest is skipped rather than failed: engines installed
+// before digests were kept have nothing to compare against, and reporting that
+// as corruption would be a lie. The caller names the file, because only the
+// backend knows what its own digest covers.
+func VerifyRecordedDigest(record InstallRecord, path string) (DigestVerification, error) {
+	result := DigestVerification{Path: path, Algorithm: "sha256", Expected: record.Digest}
+	algorithm, expected, found := strings.Cut(record.Digest, ":")
+	if !found || algorithm != "sha256" || expected == "" {
+		result.Skipped, result.Reason = true, "no sha256 digest was recorded for this install"
+		return result, nil
+	}
+	if path == "" {
+		result.Skipped, result.Reason = true, "the install record names no file to verify"
+		return result, nil
+	}
+	actual, err := filedoc.SHA256File(path)
+	if err != nil {
+		return result, err
+	}
+	result.Expected, result.Actual = expected, actual
+	result.Matched = actual == expected
+	return result, nil
 }

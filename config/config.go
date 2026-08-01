@@ -347,3 +347,9 @@ func ExpandHome(path string) string {
 	// "~/sub" without a second case.
 	return filepath.Join(home, path[1:])
 }
+
+// FailureJournalPath returns the file recording failed control-plane
+// operations. It sits under the home directory rather than run/ because it
+// must survive a daemon restart: a diagnostic reads it precisely when the
+// daemon that would have served the in-memory event history is not running.
+func FailureJournalPath() (string, error) { return homePath("state", "failures.jsonl") }

@@ -295,3 +295,10 @@ func managedPath(root, candidate string) bool {
 	rel, err := filepath.Rel(root, candidate)
 	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
+
+// VerifyInstall re-hashes the installed executable against the digest recorded
+// at install time. This backend's digest covers the release asset it unpacked,
+// so the executable is what there is to check.
+func (b *Backend) VerifyInstall(_ context.Context, record backends.InstallRecord) (backends.DigestVerification, error) {
+	return backends.VerifyRecordedDigest(record, record.Executable)
+}

@@ -2,15 +2,19 @@ package doctor
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"inferencerig/config"
+	"inferencerig/core/control"
 	"inferencerig/platform/audit"
 	"inferencerig/platform/pidfile"
+	"inferencerig/platform/process"
 )
 
 // socketDialTimeout bounds the staleness probe. A live daemon accepts on a Unix
@@ -18,6 +22,9 @@ import (
 const socketDialTimeout = 500 * time.Millisecond
 
 const startCommand = "inferencerig serve --detach"
+
+// recentFailureLimit bounds what the report shows; the journal keeps more.
+const recentFailureLimit = 5
 
 // checkPIDFile distinguishes "not running" from "recorded as running, and
 // isn't" — the second means the daemon died rather than being stopped, which is
@@ -36,13 +43,34 @@ func checkPIDFile(_ context.Context, e *env) Check {
 		return ok(id, title, "not running").
 			withRemedies(Remedy{ID: "start-daemon", Title: "start the control daemon", Command: startCommand})
 	case pidfile.Alive(pid):
-		return ok(id, title, "running as pid "+strconv.Itoa(pid))
+		return identifyDaemon(id, title, pid)
 	default:
 		return warn(id, title, "pid "+strconv.Itoa(pid)+" is recorded but no longer running").
 			withDetail("The daemon exited without clearing " + path +
 				". The next start or stop removes the stale file.").
 			withRemedies(Remedy{ID: "start-daemon", Title: "start the control daemon", Command: startCommand})
 	}
+}
+
+// identifyDaemon confirms the live PID is actually this binary. PIDs are
+// recycled, so "something with this PID exists" is not evidence the daemon is
+// running — an unrelated process inheriting the number would otherwise be
+// reported as a healthy daemon.
+func identifyDaemon(id, title string, pid int) Check {
+	running := "running as pid " + strconv.Itoa(pid)
+	self, err := os.Executable()
+	if err != nil {
+		return ok(id, title, running)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := process.SameExecutable(ctx, pid, self); err != nil {
+		// Not a failure on its own: the daemon may legitimately be an older
+		// build, or the process may be unreadable without more privilege.
+		return warn(id, title, running+", but it is not this binary").
+			withDetail(err.Error() + "\nThe recorded PID may have been recycled, or the daemon may be a different build.")
+	}
+	return ok(id, title, running)
 }
 
 // checkSocket reports whether anything is accepting on the control socket. A
@@ -127,4 +155,37 @@ func checkRecentLog(_ context.Context, e *env) Check {
 // in the run directory.
 func pidFilePath(paths config.Paths) string {
 	return filepath.Join(filepath.Dir(paths.ControlSocket), config.ProjectName+".pid")
+}
+
+// checkRecentFailures reads the on-disk failure journal.
+//
+// It reads the file directly rather than asking the daemon, which is the whole
+// point: the daemon's in-memory event history is gone after a restart, and a
+// diagnostic runs precisely when the daemon is not there to ask.
+func checkRecentFailures(_ context.Context, e *env) Check {
+	const id, title = "failures.recent", "recent failures"
+	path, err := config.FailureJournalPath()
+	if err != nil {
+		return skip(id, title, "the failure journal could not be located")
+	}
+	entries, err := control.NewFileJournal(path, 0).Recent(recentFailureLimit)
+	if err != nil {
+		return skip(id, title, "the failure journal could not be read").withDetail(err.Error())
+	}
+	if len(entries) == 0 {
+		return ok(id, title, "none recorded")
+	}
+	lines := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		line := entry.Time.Local().Format(time.RFC3339) + "  " + entry.Action
+		if entry.Profile != "" {
+			line += " " + entry.Profile
+		}
+		if entry.Detail != "" {
+			line += ": " + entry.Detail
+		}
+		lines = append(lines, line)
+	}
+	return warn(id, title, fmt.Sprintf("%d recorded", len(entries))).
+		withDetail(path + "\n" + strings.Join(lines, "\n"))
 }

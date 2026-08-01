@@ -291,3 +291,14 @@ func (i *installer) activeExecutable() (string, bool) {
 	}
 	return state.Active.Executable, true
 }
+
+// VerifyInstall re-hashes the requirements lock against the digest recorded at
+// install time. This backend installs a Python environment rather than a single
+// binary, so the lock file is what its digest covers.
+func (b *Backend) VerifyInstall(_ context.Context, record backends.InstallRecord) (backends.DigestVerification, error) {
+	path := ""
+	if record.Directory != "" {
+		path = filepath.Join(record.Directory, lockFileName)
+	}
+	return backends.VerifyRecordedDigest(record, path)
+}

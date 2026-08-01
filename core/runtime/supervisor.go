@@ -17,9 +17,9 @@ import (
 
 	"inferencerig/platform/audit"
 	"inferencerig/platform/pidfile"
+	"inferencerig/platform/process"
 
 	gopsnet "github.com/shirou/gopsutil/v4/net"
-	gopsprocess "github.com/shirou/gopsutil/v4/process"
 )
 
 // Neutral operational defaults for a supervised process. These are generic
@@ -192,24 +192,8 @@ func (s *Supervisor) matchExecutable(ctx context.Context, pid int) error {
 	if err != nil {
 		return err
 	}
-	actualProcess, err := gopsprocess.NewProcess(int32(pid))
-	if err != nil {
+	if _, err := process.SameExecutable(ctx, pid, expected); err != nil {
 		return err
-	}
-	actual, err := actualProcess.ExeWithContext(ctx)
-	if err != nil {
-		return err
-	}
-	expectedInfo, err := os.Stat(expected)
-	if err != nil {
-		return err
-	}
-	actualInfo, err := os.Stat(actual)
-	if err != nil {
-		return err
-	}
-	if !os.SameFile(expectedInfo, actualInfo) {
-		return fmt.Errorf("got %s, want %s", actual, expected)
 	}
 	return nil
 }
