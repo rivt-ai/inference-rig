@@ -120,6 +120,13 @@ research tickets do not.
   and the human dispatching it is the manual-QA sign-off. Nothing
   Apache-derived is in the tree — only `llamarig`/`mlxrig` licensing is left to
   confirm. `release.yml` already does more than expected, so ticket 14 shrinks.
+- [13 — Research the release supply chain](issues/13-research-release-supply-chain.md)
+  — All three targets cross-build with `CGO_ENABLED=0` after the existing web
+  build, so retain the small `GOOS`/`GOARCH` matrix and `gh release create`;
+  provenance is `actions/attest-build-provenance@v4`, SBOMs come from pinned
+  `cyclonedx-gomod`, and macOS ad-hoc signing is not a substitute for Developer
+  ID signing plus notarization. Exact versions, permissions, verification
+  commands, Gatekeeper behavior and primary sources are in the linked research.
 
 - [07 — Persist downloads and recover partial artifacts](issues/07-download-persistence.md)
   — Job records persist atomically to `<home>/state/downloads` and
