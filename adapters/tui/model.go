@@ -155,10 +155,7 @@ func (p *page) View(width, height int) string {
 		return p.app.services.View(width, height, p.app.data, p.app.manage)
 	}
 }
-func (p *page) CapturingInput() bool {
-	return p.index == 3 && p.app.activity.CapturingInput() ||
-		p.index == 1 && p.app.models.CapturingInput()
-}
+func (p *page) CapturingInput() bool { return p.app.capturingAt(p.index) }
 
 func (d *dashboard) update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
@@ -225,9 +222,12 @@ func (d *dashboard) updateKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (d *dashboard) capturing() bool {
-	return d.active == 3 && d.activity.CapturingInput() ||
-		d.active == 1 && d.models.CapturingInput()
+func (d *dashboard) capturing() bool { return d.capturingAt(d.active) }
+
+// capturingAt reports whether the page at index is taking text input, in which
+// case a keystroke belongs to it rather than to the dashboard's own bindings.
+func (d *dashboard) capturingAt(index int) bool {
+	return index == 3 && d.activity.CapturingInput() || index == 1 && d.models.CapturingInput()
 }
 
 func (d *dashboard) refresh() tea.Cmd {
@@ -270,7 +270,6 @@ func (d *dashboard) applyPoll(result pollResult) {
 	if !result.ok["base"] {
 		next.info, next.runtimes, next.backends, next.profiles = current.info, current.runtimes, current.backends, current.profiles
 	}
-	next.catalogPending = !result.ok["catalog"]
 	// The catalog arrives on its own command, so a poll never carries one.
 	next.catalog, next.catalogPending = current.catalog, current.catalogPending
 	if !result.ok["local"] {

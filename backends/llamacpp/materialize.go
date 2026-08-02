@@ -37,11 +37,15 @@ func (b *Backend) MaterializeProfiles(ps []profiles.Profile) (backends.Materiali
 		return backends.Materialization{}, err
 	}
 	return backends.Materialization{
-		Files: []backends.GeneratedFile{{
-			Path:    path,
-			Content: []byte(content),
-			Mode:    generatedFileMode,
-		}},
+		Files: []backends.GeneratedFile{
+			{Path: path, Content: []byte(content), Mode: generatedFileMode},
+			// The baseline copy, so the next materialization can tell a manual
+			// edit from a profile change. It rides in the same Materialization
+			// rather than being written separately: the neutral writer replaces
+			// each file atomically, and a copy written by any other path could
+			// disagree with the file it is supposed to be a record of.
+			{Path: path + baselineSuffix, Content: []byte(content), Mode: generatedFileMode},
+		},
 		Summary: fmt.Sprintf("rendered %d models.ini sections", len(ps)),
 	}, nil
 }

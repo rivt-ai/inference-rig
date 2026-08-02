@@ -13,8 +13,6 @@ import (
 	"inferencerig/core/modeldownload"
 	"inferencerig/core/profiles"
 	coreruntime "inferencerig/core/runtime"
-
-	"gopkg.in/yaml.v3"
 )
 
 type Info struct {
@@ -99,11 +97,14 @@ func (m *Manager) planDownloadApply(
 	}
 	updated := doc.Parsed
 	updated.Model.Source, updated.Model.Reference = job.TargetPath, ""
-	data, err := yaml.Marshal(updated)
+	// Merged into the file rather than re-rendered from the struct: applying a
+	// download changes one path, and must not cost the operator the comments
+	// they wrote around everything else in the profile.
+	data, err := profiles.MergeYAML(doc.ProfileYAML, updated)
 	if err != nil {
 		return profiles.ProfileDocument{}, "", CoreError(ErrorRuntime, err.Error(), err)
 	}
-	return doc, string(data), nil
+	return doc, data, nil
 }
 
 func (m *Manager) CleanupProfile(ctx context.Context, name string) (err error) {

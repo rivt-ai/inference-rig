@@ -1,11 +1,13 @@
 package rpc
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"math"
 	"net/http"
-	"sort"
+	"slices"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -235,16 +237,15 @@ func (s *ControlService) ResolveProfileModel(ctx context.Context, req *controlv1
 func (s *ControlService) StartModelDownload(ctx context.Context, req *controlv1.StartModelDownloadRequest) (*controlv1.StartModelDownloadResponse, error) {
 	// Either form is valid: a profile downloads that profile's model, while
 	// backend + reference downloads a catalog entry before any profile exists.
+	var job modeldownload.Job
+	var err error
 	if req.GetProfile() == "" {
-		job, err := s.manager.StartCatalogDownload(
+		job, err = s.manager.StartCatalogDownload(
 			ctx, req.GetBackend(), req.GetReference(), req.GetVariantReference(), req.GetForce(),
 		)
-		if err != nil {
-			return nil, rpcError(err)
-		}
-		return &controlv1.StartModelDownloadResponse{Ok: true, Download: downloadProto(job)}, nil
+	} else {
+		job, err = s.manager.StartDownload(ctx, req.GetProfile(), req.GetForce())
 	}
-	job, err := s.manager.StartDownload(ctx, req.GetProfile(), req.GetForce())
 	if err != nil {
 		return nil, rpcError(err)
 	}
@@ -454,26 +455,28 @@ func filterByFit(models []*controlv1.CatalogModel, minimum controlv1.FitLevel) [
 	return kept
 }
 
+// catalogOrders gives, per sort key, the rank a model is ordered by. Every
+// order is descending — best first — so one comparison serves them all, and an
+// unrecognized key leaves the catalog in the order the source returned it.
+var catalogOrders = map[string]func(*controlv1.CatalogModel) int64{
+	"downloads": func(m *controlv1.CatalogModel) int64 { return m.GetDownloads() },
+	"likes":     func(m *controlv1.CatalogModel) int64 { return m.GetLikes() },
+	"fit":       func(m *controlv1.CatalogModel) int64 { return int64(fitRank(m.GetBestVariant().GetFit().GetLevel())) },
+}
+
 func sortCatalog(models []*controlv1.CatalogModel, order string) {
-	switch order {
-	case "downloads":
-		sort.SliceStable(models, func(i, j int) bool {
-			return models[i].GetDownloads() > models[j].GetDownloads()
+	if order == "modified" {
+		// The one textual rank: an ISO timestamp sorts correctly as a string.
+		slices.SortStableFunc(models, func(a, b *controlv1.CatalogModel) int {
+			return strings.Compare(b.GetLastModified(), a.GetLastModified())
 		})
-	case "likes":
-		sort.SliceStable(models, func(i, j int) bool {
-			return models[i].GetLikes() > models[j].GetLikes()
-		})
-	case "modified":
-		sort.SliceStable(models, func(i, j int) bool {
-			return models[i].GetLastModified() > models[j].GetLastModified()
-		})
-	case "fit":
-		sort.SliceStable(models, func(i, j int) bool {
-			return fitRank(models[i].GetBestVariant().GetFit().GetLevel()) >
-				fitRank(models[j].GetBestVariant().GetFit().GetLevel())
-		})
+		return
 	}
+	rank, ok := catalogOrders[order]
+	if !ok {
+		return
+	}
+	slices.SortStableFunc(models, func(a, b *controlv1.CatalogModel) int { return cmp.Compare(rank(b), rank(a)) })
 }
 
 func (s *ControlService) WatchModelCatalog(ctx context.Context, _ *controlv1.WatchModelCatalogRequest, stream *connect.ServerStream[controlv1.WatchModelCatalogResponse]) error {
@@ -688,11 +691,8 @@ func profileProto(doc profiles.ProfileDocument) *controlv1.Profile {
 // accepts. yaml.v3 yields int and map[string]any, neither of which structpb
 // handles, so an unconverted profile would silently lose its engine args.
 func normalizeEngineArgs(args map[string]any) map[string]any {
-	out := make(map[string]any, len(args))
-	for key, value := range args {
-		out[key] = normalizeEngineValue(value)
-	}
-	return out
+	normalized, _ := mapContainer(args, normalizeEngineValue).(map[string]any)
+	return normalized
 }
 
 func normalizeEngineValue(value any) any {
