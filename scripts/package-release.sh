@@ -6,17 +6,19 @@ commit=${2:?usage: package-release.sh VERSION COMMIT COMMIT_TIME [OUTPUT_DIR]}
 commit_time=${3:?usage: package-release.sh VERSION COMMIT COMMIT_TIME [OUTPUT_DIR]}
 output_dir=${4:-dist/release}
 
-if [[ ! $version =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-	echo "release version must be prerelease SemVer prefixed with v" >&2
+if [[ ! $version =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+	echo "release version must be SemVer prefixed with v" >&2
 	exit 1
 fi
-IFS=. read -r -a prerelease_parts <<<"${BASH_REMATCH[4]}"
-for part in "${prerelease_parts[@]}"; do
-	if [[ $part =~ ^[0-9]+$ && ${#part} -gt 1 && $part == 0* ]]; then
-		echo "numeric prerelease identifiers must not contain leading zeroes" >&2
-		exit 1
-	fi
-done
+if [[ -n "${BASH_REMATCH[4]}" ]]; then
+	IFS=. read -r -a prerelease_parts <<<"${BASH_REMATCH[5]}"
+	for part in "${prerelease_parts[@]}"; do
+		if [[ $part =~ ^[0-9]+$ && ${#part} -gt 1 && $part == 0* ]]; then
+			echo "numeric prerelease identifiers must not contain leading zeroes" >&2
+			exit 1
+		fi
+	done
+fi
 if [[ ! $commit =~ ^[0-9a-f]{40}$ ]]; then
 	echo "commit must be a full lowercase Git SHA" >&2
 	exit 1
