@@ -75,8 +75,8 @@ func (s *ControlService) ListProfiles(ctx context.Context, _ *controlv1.ListProf
 }
 
 func (s *ControlService) GetProfile(ctx context.Context, req *controlv1.GetProfileRequest) (*controlv1.GetProfileResponse, error) {
-	if req.GetName() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name is required"))
+	if err := requireField(req.GetName(), "profile name"); err != nil {
+		return nil, err
 	}
 	doc, err := s.manager.GetProfile(ctx, req.GetName())
 	if err != nil {
@@ -86,8 +86,8 @@ func (s *ControlService) GetProfile(ctx context.Context, req *controlv1.GetProfi
 }
 
 func (s *ControlService) PutProfile(ctx context.Context, req *controlv1.PutProfileRequest) (*controlv1.PutProfileResponse, error) {
-	if req.GetName() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name is required"))
+	if err := requireField(req.GetName(), "profile name"); err != nil {
+		return nil, err
 	}
 	// A structured profile is rendered here rather than by the caller, so an
 	// editor never needs a YAML implementation that could disagree with ours.
@@ -110,8 +110,8 @@ func (s *ControlService) PutProfile(ctx context.Context, req *controlv1.PutProfi
 }
 
 func (s *ControlService) DeleteProfile(ctx context.Context, req *controlv1.DeleteProfileRequest) (*controlv1.DeleteProfileResponse, error) {
-	if req.GetName() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name is required"))
+	if err := requireField(req.GetName(), "profile name"); err != nil {
+		return nil, err
 	}
 	if _, err := s.manager.DeleteProfile(ctx, req.GetName()); err != nil {
 		return nil, rpcError(err)
@@ -120,8 +120,8 @@ func (s *ControlService) DeleteProfile(ctx context.Context, req *controlv1.Delet
 }
 
 func (s *ControlService) InstallBackend(ctx context.Context, req *controlv1.InstallBackendRequest) (*controlv1.InstallBackendResponse, error) {
-	if req.GetBackend() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	if err := requireField(req.GetBackend(), "backend"); err != nil {
+		return nil, err
 	}
 	return installResponse(s.manager.InstallBackend(ctx, req.GetBackend(), backends.InstallOptions{
 		Version: req.GetVersion(), Upgrade: req.GetUpgrade(), Force: req.GetForce(),
@@ -129,8 +129,8 @@ func (s *ControlService) InstallBackend(ctx context.Context, req *controlv1.Inst
 }
 
 func (s *ControlService) RollbackBackend(ctx context.Context, req *controlv1.RollbackBackendRequest) (*controlv1.InstallBackendResponse, error) {
-	if req.GetBackend() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	if err := requireField(req.GetBackend(), "backend"); err != nil {
+		return nil, err
 	}
 	return installResponse(s.manager.RollbackBackend(ctx, req.GetBackend()))
 }
@@ -148,8 +148,8 @@ func installResponse(result backends.InstallResult, err error) (*controlv1.Insta
 }
 
 func (s *ControlService) GetBackendInstallStatus(ctx context.Context, req *controlv1.GetBackendInstallStatusRequest) (*controlv1.GetBackendInstallStatusResponse, error) {
-	if req.GetBackend() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	if err := requireField(req.GetBackend(), "backend"); err != nil {
+		return nil, err
 	}
 	status, err := s.manager.BackendInstallStatus(ctx, req.GetBackend())
 	if err != nil {
@@ -222,8 +222,8 @@ func (s *ControlService) GetRuntimeStatus(ctx context.Context, req *controlv1.Ge
 }
 
 func (s *ControlService) ResolveProfileModel(ctx context.Context, req *controlv1.ResolveProfileModelRequest) (*controlv1.ResolveProfileModelResponse, error) {
-	if req.GetProfile() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile is required"))
+	if err := requireField(req.GetProfile(), "profile"); err != nil {
+		return nil, err
 	}
 	resolved, plan, err := s.manager.ResolveProfileModel(ctx, req.GetProfile())
 	if err != nil {
@@ -263,8 +263,8 @@ func (s *ControlService) ResolveModel(ctx context.Context, req *controlv1.Resolv
 }
 
 func (s *ControlService) GetModelDownload(ctx context.Context, req *controlv1.GetModelDownloadRequest) (*controlv1.GetModelDownloadResponse, error) {
-	if req.GetId() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "download ID is required"))
+	if err := requireField(req.GetId(), "download ID"); err != nil {
+		return nil, err
 	}
 	job, err := s.manager.GetDownload(ctx, req.GetId())
 	if err != nil {
@@ -274,8 +274,8 @@ func (s *ControlService) GetModelDownload(ctx context.Context, req *controlv1.Ge
 }
 
 func (s *ControlService) CancelModelDownload(ctx context.Context, req *controlv1.CancelModelDownloadRequest) (*controlv1.CancelModelDownloadResponse, error) {
-	if req.GetId() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "download ID is required"))
+	if err := requireField(req.GetId(), "download ID"); err != nil {
+		return nil, err
 	}
 	job, err := s.manager.CancelDownload(ctx, req.GetId())
 	if err != nil {
@@ -325,8 +325,8 @@ func (s *ControlService) WatchEvents(ctx context.Context, _ *controlv1.WatchEven
 }
 
 func (s *ControlService) ListModelCatalog(ctx context.Context, req *controlv1.ListModelCatalogRequest) (*controlv1.ListModelCatalogResponse, error) {
-	if req.GetBackend() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	if err := requireField(req.GetBackend(), "backend"); err != nil {
+		return nil, err
 	}
 	result, err := s.manager.ListModelCatalog(ctx, modelcatalog.SearchRequest{
 		Backend: req.GetBackend(), Query: req.GetQuery(), Limit: int(req.GetLimit()),
@@ -503,8 +503,8 @@ func (s *ControlService) WatchModelCatalog(ctx context.Context, _ *controlv1.Wat
 }
 
 func (s *ControlService) ListLocalModels(ctx context.Context, req *controlv1.ListLocalModelsRequest) (*controlv1.ListLocalModelsResponse, error) {
-	if req.GetBackend() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	if err := requireField(req.GetBackend(), "backend"); err != nil {
+		return nil, err
 	}
 	items, err := s.manager.ListLocalModels(ctx, req.GetBackend())
 	if err != nil {
@@ -557,8 +557,8 @@ func (s *ControlService) ApplyDownloadToProfile(ctx context.Context, req *contro
 }
 
 func (s *ControlService) CleanupProfile(ctx context.Context, req *controlv1.CleanupProfileRequest) (*controlv1.CleanupProfileResponse, error) {
-	if req.GetName() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name is required"))
+	if err := requireField(req.GetName(), "profile name"); err != nil {
+		return nil, err
 	}
 	if err := s.manager.CleanupProfile(ctx, req.GetName()); err != nil {
 		return nil, rpcError(err)
@@ -567,8 +567,8 @@ func (s *ControlService) CleanupProfile(ctx context.Context, req *controlv1.Clea
 }
 
 func (s *ControlService) SetProfileAutostart(ctx context.Context, req *controlv1.SetProfileAutostartRequest) (*controlv1.SetProfileAutostartResponse, error) {
-	if req.GetName() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile name is required"))
+	if err := requireField(req.GetName(), "profile name"); err != nil {
+		return nil, err
 	}
 	if _, err := s.manager.SetProfileAutostart(ctx, req.GetName(), req.GetEnabled()); err != nil {
 		return nil, rpcError(err)
@@ -584,8 +584,8 @@ func (s *ControlService) SetStartupServices(ctx context.Context, req *controlv1.
 }
 
 func (s *ControlService) RestartRuntime(ctx context.Context, req *controlv1.RestartRuntimeRequest) (*controlv1.RestartRuntimeResponse, error) {
-	if req.GetProfile() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile is required"))
+	if err := requireField(req.GetProfile(), "profile"); err != nil {
+		return nil, err
 	}
 	result, err := s.manager.RestartRuntime(ctx, req.GetProfile())
 	if err != nil {
@@ -617,8 +617,8 @@ func (s *ControlService) GetInfo(ctx context.Context, _ *controlv1.GetInfoReques
 }
 
 func (s *ControlService) GetBackendParams(ctx context.Context, req *controlv1.GetBackendParamsRequest) (*controlv1.GetBackendParamsResponse, error) {
-	if req.GetBackend() == "" {
-		return nil, rpcError(control.Errorf(control.ErrorInvalidInput, "backend is required"))
+	if err := requireField(req.GetBackend(), "backend"); err != nil {
+		return nil, err
 	}
 	items, err := s.manager.GetBackendParams(ctx, req.GetBackend())
 	if err != nil {
@@ -784,8 +784,8 @@ func (s *ControlService) runtimeAction(
 	profile string,
 	action func(context.Context, string) (coreruntime.CommandResult, error),
 ) (*controlv1.CommandResult, *controlv1.RuntimeStatus, error) {
-	if profile == "" {
-		return nil, nil, rpcError(control.Errorf(control.ErrorInvalidInput, "profile is required"))
+	if err := requireField(profile, "profile"); err != nil {
+		return nil, nil, err
 	}
 	result, err := action(ctx, profile)
 	if err != nil {

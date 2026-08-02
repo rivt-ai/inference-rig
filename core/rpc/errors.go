@@ -44,6 +44,15 @@ func rpcError(err error) error {
 	return connectErr
 }
 
+// requireField rejects an empty required request field, naming it in the
+// error so the caller knows what was missing.
+func requireField(value, field string) error {
+	if value == "" {
+		return rpcError(control.Errorf(control.ErrorInvalidInput, "%s is required", field))
+	}
+	return nil
+}
+
 // ErrorKindFromRPC recovers the control error kind from a connect error,
 // preferring the explicit header and falling back to the wire code.
 func ErrorKindFromRPC(err error) control.ErrorKind {
