@@ -37,3 +37,10 @@ linters:
             - .git
             - node_modules
             - webui/dist
+            # backendtest is the shared fake and contract suite every backend's
+            # tests run against. It is test code that only happens not to be
+            # named _test.go, because packages under test import it; counting it
+            # as implementation contradicts include-tests: false above.
+            # scripts/go-coverage.sh excludes the same package for the same
+            # reason.
+            - backends/backendtest
