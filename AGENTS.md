@@ -42,6 +42,9 @@ is what the Reuse-First Checklist below asks of you.
 - Before adding logic, inspect existing packages and reuse the existing owner.
 - A module-wide Go LOC budget (via a custom linter) is reinstated in a later
   phase; keep implementations lean in the meantime.
+- Never add a `//nolint` directive to non-test Go code. A lint failure in
+  production code means the code is too complex — restructure it (e.g. split
+  a function into named steps) instead of suppressing the finding.
 
 ## Reuse-First Checklist
 
