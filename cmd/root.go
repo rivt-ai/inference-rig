@@ -9,6 +9,7 @@ import (
 
 	adaptercli "inferencerig/adapters/cli"
 	"inferencerig/bootstrap"
+	"inferencerig/cmd/lifecycle"
 	"inferencerig/config"
 	"inferencerig/core/rpc"
 	"inferencerig/internal/buildinfo"
@@ -34,7 +35,7 @@ func NewRootCommand() *cobra.Command {
 		Version:           buildinfo.Version,
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 		RunE: func(command *cobra.Command, _ []string) error {
-			return reportStartupFailure(command, runTUI(command, ""))
+			return lifecycle.ReportStartupFailure(command, lifecycle.RunTUI(command, ""))
 		},
 	}
 	rootCmd.AddCommand(standaloneCommands(bootstrap.ValidateConfig)...)

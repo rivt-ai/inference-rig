@@ -1,4 +1,4 @@
-package cmd
+package standalone
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"inferencerig/bootstrap"
 	"inferencerig/config"
 	"inferencerig/core/doctor"
 )
@@ -21,12 +22,12 @@ func runDoctorCommand(t *testing.T, body string, args ...string) (string, error)
 			t.Fatal(err)
 		}
 	}
-	root := NewRootCommand()
+	root := DoctorCommand(bootstrap.ValidateConfig)
 	root.SilenceErrors = true
 	var out bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&out)
-	root.SetArgs(append([]string{"doctor"}, args...))
+	root.SetArgs(args)
 	err := root.Execute()
 	return out.String(), err
 }
@@ -106,12 +107,12 @@ func TestDoctorFixWithRepairsTheConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	root := NewRootCommand()
+	root := DoctorCommand(bootstrap.ValidateConfig)
 	root.SilenceErrors = true
 	var out bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&out)
-	root.SetArgs([]string{"doctor", "--fix-with=bind-loopback"})
+	root.SetArgs([]string{"--fix-with=bind-loopback"})
 	if err := root.Execute(); err != nil {
 		t.Fatalf("doctor --fix-with err = %v:\n%s", err, out.String())
 	}

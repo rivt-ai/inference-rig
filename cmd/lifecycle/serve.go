@@ -1,4 +1,4 @@
-package cmd
+package lifecycle
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"inferencerig/platform/process"
 )
 
-func serveCommand() *cobra.Command {
+func ServeCommand() *cobra.Command {
 	var detach bool
 	command := &cobra.Command{
 		Use: "serve", Short: "Run the canonical control daemon", Args: cobra.NoArgs,
@@ -20,7 +20,7 @@ func serveCommand() *cobra.Command {
 		SilenceUsage: true, SilenceErrors: true,
 		RunE: func(command *cobra.Command, _ []string) error {
 			if detach {
-				return reportStartupFailure(command, startDetached(config.ProjectName, "serve"))
+				return ReportStartupFailure(command, startDetached(config.ProjectName, "serve"))
 			}
 			service, err := bootstrap.NewService()
 			if err != nil {
@@ -33,7 +33,7 @@ func serveCommand() *cobra.Command {
 	return command
 }
 
-func daemonCommand() *cobra.Command {
+func DaemonCommand() *cobra.Command {
 	command := &cobra.Command{Use: "daemon", Short: "Manage a detached control daemon"}
 	command.AddCommand(
 		&cobra.Command{

@@ -1,4 +1,4 @@
-package cmd
+package lifecycle
 
 import (
 	"context"
@@ -22,20 +22,20 @@ import (
 	"inferencerig/platform/process"
 )
 
-func tuiCommand() *cobra.Command {
+func TuiCommand() *cobra.Command {
 	var socket string
 	command := &cobra.Command{
 		Use: "tui", Short: "Open the interactive control dashboard", Args: cobra.NoArgs,
 		SilenceUsage: true, SilenceErrors: true,
 		RunE: func(command *cobra.Command, _ []string) error {
-			return reportStartupFailure(command, runTUI(command, socket))
+			return ReportStartupFailure(command, RunTUI(command, socket))
 		},
 	}
 	command.Flags().StringVar(&socket, "socket", "", "control Unix socket")
 	return command
 }
 
-func runTUI(command *cobra.Command, socket string) error {
+func RunTUI(command *cobra.Command, socket string) error {
 	// The TUI owns the terminal for its full-screen render, so the shared
 	// logger (default: stderr) must not write there — a stray log line
 	// corrupts the frame. Redirect it to a file for the life of this process.

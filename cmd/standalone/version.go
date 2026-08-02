@@ -1,4 +1,4 @@
-package cmd
+package standalone
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func versionCommand() *cobra.Command {
+func VersionCommand() *cobra.Command {
 	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "version",

@@ -1,4 +1,4 @@
-package cmd
+package lifecycle
 
 import (
 	"bytes"
@@ -88,7 +88,7 @@ func TestReportStartupFailurePrintsDaemonErrorOnce(t *testing.T) {
 		LogPath: "/tmp/inferencerig.log",
 		Tail:    "Error: parse config: security.disable_auth with a non-loopback listen_addr\n",
 	}
-	err := reportStartupFailure(command, failure)
+	err := ReportStartupFailure(command, failure)
 
 	if !errors.Is(err, errStartupFailed) {
 		t.Fatalf("err = %v, want errStartupFailed", err)
@@ -112,13 +112,13 @@ func TestReportStartupFailurePassesOtherErrorsThrough(t *testing.T) {
 	command.SetErr(&out)
 
 	sentinel := errors.New("something else")
-	if err := reportStartupFailure(command, sentinel); !errors.Is(err, sentinel) {
+	if err := ReportStartupFailure(command, sentinel); !errors.Is(err, sentinel) {
 		t.Fatalf("err = %v, want the original error", err)
 	}
 	if out.Len() != 0 {
 		t.Errorf("wrote %q for an unrelated error", out.String())
 	}
-	if err := reportStartupFailure(command, nil); err != nil {
+	if err := ReportStartupFailure(command, nil); err != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
 }
@@ -126,12 +126,9 @@ func TestReportStartupFailurePassesOtherErrorsThrough(t *testing.T) {
 // The commands whose stderr is read back as a service log must not bury the
 // failure under a usage dump, and must not print it twice.
 func TestStartupCommandsSilenceUsageAndErrors(t *testing.T) {
-	root := NewRootCommand()
-	for _, name := range []string{"serve", "tui", "setup"} {
-		command, _, err := root.Find([]string{name})
-		if err != nil {
-			t.Fatalf("find %s: %v", name, err)
-		}
+	for name, command := range map[string]*cobra.Command{
+		"serve": ServeCommand(), "tui": TuiCommand(), "setup": SetupCommand(),
+	} {
 		if !command.SilenceUsage || !command.SilenceErrors {
 			t.Errorf("%s: SilenceUsage = %v, SilenceErrors = %v, want both true",
 				name, command.SilenceUsage, command.SilenceErrors)
@@ -150,11 +147,11 @@ func TestServeDetachReportsStartupFailure(t *testing.T) {
 	}
 	t.Cleanup(func() { startDetached = process.StartDetached })
 
-	root := NewRootCommand()
+	root := ServeCommand()
 	var out bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&out)
-	root.SetArgs([]string{"serve", "--detach"})
+	root.SetArgs([]string{"--detach"})
 
 	if err := root.Execute(); err == nil {
 		t.Fatal("serve --detach returned nil for a daemon that could not start")

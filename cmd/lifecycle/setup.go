@@ -1,4 +1,4 @@
-package cmd
+package lifecycle
 
 import (
 	"errors"
@@ -14,12 +14,12 @@ import (
 	"inferencerig/platform/process"
 )
 
-func setupCommand() *cobra.Command {
+func SetupCommand() *cobra.Command {
 	return &cobra.Command{
 		Use: "setup", Short: "Configure InferenceRig interactively", Args: cobra.NoArgs,
 		SilenceUsage: true, SilenceErrors: true,
 		RunE: func(command *cobra.Command, args []string) error {
-			return reportStartupFailure(command, runSetup(command, args))
+			return ReportStartupFailure(command, runSetup(command, args))
 		},
 	}
 }
