@@ -12,6 +12,17 @@ import (
 	"inferencerig/config"
 )
 
+// TestStopDetachedHelperSleep is not a real test: it is re-exec'd as a plain
+// child process by TestStopDetachedTerminatesARunningProcessAndClearsItsPIDFile
+// so the child is a copy of this test binary (see the identity check in
+// StopDetached) rather than an unrelated command like sleep(1).
+func TestStopDetachedHelperSleep(t *testing.T) {
+	if os.Getenv("STOP_DETACHED_HELPER_SLEEP") != "1" {
+		t.Skip("helper process, not a real test")
+	}
+	time.Sleep(2 * time.Minute)
+}
+
 // StopDetached is the escalation path: terminate, wait, and kill if the process
 // will not go. It is also the only code that clears a PID file for a process it
 // did not start, so a bug here either leaves a daemon running or leaves a stale
@@ -43,8 +54,17 @@ func TestStopDetachedTerminatesARunningProcessAndClearsItsPIDFile(t *testing.T) 
 	t.Setenv(config.ProjectHomeEnv, home)
 
 	// A real child process, so the terminate/wait/kill escalation runs against
-	// a real signal path rather than a stub that cannot refuse to die.
-	child := exec.Command("sleep", "120")
+	// a real signal path rather than a stub that cannot refuse to die. It must
+	// also be a copy of this test binary, not an arbitrary command: StopDetached
+	// now refuses to signal a PID unless it is running the same executable as
+	// the caller (identity.go), matching how a real daemon is the same binary
+	// as the CLI stopping it.
+	self, err := os.Executable()
+	if err != nil {
+		t.Skipf("cannot resolve own executable: %v", err)
+	}
+	child := exec.Command(self, "-test.run=TestStopDetachedHelperSleep")
+	child.Env = append(os.Environ(), "STOP_DETACHED_HELPER_SLEEP=1")
 	if err := child.Start(); err != nil {
 		t.Skipf("cannot start a child process here: %v", err)
 	}
