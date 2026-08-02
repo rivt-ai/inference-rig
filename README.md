@@ -171,8 +171,23 @@ model, and runtime management, plus daemon and engine logs.
 ### TUI
 
 `infr` (no args) or `infr tui` — full-screen dashboard for both services,
-profile and runtime status, host resources. Screenshots pending; see
-`docs/todo-tui-screenshots.md`.
+profile and runtime status, host resources.
+
+| Services | Models |
+|---|---|
+| ![TUI services tab, showing control daemon, web gateway, and runtime status](docs/assets/tui-services.jpg) | ![TUI models tab, showing profiles and their backend/model/state](docs/assets/tui-models.jpg) |
+
+| System |
+|---|
+| ![TUI system tab, showing host CPU/RAM/GPU/disk usage](docs/assets/tui-system.jpg) |
+
+| Activity — events | Activity — control audit log |
+|---|---|
+| ![TUI activity tab, events pane, showing runtime start/transition events](docs/assets/tui-activity-events.jpg) | ![TUI activity tab, control pane, showing structured audit log lines](docs/assets/tui-activity-control.jpg) |
+
+| Activity — engine log |
+|---|
+| ![TUI activity tab, engine pane, showing live llama-server log tail](docs/assets/tui-activity-engine.jpg) |
 
 ## Profiles
 
