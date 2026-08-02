@@ -37,9 +37,8 @@ func NewRootCommand() *cobra.Command {
 			return reportStartupFailure(command, runTUI(command, ""))
 		},
 	}
-	rootCmd.AddCommand(versionCommand())
-	rootCmd.AddCommand(serveCommand(), daemonCommand(), setupCommand(), tuiCommand(), webCommand(), serviceCommand())
-	rootCmd.AddCommand(doctorCommand(bootstrap.ValidateConfig))
+	rootCmd.AddCommand(standaloneCommands(bootstrap.ValidateConfig)...)
+	rootCmd.AddCommand(daemonLifecycleCommands()...)
 	rootCmd.AddCommand(adaptercli.Commands(rpc.DialControl, bootstrap.ValidateConfig)...)
 	return rootCmd
 }
