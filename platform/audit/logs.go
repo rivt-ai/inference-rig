@@ -63,10 +63,7 @@ func GetArchiveDir() (string, error) {
 }
 
 func ArchiveLog(name string, now time.Time) (string, error) {
-	if !logNamePattern.MatchString(name) {
-		return "", fmt.Errorf("invalid log name %q", name)
-	}
-	path, err := GetLogPath(name)
+	path, err := servicePath(name)
 	if err != nil {
 		return "", err
 	}
@@ -141,14 +138,21 @@ func copyAndDelete(source, target string) error {
 }
 
 func TailLogLines(name string, lines int) (string, error) {
-	if !logNamePattern.MatchString(name) {
-		return "", fmt.Errorf("invalid log name %q", name)
-	}
-	path, err := GetLogPath(name)
+	path, err := servicePath(name)
 	if err != nil {
 		return "", err
 	}
 	return tailFileLines(path, lines)
+}
+
+// servicePath validates a service log name and returns the path it names. Every
+// entry point that takes a log name starts here, so a malformed one is rejected
+// identically no matter which of them the caller reached for.
+func servicePath(name string) (string, error) {
+	if !ValidLogName(name) {
+		return "", fmt.Errorf("invalid log name %q", name)
+	}
+	return GetLogPath(name)
 }
 
 // ValidLogName reports whether name is a usable service log name. Callers that
@@ -177,10 +181,7 @@ func ArchiveService(id string) string {
 // exists but is not a regular file counts as absent, matching ArchiveLog's
 // refusal to treat symlinks and devices as logs.
 func LogExists(name string) (bool, error) {
-	if !ValidLogName(name) {
-		return false, fmt.Errorf("invalid log name %q", name)
-	}
-	path, err := GetLogPath(name)
+	path, err := servicePath(name)
 	if err != nil {
 		return false, err
 	}
@@ -199,10 +200,7 @@ func LogExists(name string) (bool, error) {
 // new output is delivered, and it recovers from the rotation ArchiveLog
 // performs by resuming at the replacement file's start.
 func FollowLog(ctx context.Context, name string, emit func(string) error) error {
-	if !ValidLogName(name) {
-		return fmt.Errorf("invalid log name %q", name)
-	}
-	path, err := GetLogPath(name)
+	path, err := servicePath(name)
 	if err != nil {
 		return err
 	}
