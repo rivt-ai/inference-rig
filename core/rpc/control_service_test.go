@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,7 +146,7 @@ func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
 	if err != nil || !installStatus.GetInstalled() || installStatus.GetPath() == "" {
 		t.Fatalf("install status = %#v, err = %v", installStatus, err)
 	}
-	yaml := "version: 1\nname: demo\nbackend: test\nmodel:\n  source: " + downloadServer.URL +
+	yaml := "# demo rig\nversion: 1\nname: demo\nbackend: test\nmodel:\n  source: " + downloadServer.URL +
 		"\nlisten:\n  host: 127.0.0.1\n  port: 8080\n"
 	put, err := client.PutProfile(ctx, &controlv1.PutProfileRequest{
 		Name: "demo", ProfileYaml: yaml, CreateOnly: true,
@@ -188,6 +189,11 @@ func TestCanonicalControlServiceOverUnixSocket(t *testing.T) {
 	})
 	if err != nil || applied.GetProfile().GetModelSource() != backend.target {
 		t.Fatalf("applied = %#v, err = %v", applied, err)
+	}
+	// Applying a download changes one path; it must not cost the operator the
+	// comments they wrote around everything else in the profile.
+	if !strings.Contains(applied.GetProfile().GetProfileYaml(), "# demo rig") {
+		t.Fatalf("apply dropped the profile's comments: %q", applied.GetProfile().GetProfileYaml())
 	}
 	autostart, err := client.SetProfileAutostart(ctx, &controlv1.SetProfileAutostartRequest{
 		Name: "demo", Enabled: true,

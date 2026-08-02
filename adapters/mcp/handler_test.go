@@ -95,3 +95,79 @@ func TestToolBreadthRoutesOnlyToCanonicalRPC(t *testing.T) {
 		})
 	}
 }
+
+// argRecorder captures the requests the tools build, so a test can assert the
+// arguments arrived rather than only that the right procedure was reached.
+type argRecorder struct {
+	controlv1connect.ControlServiceClient
+	autostart *controlv1.SetProfileAutostartRequest
+	startup   *controlv1.SetStartupServicesRequest
+	start     *controlv1.StartRuntimeRequest
+	put       *controlv1.PutProfileRequest
+}
+
+func (r *argRecorder) SetProfileAutostart(_ context.Context, req *controlv1.SetProfileAutostartRequest) (*controlv1.SetProfileAutostartResponse, error) {
+	r.autostart = req
+	return &controlv1.SetProfileAutostartResponse{Ok: true}, nil
+}
+
+func (r *argRecorder) SetStartupServices(_ context.Context, req *controlv1.SetStartupServicesRequest) (*controlv1.SetStartupServicesResponse, error) {
+	r.startup = req
+	return &controlv1.SetStartupServicesResponse{Ok: true}, nil
+}
+
+func (r *argRecorder) StartRuntime(_ context.Context, req *controlv1.StartRuntimeRequest) (*controlv1.StartRuntimeResponse, error) {
+	r.start = req
+	return &controlv1.StartRuntimeResponse{Ok: true}, nil
+}
+
+func (r *argRecorder) PutProfile(_ context.Context, req *controlv1.PutProfileRequest) (*controlv1.PutProfileResponse, error) {
+	r.put = req
+	return &controlv1.PutProfileResponse{Ok: true}, nil
+}
+
+// Routing to the right RPC is only half a tool call: the arguments have to
+// arrive too, in every shape the advertised schemas use — string, boolean and
+// string list — and a tool that takes none must still produce a valid request.
+func TestToolArgumentsReachTheRequest(t *testing.T) {
+	recorder := &argRecorder{}
+	invoke := func(name, arguments string) {
+		t.Helper()
+		body := fmt.Sprintf(
+			`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":%q,"arguments":%s}}`,
+			name, arguments,
+		)
+		response := httptest.NewRecorder()
+		NewHandler(recorder).ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body)))
+		if strings.Contains(response.Body.String(), `"error"`) {
+			t.Fatalf("%s: %s", name, response.Body.String())
+		}
+	}
+	invoke("profile_autostart", `{"name":"demo","enabled":true}`)
+	if recorder.autostart.GetName() != "demo" || !recorder.autostart.GetEnabled() {
+		t.Errorf("autostart request = %v", recorder.autostart)
+	}
+	invoke("startup_services_set", `{"services":["control","web"]}`)
+	if strings.Join(recorder.startup.GetServices(), ",") != "control,web" {
+		t.Errorf("startup request = %v", recorder.startup)
+	}
+	invoke("runtime_start", `{"profile":"demo","replace":true}`)
+	if recorder.start.GetProfile() != "demo" || !recorder.start.GetReplace() {
+		t.Errorf("start request = %v", recorder.start)
+	}
+	invoke("profile_put", `{"name":"demo","profile_yaml":"version: 1"}`)
+	if recorder.put.GetName() != "demo" || recorder.put.GetProfileYaml() != "version: 1" {
+		t.Errorf("put request = %v", recorder.put)
+	}
+}
+
+// A tool taking no arguments is called with none at all, not with an empty
+// object, so the missing map must still decode to an empty request.
+func TestToolCallWithoutArgumentsField(t *testing.T) {
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"backends_list"}}`
+	response := httptest.NewRecorder()
+	NewHandler(testClient{}).ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body)))
+	if !strings.Contains(response.Body.String(), `\"name\":\"test\"`) {
+		t.Fatalf("response = %q", response.Body.String())
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -45,8 +46,6 @@ func NewFileStore(root string, limitBytes int64, lookup BackendLookup) *FileStor
 	}
 	return &FileStore{root: filepath.Clean(root), limitBytes: limitBytes, lookup: lookup}
 }
-
-// Root returns the profiles root directory.
 
 // List returns every profile under the root, sorted by name.
 func (s *FileStore) List(ctx context.Context) ([]ProfileSummary, error) {
@@ -94,13 +93,9 @@ func (s *FileStore) ListDocuments(ctx context.Context) ([]ProfileDocument, error
 
 func summaryOf(doc ProfileDocument) ProfileSummary {
 	return ProfileSummary{
-		Name:            doc.Name,
-		Dir:             doc.Dir,
-		ProfileYAMLPath: doc.ProfileYAMLPath,
-		Backend:         doc.Effective.Backend,
-		Model:           doc.Effective.Model,
-		Host:            doc.Effective.Listen.Host,
-		Port:            doc.Effective.Listen.Port,
+		Name: doc.Name, Dir: doc.Dir, ProfileYAMLPath: doc.ProfileYAMLPath,
+		Backend: doc.Effective.Backend, Model: doc.Effective.Model,
+		Host: doc.Effective.Listen.Host, Port: doc.Effective.Listen.Port,
 	}
 }
 
@@ -148,12 +143,8 @@ func (s *FileStore) buildDocument(name, dir, profileYAML string) (ProfileDocumen
 		return ProfileDocument{}, err
 	}
 	return ProfileDocument{
-		Name:            name,
-		Dir:             dir,
-		ProfileYAMLPath: filepath.Join(dir, profileFileName),
-		ProfileYAML:     profileYAML,
-		Parsed:          parsed,
-		Effective:       effective,
+		Name: name, Dir: dir, ProfileYAMLPath: filepath.Join(dir, profileFileName),
+		ProfileYAML: profileYAML, Parsed: parsed, Effective: effective,
 	}, nil
 }
 
@@ -300,4 +291,94 @@ func writeFile(path, content string, perm os.FileMode, backup bool) (WriteResult
 
 func normalize(content string) string {
 	return string(bytes.TrimRight([]byte(content), "\n")) + "\n"
+}
+
+// MergeYAML rewrites profileYAML so that it decodes to updated, touching only
+// the values that actually differ.
+//
+// It exists because the obvious alternative is lossy: re-marshalling a decoded
+// Profile returns a file that is correct and has silently lost every comment in
+// it, along with the key order and quoting its author chose. A profile is a file
+// people hand-write and annotate, so every write-back that starts from an
+// existing profile goes through here instead, and a change to one engine
+// argument costs the user exactly that one line.
+func MergeYAML(profileYAML string, updated Profile) (string, error) {
+	var document, want yaml.Node
+	if err := yaml.Unmarshal([]byte(profileYAML), &document); err != nil {
+		return "", fmt.Errorf("%w: %v", ErrInvalid, err)
+	}
+	if err := want.Encode(updated); err != nil {
+		return "", fmt.Errorf("%w: %v", ErrInvalid, err)
+	}
+	if len(document.Content) == 0 {
+		return "", fmt.Errorf("%w: profile.yaml is empty", ErrInvalid)
+	}
+	merge(document.Content[0], &want)
+	var out bytes.Buffer
+	encoder := yaml.NewEncoder(&out)
+	encoder.SetIndent(documentIndent(profileYAML))
+	if err := encoder.Encode(&document); err != nil {
+		return "", err
+	}
+	return out.String(), encoder.Close()
+}
+
+// merge makes into say what want says. Mappings are merged key by key so the
+// file keeps its own layout; a scalar that did not change is left completely
+// alone, so its quoting survives too. Anything else is replaced outright, with
+// the comments written against it carried onto the replacement — a comment
+// belongs to the key the author wrote it next to, not to the value that
+// happened to be there.
+func merge(into, want *yaml.Node) {
+	switch {
+	case into.Kind == yaml.MappingNode && want.Kind == yaml.MappingNode:
+		mergeMapping(into, want)
+	case into.Kind == yaml.ScalarNode && want.Kind == yaml.ScalarNode && into.Value == want.Value:
+		// Unchanged. Deliberately untouched, so `"8080"` does not become 8080.
+	default:
+		head, line, foot := into.HeadComment, into.LineComment, into.FootComment
+		*into = *want
+		into.HeadComment, into.LineComment, into.FootComment = head, line, foot
+	}
+}
+
+// mergeMapping keeps the file's key order, drops the keys updated no longer has
+// — which is how a removed engine argument disappears — and appends new ones at
+// the end, where a reader looks for what changed.
+func mergeMapping(into, want *yaml.Node) {
+	kept := into.Content[:0]
+	for i := 0; i+1 < len(into.Content); i += 2 {
+		if value := mappingValue(want, into.Content[i].Value); value != nil {
+			merge(into.Content[i+1], value)
+			kept = append(kept, into.Content[i], into.Content[i+1])
+		}
+	}
+	into.Content = kept
+	for i := 0; i+1 < len(want.Content); i += 2 {
+		if mappingValue(into, want.Content[i].Value) == nil {
+			into.Content = append(into.Content, want.Content[i], want.Content[i+1])
+		}
+	}
+}
+
+func mappingValue(mapping *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			return mapping.Content[i+1]
+		}
+	}
+	return nil
+}
+
+// nestedLine matches the first indented line, whose depth is the one the file
+// nests by. yaml.v3 will not report what it parsed and defaults to four spaces
+// — enough to reindent every block of a two-space profile that an edit only
+// meant to change one value in.
+var nestedLine = regexp.MustCompile(`(?m)^( +)\S`)
+
+func documentIndent(profileYAML string) int {
+	if match := nestedLine.FindStringSubmatch(profileYAML); match != nil {
+		return len(match[1])
+	}
+	return 2
 }
