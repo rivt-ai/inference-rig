@@ -1,4 +1,4 @@
-package cmd
+package standalone
 
 import (
 	"context"
@@ -41,7 +41,7 @@ type doctorFlags struct {
 	verifyModels bool
 }
 
-func doctorCommand(validate func(context.Context) error) *cobra.Command {
+func DoctorCommand(validate func(context.Context) error) *cobra.Command {
 	var flags doctorFlags
 	command := &cobra.Command{
 		Use:   "doctor",

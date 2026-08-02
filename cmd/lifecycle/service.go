@@ -1,4 +1,4 @@
-package cmd
+package lifecycle
 
 import (
 	"bytes"
@@ -29,7 +29,7 @@ var (
 	launchAgentDefinition string
 )
 
-func serviceCommand() *cobra.Command {
+func ServiceCommand() *cobra.Command {
 	group := &cobra.Command{Use: "service", Short: "Manage the per-user control daemon service"}
 	group.AddCommand(&cobra.Command{
 		Use: "generate <systemd|launchd>", Short: "Print a native user-service definition", Args: cobra.ExactArgs(1),

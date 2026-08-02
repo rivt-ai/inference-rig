@@ -1,6 +1,7 @@
 package process
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -99,6 +100,14 @@ func StopDetached(name string) error {
 	proc, err := gopsprocess.NewProcess(int32(pid))
 	if err != nil {
 		return file.Remove(pid)
+	}
+	// PIDs are recycled: a crashed daemon can leave a pidfile pointing at a
+	// PID the OS has since handed to an unrelated process. Refuse to signal
+	// it unless it is still running the same binary.
+	if self, err := os.Executable(); err == nil {
+		if _, err := SameExecutable(context.Background(), pid, self); err != nil {
+			return file.Remove(pid)
+		}
 	}
 	_ = proc.Terminate()
 	wait := defaultShutdownTimeout + time.Second

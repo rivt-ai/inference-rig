@@ -19,6 +19,56 @@ over a Unix socket. Starting a profile means: manager asks the backend to
 validate + materialize it, gets a `runtime.LaunchSpec`, and hands it to the
 generic process **supervisor**.
 
+## Diagram
+
+```mermaid
+flowchart TB
+    subgraph frontends["Front ends"]
+        CLI["cmd/ + adapters/cli\n(cobra CLI)"]
+        TUI["adapters/tui\n(bubbletea dashboard)"]
+        WEB["adapters/public_http\n(browser gateway + REST + MCP)"]
+    end
+
+    RPC["core/rpc\nControlService (Connect/proto)\nover Unix socket"]
+
+    subgraph daemon["Control daemon (bootstrap.Service)"]
+        MANAGER["core/control.Manager\n(the only business logic)"]
+        SUPERVISOR["core/runtime.Supervisor\n(generic process lifecycle)"]
+    end
+
+    BACKENDS["backends.Backend\n(llamacpp, mlx)"]
+    ENGINE["Inference engine process\n(llama-server, mlx_lm.server, ...)"]
+
+    subgraph domain["Core domain packages"]
+        PROFILES["core/profiles"]
+        CATALOG["core/modelcatalog"]
+        DOWNLOAD["core/modeldownload"]
+        SIGNALS["core/signals"]
+        CONFIGSTORE["core/configstore"]
+    end
+
+    CLI --> RPC
+    TUI --> RPC
+    WEB --> RPC
+    RPC --> MANAGER
+    MANAGER --> SUPERVISOR
+    MANAGER --> BACKENDS
+    MANAGER --> PROFILES
+    MANAGER --> CATALOG
+    MANAGER --> DOWNLOAD
+    MANAGER --> SIGNALS
+    MANAGER --> CONFIGSTORE
+    SUPERVISOR --> ENGINE
+    BACKENDS -. validate/materialize/launch-spec .-> SUPERVISOR
+```
+
+Front ends never talk to `core/control` directly — everything crosses the Unix
+socket through the same `ControlService`, including the browser (re-exported
+Connect service, not a hand-written REST facade). `core/control.Manager` is
+the one place business logic lives; it drives the backend contract
+(validate → materialize → launch-spec) and hands the result to the
+engine-agnostic supervisor, which owns the actual OS process.
+
 ## Layers
 
 | Layer | Package | Entry point |

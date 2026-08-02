@@ -1,4 +1,4 @@
-package cmd
+package lifecycle
 
 import (
 	"errors"
@@ -19,10 +19,10 @@ var startDetached = process.StartDetached
 // enough that repeating it costs nothing.
 var errStartupFailed = errors.New("control daemon failed to start")
 
-// reportStartupFailure prints a *process.StartupError as the daemon's own
+// ReportStartupFailure prints a *process.StartupError as the daemon's own
 // output — its error, its log path, and where to go next — and reduces it to a
 // one-line error. Other errors pass through untouched.
-func reportStartupFailure(command *cobra.Command, err error) error {
+func ReportStartupFailure(command *cobra.Command, err error) error {
 	var failure *process.StartupError
 	if !errors.As(err, &failure) {
 		return err

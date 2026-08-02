@@ -9,6 +9,7 @@ import (
 
 	adaptercli "inferencerig/adapters/cli"
 	"inferencerig/bootstrap"
+	"inferencerig/cmd/lifecycle"
 	"inferencerig/config"
 	"inferencerig/core/rpc"
 	"inferencerig/internal/buildinfo"
@@ -34,12 +35,11 @@ func NewRootCommand() *cobra.Command {
 		Version:           buildinfo.Version,
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 		RunE: func(command *cobra.Command, _ []string) error {
-			return reportStartupFailure(command, runTUI(command, ""))
+			return lifecycle.ReportStartupFailure(command, lifecycle.RunTUI(command, ""))
 		},
 	}
-	rootCmd.AddCommand(versionCommand())
-	rootCmd.AddCommand(serveCommand(), daemonCommand(), setupCommand(), tuiCommand(), webCommand(), serviceCommand())
-	rootCmd.AddCommand(doctorCommand(bootstrap.ValidateConfig))
+	rootCmd.AddCommand(standaloneCommands(bootstrap.ValidateConfig)...)
+	rootCmd.AddCommand(daemonLifecycleCommands()...)
 	rootCmd.AddCommand(adaptercli.Commands(rpc.DialControl, bootstrap.ValidateConfig)...)
 	return rootCmd
 }

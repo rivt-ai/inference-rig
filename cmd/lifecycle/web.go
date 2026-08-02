@@ -1,4 +1,4 @@
-package cmd
+package lifecycle
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"inferencerig/webui"
 )
 
-func webCommand() *cobra.Command {
+func WebCommand() *cobra.Command {
 	return &cobra.Command{
 		Use: "web", Short: "Serve the browser, REST, and MCP gateway", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {

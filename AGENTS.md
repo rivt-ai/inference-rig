@@ -10,6 +10,11 @@ the import direction, and the entry-point file for each area, so you land in the
 package that already owns the behavior instead of adding a parallel one — which
 is what the Reuse-First Checklist below asks of you.
 
+If a change alters the architecture it documents — a new front end, a new
+layer, a component talking to a different thing than before, a changed import
+direction — update the Mermaid diagram in `docs/architecture-overview.md` in
+the same change. A stale diagram is worse than none.
+
 ## Neutrality (non-negotiable)
 
 - Shared packages must not import, name, or reference `llamarig`/`mlxrig`, or
@@ -42,6 +47,9 @@ is what the Reuse-First Checklist below asks of you.
 - Before adding logic, inspect existing packages and reuse the existing owner.
 - A module-wide Go LOC budget (via a custom linter) is reinstated in a later
   phase; keep implementations lean in the meantime.
+- Never add a `//nolint` directive to non-test Go code. A lint failure in
+  production code means the code is too complex — restructure it (e.g. split
+  a function into named steps) instead of suppressing the finding.
 
 ## Reuse-First Checklist
 

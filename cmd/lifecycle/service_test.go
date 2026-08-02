@@ -1,4 +1,4 @@
-package cmd
+package lifecycle
 
 import (
 	"encoding/xml"
@@ -115,10 +115,10 @@ func TestLaunchAgentDefinitionStartsServeAtLogin(t *testing.T) {
 
 func TestServiceCommandGeneratesBothNativeFormats(t *testing.T) {
 	for _, manager := range []string{"systemd", "launchd"} {
-		root := NewRootCommand()
+		root := ServiceCommand()
 		var out strings.Builder
 		root.SetOut(&out)
-		root.SetArgs([]string{"service", "generate", manager})
+		root.SetArgs([]string{"generate", manager})
 		if err := root.Execute(); err != nil {
 			t.Fatalf("generate %s: %v", manager, err)
 		}

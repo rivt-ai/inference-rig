@@ -63,7 +63,6 @@ func (w *Wizard) Backends(ctx context.Context) ([]*controlv1.BackendInfo, error)
 	return response.GetBackends(), nil
 }
 
-//nolint:gocognit,gocyclo,funlen // The linear form keeps conditional validation and safety gates together.
 func (w *Wizard) collect(ctx context.Context, paths Paths, input io.Reader, output io.Writer) (Answers, error) {
 	backends, err := w.Backends(ctx)
 	if err != nil {
@@ -72,6 +71,22 @@ func (w *Wizard) collect(ctx context.Context, paths Paths, input io.Reader, outp
 	if len(backends) == 0 {
 		return Answers{}, fmt.Errorf("setup: no backends are available")
 	}
+	answers, err := runCollectForm(ctx, paths, backends, input, output)
+	if err != nil {
+		return Answers{}, err
+	}
+	if err := w.applySafetyGates(ctx, backends, input, output, &answers); err != nil {
+		return Answers{}, err
+	}
+	return answers, nil
+}
+
+// runCollectForm builds and runs the interactive setup form, then normalizes
+// the raw answers (trimmed strings, default token env, expanded storage
+// path, startup service list) into their stored form.
+func runCollectForm(
+	ctx context.Context, paths Paths, backends []*controlv1.BackendInfo, input io.Reader, output io.Writer,
+) (Answers, error) {
 	answers := defaultAnswers(paths, backends[0].GetName())
 	startup := "both"
 	proceed := true
@@ -119,19 +134,28 @@ func (w *Wizard) collect(ctx context.Context, paths Paths, input io.Reader, outp
 	}
 	answers.ModelStorageDir = config.ExpandHome(strings.TrimSpace(answers.ModelStorageDir))
 	answers.StartupServices = startupServices(startup)
+	return answers, nil
+}
+
+// applySafetyGates ensures the selected backend is installed and, for a
+// remote-capable bind without auth, requires an explicit confirmation before
+// setup is allowed to proceed.
+func (w *Wizard) applySafetyGates(
+	ctx context.Context, backends []*controlv1.BackendInfo, input io.Reader, output io.Writer, answers *Answers,
+) error {
 	selected := backendByName(backends, answers.Backend)
 	if selected == nil {
-		return Answers{}, fmt.Errorf("setup: backend %q is not available", answers.Backend)
+		return fmt.Errorf("setup: backend %q is not available", answers.Backend)
 	}
 	if err := w.ensureBackend(ctx, input, output, selected); err != nil {
-		return Answers{}, err
+		return err
 	}
-	if prompt := remoteBindWarning(answers); prompt != "" {
+	if prompt := remoteBindWarning(*answers); prompt != "" {
 		if err := requireConfirm(ctx, input, output, prompt); err != nil {
-			return Answers{}, err
+			return err
 		}
 	}
-	return answers, nil
+	return nil
 }
 
 // remoteBindWarning returns the confirmation prompt for a remote-capable bind,
