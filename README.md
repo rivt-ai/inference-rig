@@ -149,6 +149,46 @@ infr service uninstall
 
 - **Web GUI / HTTP / MCP** — served by the gateway, see below.
 
+## Screenshots
+
+### Web UI
+
+Served by `infr web` at `listen_addr` (default `127.0.0.1:7000`) — profile,
+model, and runtime management, plus daemon and engine logs.
+
+| Dashboard | System resources |
+|---|---|
+| ![Web UI dashboard](docs/assets/webui-dashboard.jpg) | ![Web UI resources, showing host CPU/RAM and accelerator telemetry](docs/assets/webui-resources.jpg) |
+
+| Profile editor | Model catalog |
+|---|---|
+| ![Web UI profile editor](docs/assets/webui-profiles.jpg) | ![Web UI model catalog, ranked by what fits the host](docs/assets/webui-catalog.jpg) |
+
+| Daemon events | Engine log |
+|---|---|
+| ![Web UI daemon/control events log](docs/assets/webui-logs-events.jpg) | ![Web UI live engine log tail](docs/assets/webui-logs-engine.jpg) |
+
+### TUI
+
+`infr` (no args) or `infr tui` — full-screen dashboard for both services,
+profile and runtime status, host resources.
+
+| Services | Models |
+|---|---|
+| ![TUI services tab, showing control daemon, web gateway, and runtime status](docs/assets/tui-services.jpg) | ![TUI models tab, showing profiles and their backend/model/state](docs/assets/tui-models.jpg) |
+
+| System |
+|---|
+| ![TUI system tab, showing host CPU/RAM/GPU/disk usage](docs/assets/tui-system.jpg) |
+
+| Activity — events | Activity — control audit log |
+|---|---|
+| ![TUI activity tab, events pane, showing runtime start/transition events](docs/assets/tui-activity-events.jpg) | ![TUI activity tab, control pane, showing structured audit log lines](docs/assets/tui-activity-control.jpg) |
+
+| Activity — engine log |
+|---|
+| ![TUI activity tab, engine pane, showing live llama-server log tail](docs/assets/tui-activity-engine.jpg) |
+
 ## Profiles
 
 A profile is canonical YAML at `~/.inferencerig/profiles/<name>/profile.yaml`.
