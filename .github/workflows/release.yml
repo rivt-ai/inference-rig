@@ -28,8 +28,8 @@ jobs:
             echo "Releases must run from main, got $GITHUB_REF" >&2
             exit 1
           }
-          [[ "$RELEASE_VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] || {
-            echo "Release version must be prerelease SemVer prefixed with v" >&2
+          [[ "$RELEASE_VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] || {
+            echo "Release version must be SemVer prefixed with v" >&2
             exit 1
           }
           if gh release view "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -81,30 +81,23 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm run build
 
-      - name: Build and package
+      - name: Package release
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          mkdir -p dist/release
-          name="inferencerig_${RELEASE_VERSION}_linux_amd64"
           commit_time=$(git show -s --format=%cI "$GITHUB_SHA")
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-            -ldflags "-s -w \
-              -X inferencerig/internal/buildinfo.Version=${RELEASE_VERSION} \
-              -X inferencerig/internal/buildinfo.Commit=${GITHUB_SHA} \
-              -X inferencerig/internal/buildinfo.CommitTime=${commit_time}" \
-            -o "dist/${name}/infr" .
-          cp LICENSE README.md "dist/${name}/"
-          tar -C dist -czf "dist/release/${name}.tar.gz" "${name}"
-          cd dist/release && sha256sum ./*.tar.gz > SHA256SUMS
+          scripts/package-release.sh "$RELEASE_VERSION" "$GITHUB_SHA" "$commit_time"
 
       - name: Smoke-test release
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          smoke=$(mktemp -d)
-          tar -C "$smoke" -xzf "dist/release/inferencerig_${RELEASE_VERSION}_linux_amd64.tar.gz"
-          "$smoke/inferencerig_${RELEASE_VERSION}_linux_amd64/infr" version
+          smoke_dir=$(mktemp -d)
+          tar -C "$smoke_dir" -xzf "dist/release/inferencerig_${RELEASE_VERSION}_linux_amd64.tar.gz"
+          binary="$smoke_dir/inferencerig_${RELEASE_VERSION}_linux_amd64/infr"
+          "$binary" version
+          "$binary" version --json | jq -e --arg version "$RELEASE_VERSION" --arg commit "$GITHUB_SHA" \
+            '.version == $version and .commit == $commit'
           cd dist/release && sha256sum --check SHA256SUMS
 
       - name: Publish GitHub prerelease
@@ -112,9 +105,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
+          prerelease_flag=()
+          [[ "$RELEASE_VERSION" == *-* ]] && prerelease_flag=(--prerelease)
           gh release create "$RELEASE_VERSION" dist/release/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "$RELEASE_VERSION" \
             --generate-notes \
-            --prerelease
+            "${prerelease_flag[@]}"
