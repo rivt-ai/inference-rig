@@ -17,10 +17,10 @@ var ErrInvalidINI = errors.New("invalid models.ini")
 // lifetime of manual changes, followed by the file-level version key.
 const generatedHeader = "; InferenceRig materialized runtime file.\n" +
 	"; Edits inside a profile's own section are imported back into that profile's\n" +
-	"; canonical YAML on the next materialization, which rewrites that profile.yaml\n" +
-	"; and does not preserve its comments. Where the YAML changed too, the YAML wins\n" +
-	"; and the edit is reported. Edits to [*], to a section naming no profile, and\n" +
-	"; comments and ordering here are not imported and are lost.\n" +
+	"; canonical YAML on the next materialization, leaving the rest of that\n" +
+	"; profile.yaml — comments included — exactly as it is. Where the YAML changed\n" +
+	"; too, the YAML wins and the edit is reported. Edits to [*], to a section\n" +
+	"; naming no profile, and comments and ordering here are not imported.\n" +
 	"version = 1\n"
 
 // globalSection is the models.ini cascade section name that holds backend-wide

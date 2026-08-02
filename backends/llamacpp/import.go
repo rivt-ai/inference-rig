@@ -89,11 +89,11 @@ func importSections(docs []profiles.ProfileDocument, edited, base map[string]sec
 		if !adopted {
 			continue
 		}
-		profileYAML, err := yaml.Marshal(merged)
+		profileYAML, err := profiles.MergeYAML(doc.ProfileYAML, merged)
 		if err != nil {
 			return nil, nil, fmt.Errorf("profile %q: %w", doc.Name, err)
 		}
-		adopt[doc.Name] = string(profileYAML)
+		adopt[doc.Name] = profileYAML
 	}
 	return adopt, conflicts, nil
 }

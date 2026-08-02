@@ -249,3 +249,36 @@ func TestImportGeneratedRejectsUngrammaticalFile(t *testing.T) {
 		t.Fatal("ungrammatical file did not fail the import")
 	}
 }
+
+// The import writes the profile back, so it must write back the file the user
+// wrote rather than a re-rendering of the fields models.ini happens to know.
+func TestImportGeneratedPreservesProfileComments(t *testing.T) {
+	const annotated = `version: 1
+name: dev
+backend: llamacpp
+model:
+  source: /models/dev.gguf # the quantized build
+listen:
+  host: 127.0.0.1
+  port: 8080
+# tuned against the long-context runs
+engine_args:
+  ctx-size: 4096 # raise this together with parallel
+`
+	adopt, conflicts := importFixture(t, func(s string) string {
+		return strings.Replace(s, "ctx-size = 4096", "ctx-size = 16384", 1)
+	}, devDoc(t, annotated))
+	if len(conflicts) != 0 {
+		t.Fatalf("conflicts = %#v", conflicts)
+	}
+	for _, want := range []string{
+		"# the quantized build",
+		"# tuned against the long-context runs",
+		"# raise this together with parallel",
+		"ctx-size: 16384",
+	} {
+		if !strings.Contains(adopt["dev"], want) {
+			t.Errorf("imported profile lost %q:\n%s", want, adopt["dev"])
+		}
+	}
+}
