@@ -2,7 +2,7 @@
 # Installs infr (InferenceRig) from GitHub releases.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/antonikliment/InferenceRig/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/antonikliment/InferenceRig/main/internal/installer/install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- v0.1.0-alpha.2   # pin a release
 #
 # Env vars:
@@ -69,7 +69,16 @@ echo "downloading $name.tar.gz ($version)..." >&2
 curl -fsSL -o "$workdir/$name.tar.gz" "$base_url/$name.tar.gz"
 curl -fsSL -o "$workdir/SHA256SUMS" "$base_url/SHA256SUMS"
 
-(cd "$workdir" && sha256sum --ignore-missing --check SHA256SUMS)
+# macOS ships shasum, not sha256sum. shasum has no --ignore-missing, so the
+# single relevant line is selected before checking.
+if command -v sha256sum >/dev/null 2>&1; then
+	(cd "$workdir" && sha256sum --ignore-missing --check SHA256SUMS)
+elif command -v shasum >/dev/null 2>&1; then
+	(cd "$workdir" && grep " $name\.tar\.gz\$" SHA256SUMS | shasum -a 256 -c -)
+else
+	echo "error: neither sha256sum nor shasum found; cannot verify download" >&2
+	exit 1
+fi
 
 tar -C "$workdir" -xzf "$workdir/$name.tar.gz"
 

@@ -313,6 +313,11 @@ func (d *dashboard) status() (string, tuikit.Level) {
 	if d.notice != "" {
 		return d.notice + refreshedText(d.data.refreshed), tuikit.LevelSuccess
 	}
+	// Persistent, unlike the notice above: it stays until the user upgrades. No
+	// upgrade command is suggested because the install method is unknowable.
+	if latest := d.data.info.GetBuild().GetLatestVersion(); latest != "" {
+		return "Update available: " + latest + refreshedText(d.data.refreshed), tuikit.LevelWarning
+	}
 	if !d.data.refreshed.IsZero() && len(d.data.profiles.GetProfiles()) == 0 {
 		return "No profiles yet — press n on Models to create one" + refreshedText(d.data.refreshed), tuikit.LevelWarning
 	}

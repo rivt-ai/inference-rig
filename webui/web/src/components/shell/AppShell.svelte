@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Activity from '@lucide/svelte/icons/activity';
+  import ArrowUpCircle from '@lucide/svelte/icons/arrow-up-circle';
   import Box from '@lucide/svelte/icons/box';
+  import Tag from '@lucide/svelte/icons/tag';
   import Cpu from '@lucide/svelte/icons/cpu';
   import Gauge from '@lucide/svelte/icons/gauge';
   import Moon from '@lucide/svelte/icons/moon';
@@ -11,6 +13,7 @@
   import Sun from '@lucide/svelte/icons/sun';
   import { resetMode, setMode } from 'mode-watcher';
   import type { InferenceRigState } from '../../lib/state.svelte';
+  import type { BuildInfo } from '$lib/gen/inferencerig/control/v1/control_pb';
   import { Alert, AlertDescription, AlertTitle } from '$lib/components/ui/alert';
   import { Button, buttonVariants } from '$lib/components/ui/button';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -53,6 +56,14 @@
     if (status === 'running') return 'bg-success';
     if (status === 'failed') return 'bg-destructive';
     return 'bg-warning';
+  }
+
+  // Commit and build time only matter when someone is diagnosing which build
+  // they are on, so they live in the tooltip rather than the chip.
+  function versionTooltip(build: BuildInfo) {
+    const lines = [`Version: ${build.version}`, `Commit: ${build.commit}`, `Built: ${build.commitTime}`];
+    if (build.latestVersion) lines.push(`Update available: ${build.latestVersion}`);
+    return lines.join('\n');
   }
 
   function saveThemeColors() {
@@ -111,6 +122,18 @@
             <Sidebar.MenuBadge>{app.activeProfileNames.length}</Sidebar.MenuBadge>
           </Sidebar.MenuButton>
         </Sidebar.MenuItem>
+        {#if app.build}
+          <Sidebar.MenuItem>
+            <Sidebar.MenuButton tooltipContent={versionTooltip(app.build)} class="pointer-events-none">
+              {#if app.build.latestVersion}
+                <ArrowUpCircle class="text-warning" />
+                <span class="truncate text-warning">{app.build.version}</span>
+              {:else}
+                <Tag /> <span class="truncate">{app.build.version}</span>
+              {/if}
+            </Sidebar.MenuButton>
+          </Sidebar.MenuItem>
+        {/if}
       </Sidebar.Menu>
     </Sidebar.Footer>
     <Sidebar.Rail />

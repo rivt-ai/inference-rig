@@ -283,6 +283,7 @@ export function createInferenceRigClient() {
     state.autostartProfiles = info.autostartProfiles;
     state.defaultProfile = info.autostartProfiles[0] || '';
     state.activeBackend = info.activeBackend;
+    state.build = info.build ?? null;
     return info;
   }
 

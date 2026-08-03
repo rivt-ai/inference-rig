@@ -19,6 +19,7 @@ func daemonLifecycleCommands() []*cobra.Command {
 		lifecycle.TuiCommand(),
 		lifecycle.WebCommand(),
 		lifecycle.ServiceCommand(),
+		lifecycle.UpgradeCommand(),
 	}
 }
 

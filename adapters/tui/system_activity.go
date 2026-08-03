@@ -54,6 +54,9 @@ func (p *systemPage) View(width, height int, data snapshot) string {
 		tuikit.Field("Running", fmt.Sprint(len(data.info.GetRunningProfiles()))),
 		tuikit.Field("Commit", build.GetCommit()),
 	}
+	if latest := build.GetLatestVersion(); latest != "" {
+		controlRows = append(controlRows, warningStyle.Render(tuikit.Field("Update available", latest)))
+	}
 	// Grow both panels together so added GPU/disk rows stay inside the border.
 	panelHeight := max(10, len(resourceRows)+2, len(controlRows)+2)
 	content := tuikit.Flow(width, 2, []string{

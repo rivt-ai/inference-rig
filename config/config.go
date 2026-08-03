@@ -27,13 +27,16 @@ const (
 	// ProjectName: ProjectName still names the home directory, PID files, log
 	// files and the user service, so shortening the command cannot move an
 	// existing installation's data.
-	CommandName = "infr"
+	CommandName        = "infr"
 	ProjectHomeEnv     = "INFERENCERIG_HOME"
 	ProjectConfigEnv   = "INFERENCERIG_CONFIG"
 	ProjectHomeDirName = "." + ProjectName
 	ProjectTokenEnv    = "INFERENCERIG_CONTROL_TOKEN"
 	ProjectSocketEnv   = "INFERENCERIG_CONTROL_SOCKET"
 	ProjectAppDirEnv   = "INFERENCERIG_APP_DIR"
+	// NoUpdateCheckEnv, when non-empty, stops the daemon contacting GitHub to
+	// learn whether a newer release exists.
+	NoUpdateCheckEnv = "INFERENCERIG_NO_UPDATE_CHECK"
 
 	DefaultListenAddr          = "127.0.0.1:7000"
 	DefaultAuthTokenEnv        = ProjectTokenEnv
@@ -57,6 +60,24 @@ const (
 
 // DefaultStartupServices starts both the control daemon and the web gateway.
 func DefaultStartupServices() []string { return []string{StartupServiceControl, StartupServiceWeb} }
+
+// ServiceProcessName maps a startup service to its detached process name. The
+// control daemon runs under the project name rather than "control", because its
+// PID and log files predate the startup-service naming.
+func ServiceProcessName(service string) string {
+	if service == StartupServiceControl {
+		return ProjectName
+	}
+	return service
+}
+
+// ServiceArgs returns the subcommand that runs a startup service.
+func ServiceArgs(service string) []string {
+	return map[string][]string{
+		StartupServiceControl: {"serve"},
+		StartupServiceWeb:     {"web"},
+	}[service]
+}
 
 // Config is the neutral, backend-agnostic application configuration.
 type Config struct {

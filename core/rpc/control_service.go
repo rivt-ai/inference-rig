@@ -504,6 +504,7 @@ func (s *ControlService) GetInfo(ctx context.Context, _ *controlv1.GetInfoReques
 		StartupServices: info.StartupServices, ActiveBackend: info.ActiveBackend,
 		Build: &controlv1.BuildInfo{
 			Version: buildinfo.Version, Commit: buildinfo.Commit, CommitTime: buildinfo.CommitTime,
+			LatestVersion: buildinfo.LatestVersion(),
 		},
 	}, nil
 }
