@@ -38,28 +38,42 @@ provenance verification. What that work actually delivered is in
 - **Release receipt.** Deliberately not built — the packaged-artifact E2E and
   MLX CI runs are the evidence trail; nothing today consumes a separate
   machine-readable receipt format.
-- **Hardware detection and explainable model selection.** Partly built — this
-  entry previously overstated what is left. The neutral architecture is
-  delivered: `backends.HostResources` (`backends/types.go`) carries both the
+- **Hardware detection and explainable model selection.** Done, with two
+  caveats noted below. The neutral architecture was already in place:
+  `backends.HostResources` (`backends/types.go`) carries both the
   discrete-VRAM and unified-memory axes in one type; `acceleratorProbe`
   (`bootstrap/service.go`) asks each registered backend for its own probe with
-  no branching on backend names; and fit policy is already per-backend
-  (`backends/llamacpp/fit.go` discrete, `backends/mlx/fit.go` unified). Live
-  probes exist for NVIDIA (`nvidia-smi`, `backends/llamacpp/host.go`) and Apple
-  silicon (`backends/mlx/host.go`).
+  no branching on backend names; and fit policy is per-backend
+  (`backends/llamacpp/fit.go` discrete, `backends/mlx/fit.go` unified).
 
-  What is actually left:
-  - AMD probe. No coverage today.
-  - CPU-only as an explicit named state rather than an empty accelerator slice,
-    so the UI can say "CPU only" instead of showing nothing.
-  - Multi-GPU capacity policy — see the bug in the session notes.
-  - Context- and quantization-aware sizing. `core/modelcatalog/fit.go` models
-    memory as `on-disk size + DefaultOverheadBytes` (a flat 512 MiB) and
-    ignores context length entirely. KV cache scales with context length and
-    dominates that constant at long contexts, so a model can currently be
-    reported as fitting and then fail to load.
-  - Explanations carried through to the user. `Verdict.Reason` is the existing
-    seam.
+  What shipped:
+  - AMD probe (`rocm-smi`, `backends/llamacpp/host.go`), tried only when NVIDIA
+    finds nothing, alongside the existing NVIDIA probe.
+  - CPU-only as an explicit named state (`AcceleratorName = "CPU"`) instead of
+    an empty accelerator slice.
+  - Multi-GPU capacity policy: the sum is kept (matches how llama.cpp splits
+    layers across devices), but the pooled name now discloses the device count
+    (`"2× ..."`) instead of reading as one device — see the caveat below.
+  - Context- and quantization-aware sizing. `core/modelcatalog/gguf.go` is a
+    new from-scratch GGUF header parser (no dependency existed or was added)
+    reading only the KV-table keys sizing needs. `core/modelcatalog/fit.go`
+    gained `KVCacheBytes`/`RequiredBytes`, wired into
+    `backends/llamacpp/fit.go` via `p.EngineArgs["ctx-size"]` and a resolved
+    local model file, cached by mtime (`backends/llamacpp/archcache.go`). Only
+    applies when the model is already downloaded (both in `ListModelCatalog`
+    and profile-based `EstimateFit`); not-yet-downloaded catalog variants keep
+    the flat `size + 512 MiB` estimate, disclosed as such in the reason.
+  - Explanations carried through to the user via the existing `Verdict.Reason`
+    seam — no proto or UI change needed, since `FitEstimate.Reason` and
+    `AcceleratorName` already reached clients.
+
+  Caveats, both unverified against real hardware in this session:
+  - The KV-cache formula is the standard transformer estimate, believed to
+    match llama.cpp's cache layout, but not checked against llama.cpp source
+    or a measured allocation.
+  - `rocm-smi`'s `--showmeminfo vram --showproductname --json` flags and key
+    names (`"VRAM Total Memory (B)"`, `"Card series"`) are from public
+    documentation, not exercised against a real ROCm install.
 - **Model switchboard validation.** Proving, after a switch, that the endpoint
   reports the new model identity, that streaming/cancellation work, that the
   previous model is unloaded or intentionally retained, and that rollback
@@ -198,13 +212,13 @@ treating it as a defect. Independent of any new feature work.
 
 ### Open questions
 
-1. **Multi-GPU policy.** Should fit use the largest single device, the sum, or
-   a backend-declared "can this backend split layers" capability? Blocks the
-   bug above.
-2. **Is GGUF metadata already parsed anywhere?** KV-cache-aware sizing needs
-   layer count, KV head count and head dimension. If a parser exists, the
-   sizing work is cheap; if not, it needs a new one and the estimate grows.
-   Not yet checked.
+1. **Multi-GPU policy.** Resolved: keep the sum (matches how llama.cpp splits
+   layers across devices) and disclose the device count in the pooled name
+   (`backends/llamacpp/host.go`) rather than change the capacity model. Not
+   verified against real multi-GPU hardware.
+2. **Is GGUF metadata already parsed anywhere?** Resolved: no. Written from
+   scratch in `core/modelcatalog/gguf.go` — a KV-table-only reader, no
+   dependency, stops before the tensor table.
 3. **Is TTFT worth a reverse proxy?** It is the only one of the four serving
    metrics that cannot be scraped. Answering no makes the observability item
    substantially cheaper.

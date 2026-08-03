@@ -341,7 +341,13 @@ func (s *ControlService) ListModelCatalog(ctx context.Context, req *controlv1.Li
 	for _, model := range result.Models {
 		message := catalogModelProto(model)
 		for _, variant := range message.GetVariants() {
-			estimate, fitErr := backend.Fit(profiles.Profile{}, variant.GetSizeBytes(), host)
+			// A synthetic profile naming this variant lets Fit resolve it against
+			// local storage: variants already downloaded get KV-cache-aware
+			// sizing, variants that are not fall back to the flat estimate.
+			variantProfile := profiles.Profile{
+				Model: profiles.ModelSpec{Source: model.ID, Reference: variant.GetReference()},
+			}
+			estimate, fitErr := backend.Fit(variantProfile, variant.GetSizeBytes(), host)
 			if fitErr != nil {
 				continue
 			}
