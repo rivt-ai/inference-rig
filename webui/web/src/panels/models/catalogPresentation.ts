@@ -30,14 +30,29 @@ export function rankedResourceSummary(machine: MachineProfile | null, signals: S
   const total = Number(machine?.totalMemoryBytes || signals?.totalMemoryBytes || 0);
   const available = Number(machine?.availableMemoryBytes || signals?.availableMemoryBytes || 0);
   if (machine?.unifiedMemory) {
-    return `${available ? formatBytes(available) : 'unknown'} of ${
-      total ? formatBytes(total) : 'unknown'
-    } unified memory available`;
+    return withAccelerator(
+      `${available ? formatBytes(available) : 'unknown'} of ${
+        total ? formatBytes(total) : 'unknown'
+      } unified memory available`,
+      machine
+    );
   }
   const accelerator = Number(machine?.acceleratorMemoryBytes || 0);
-  return `${available ? `${formatBytes(available)} RAM available` : 'RAM unknown'} / ${
-    accelerator ? `${formatBytes(accelerator)} VRAM capacity` : 'RAM-only ranking'
-  }`;
+  return withAccelerator(
+    `${available ? `${formatBytes(available)} RAM available` : 'RAM unknown'} / ${
+      accelerator ? `${formatBytes(accelerator)} VRAM capacity` : 'RAM-only ranking'
+    }`,
+    machine
+  );
+}
+
+// withAccelerator names the device behind the capacity. The name is what
+// discloses a pooled multi-GPU figure ("2× NVIDIA ...") or a CPU-only host: a
+// summed VRAM number otherwise reads as one device the model must fit inside.
+// An absent name leaves the summary untouched, so an older server that does not
+// send one does not render a dangling separator.
+function withAccelerator(summary: string, machine: MachineProfile | null) {
+  return machine?.acceleratorName ? `${summary} · ${machine.acceleratorName}` : summary;
 }
 
 // fitOf returns the server's own FitEstimate for a variant. llamarig computed

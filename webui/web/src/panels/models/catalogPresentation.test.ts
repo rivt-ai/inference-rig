@@ -79,6 +79,29 @@ describe('rankedResourceSummary', () => {
       '2.0 KB VRAM capacity'
     );
   });
+
+  // A pooled multi-GPU capacity reads as a single device unless the name says
+  // otherwise, which would invite fitting a model no one card can hold.
+  it('names the accelerator behind a pooled capacity', () => {
+    const summary = rankedResourceSummary(
+      machine({ availableMemoryBytes: 1024n, acceleratorMemoryBytes: 2048n, acceleratorName: '2× NVIDIA GeForce RTX 4090' }),
+      null
+    );
+    expect(summary).toContain('2× NVIDIA GeForce RTX 4090');
+  });
+
+  it('names the accelerator on a unified-memory host', () => {
+    const summary = rankedResourceSummary(
+      machine({ unifiedMemory: true, totalMemoryBytes: 4096n, availableMemoryBytes: 2048n, acceleratorName: 'Apple Metal' }),
+      null
+    );
+    expect(summary).toBe('2.0 KB of 4.0 KB unified memory available · Apple Metal');
+  });
+
+  // An older server sends no name; a dangling separator would look like a bug.
+  it('omits the separator when the server sent no name', () => {
+    expect(rankedResourceSummary(machine({ availableMemoryBytes: 1024n }), null)).not.toContain('·');
+  });
 });
 
 // Fit comes from the server per variant now. llamarig multiplied file size by
