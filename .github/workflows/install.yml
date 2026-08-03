@@ -1,0 +1,67 @@
+name: Install script
+
+# Exercises internal/installer/install.sh against real published releases on a
+# clean container, so a change here is proven against the actual GitHub
+# Releases API rather than only read by eye.
+on:
+  push:
+    paths:
+      - "internal/installer/install.sh"
+      - ".github/workflows/install.yml"
+  pull_request:
+    paths:
+      - "internal/installer/install.sh"
+      - ".github/workflows/install.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install curl
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq curl >/dev/null
+
+      - name: Install stable channel
+        run: |
+          sh internal/installer/install.sh
+          infr version
+
+      - name: Reinstall is idempotent
+        run: |
+          sh internal/installer/install.sh
+          test 1 -eq "$(command -v infr | wc -l)"
+
+      - name: Tampered checksum aborts and installs nothing
+        run: |
+          rm -f /usr/local/bin/infr
+          # Corrupt the archive after it is genuinely downloaded, by putting a
+          # wrapper curl ahead of the real one on PATH that appends a byte to
+          # any *.tar.gz it fetches. install.sh has no override for the
+          # download URL, so this is the way to prove its checksum check fails
+          # closed without faking a whole release.
+          mkdir -p /tmp/binstub
+          cat >/tmp/binstub/curl <<'WRAP'
+          #!/bin/sh
+          out=""
+          prev=""
+          for a in "$@"; do
+            if [ "$prev" = "-o" ]; then out=$a; fi
+            prev=$a
+          done
+          /usr/bin/curl "$@"
+          case "$out" in
+            *.tar.gz) printf '\x00' >>"$out" ;;
+          esac
+          WRAP
+          chmod +x /tmp/binstub/curl
+          PATH="/tmp/binstub:$PATH" sh internal/installer/install.sh && exit 1
+          test ! -e /usr/local/bin/infr
+          echo "tampered install correctly aborted and installed nothing"
