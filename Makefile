@@ -1,4 +1,4 @@
-.PHONY: build test lint lint-ci verify generate webui coverage e2e e2e-browser e2e-live-mlx
+.PHONY: build test lint lint-ci verify vuln generate webui coverage e2e e2e-browser e2e-live-mlx
 
 CUSTOM_LINT ?= ./custom-golangci-lint
 
@@ -21,6 +21,17 @@ lint: custom-golangci-lint
 lint-ci: lint
 
 verify: test lint
+
+# Known-vulnerability scan of the Go module — the same command the Security
+# workflow runs, so a finding can be reproduced and fixed locally rather than
+# only in CI. Deliberately not part of `verify`: it queries vuln.go.dev, and
+# `verify` is the offline-capable pre-commit gate.
+#
+# Run via the go.mod tool directive rather than an installed binary, because a
+# govulncheck built with an older Go than this module's cannot load its
+# packages.
+vuln:
+	go tool govulncheck ./...
 
 generate:
 	buf generate
