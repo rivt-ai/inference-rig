@@ -85,7 +85,16 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// packagedBinaryEnv, when set, points at a released (non-instrumented) binary
+// to run the suite against instead of building one from source — used to
+// prove the artifact users actually download, not a freshly compiled one.
+const packagedBinaryEnv = "INFERENCERIG_E2E_BINARY"
+
 func run(m *testing.M) (int, error) {
+	if path := os.Getenv(packagedBinaryEnv); path != "" {
+		binary = path
+		return m.Run(), nil
+	}
 	dir, err := os.MkdirTemp("", "inferencerig-e2e-bin")
 	if err != nil {
 		return 0, err
