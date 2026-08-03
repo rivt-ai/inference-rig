@@ -15,11 +15,26 @@ provenance verification. What that work actually delivered is in
 ## Not yet done
 
 - **Model-serving observability.** Operation IDs, events and audit logging
-  exist (`core/control/events.go`, `audit_sink.go`, `journal.go`), but
-  model-load time, time to first token, throughput and queue depth are not
-  reported anywhere. Needs "not measured" kept distinct from a measured zero,
-  bounded history, and a structured export that doesn't require standing up an
-  observability stack.
+  exist (`core/control/events.go`, `audit_sink.go`, `journal.go`), but no
+  metrics do: the codebase has no identifier for time to first token,
+  throughput, queue depth or load duration. OpenTelemetry appears in `go.mod`
+  transitively via `buf` only — nothing imports it, so there is no
+  observability stack to keep or remove.
+
+  Two findings re-shape this item — see the session notes for detail:
+  - **Inference traffic does not pass through InferenceRig.** The public
+    gateway (`adapters/public_http/server.go`) serves control RPC, `/health`,
+    `/mcp` and static files; clients talk to the engine's own port directly.
+    There is no request path of ours to instrument, so throughput, queue depth
+    and TTFT cannot be obtained by adding timers to our code.
+  - **llama.cpp already computes most of it.** `llama-server --metrics` gives
+    throughput and queue depth for the cost of one launch flag and a scrape,
+    which is far cheaper than inserting a reverse proxy into the serving path.
+
+  Remaining requirements stand: "not measured" kept distinct from a measured
+  zero, bounded history, and a structured export that doesn't require standing
+  up an observability stack. `EventStore` already satisfies the last two and
+  should be the template rather than a new mechanism.
 - **Release receipt.** Deliberately not built — the packaged-artifact E2E and
   MLX CI runs are the evidence trail; nothing today consumes a separate
   machine-readable receipt format.
@@ -72,7 +87,7 @@ the code.
 
 | Item | Complexity | Value | Notes |
 | --- | --- | --- | --- |
-| Model-serving observability | Medium | High | Few instrumentation points (load, first token, stream end, queue in/out) but all on the hot path and per-backend. Ring buffer + JSON export is easy. The fiddly part is propagating "not measured" (distinct from zero) out to web UI and TUI. |
+| Model-serving observability | Low–Medium if TTFT is dropped; High if not | High | Re-scoped after reading the code. There is no request path of ours to instrument, so the cheap route is scraping `llama-server --metrics` rather than timing our own code. Three of the four metrics come almost free that way; TTFT is not exposed and needs a reverse proxy, which is most of the cost. `EventStore` already provides the ring buffer and subscribe shape. |
 | Hardware detection + selection | Low for detection; Medium overall | High | Re-scoped after reading the code — see the revised bullet above and the session notes. The neutral architecture already exists; remaining detection work is small. The cost is in sizing accuracy, not detection. |
 | Switchboard validation | Low–Medium | Medium–High | Mostly tests against existing behaviour. Value spikes if it finds real bugs; unload leaks and rollback gaps are common in this area. Risk: tests may expose work that grows the item. |
 | Lifecycle diagnostics | Medium, unbounded | Medium–High | No natural finish line. Needs a fixed checklist of `doctor` checks agreed up front or it sprawls. |
@@ -109,6 +124,67 @@ responsibilities of the core.
 Findings from a triage session, recorded so they are not re-derived. Nothing
 here has been acted on.
 
+### Observability: what exists, and the cheap route
+
+**Nothing metric-shaped exists.** No identifier in the codebase for TTFT,
+throughput, queue depth, latency, histograms or load duration. OpenTelemetry is
+in `go.mod` only as a transitive dependency of `buf`; no file imports it.
+
+**Model-load time is, in effect, already measured.** `Manager.transition`
+(`core/control/slot.go`) records `Duration: time.Since(op.start)` on every
+runtime transition, with `op.start` set when the slot is claimed. The
+transition to ready therefore already carries elapsed start time. Note this is
+a superset of model load — it includes process spawn and readiness polling, not
+just weight loading — so it should be labelled honestly if surfaced. Checking
+whether this is good enough is the cheapest possible first step on this item.
+
+**`EventStore` is the template to copy** (`core/control/events.go`). It is
+already a bounded ring buffer (`DefaultEventLimit = 200`, evicting from the
+front), JSON-tagged, with `SubscribeAndList` handing subscribers a backlog plus
+a non-blocking channel. That is the roadmap's "bounded history and structured
+export without an observability stack" requirement, already solved once. A
+metrics store should reuse this shape rather than introduce a second mechanism.
+
+**We are not in the request path.** `adapters/public_http/server.go` (90 lines)
+serves control RPC, `GET /health`, `/mcp` and static files.
+`backends/llamacpp/launch.go` starts the engine on the profile's own listen
+port and clients connect to it directly. Consequently throughput, queue depth
+and TTFT are not obtainable by instrumenting our own code — the choice is
+inserting a reverse proxy into the serving path (adding latency and a new
+failure mode) or scraping the engine.
+
+**Scraping is much cheaper.** Verified against the installed
+`llama-server --help` and the llama.cpp `tools/server/README.md` metrics table:
+
+| Roadmap metric | Source |
+| --- | --- |
+| Throughput | `llamacpp:predicted_tokens_seconds`, `llamacpp:prompt_tokens_seconds` (gauges) |
+| Queue depth | `llamacpp:requests_deferred` plus `llamacpp:requests_processing` (gauges) |
+| Model-load time | Already present via `Event.Duration`, see above |
+| Time to first token | **Not exposed.** `prompt_seconds_total` is prompt-processing time — a proxy, not TTFT |
+
+Also available: `prompt_tokens_total`, `prompt_seconds_total`,
+`tokens_predicted_total`, `tokens_predicted_seconds_total`, `n_tokens_max`,
+`n_decode_total`, `n_busy_slots_per_decode`.
+
+Two constraints, both verified rather than assumed:
+- `--metrics` defaults to **disabled**. It would be added in
+  `backends/llamacpp/launch.go` next to the existing `--models-*` arguments.
+- We run llama.cpp in **router mode** (`--models-preset`, `--models-max`). The
+  llama.cpp README states `/metrics` in router mode requires a
+  `?model={model_id}` query parameter and returns 400 without it, so the scrape
+  must be per-model rather than one global fetch.
+- `--slots` is enabled by default and is a second source, giving per-slot state.
+
+This is llama.cpp-specific and must not leak into shared code as a branch on a
+backend name. It belongs behind a backend-contributed facet, the same way
+`hostResourceProber` works for accelerators.
+
+**Suggested split:** ship throughput and queue depth via scraping, confirm
+whether the existing `Event.Duration` covers load time, and record TTFT as
+deliberately deferred — it is the only one of the four that requires sitting in
+the request path, and carrying that cost for one metric is a poor trade.
+
 ### Suspected bug: multi-GPU VRAM is summed
 
 `probeNVIDIAVRAM` (`backends/llamacpp/host.go`) sums `memory.total` across all
@@ -129,6 +205,13 @@ treating it as a defect. Independent of any new feature work.
    layer count, KV head count and head dimension. If a parser exists, the
    sizing work is cheap; if not, it needs a new one and the estimate grows.
    Not yet checked.
+3. **Is TTFT worth a reverse proxy?** It is the only one of the four serving
+   metrics that cannot be scraped. Answering no makes the observability item
+   substantially cheaper.
+4. **Does the existing `Event.Duration` on the ready transition already answer
+   "how long did the model take to load"** well enough to close that part of
+   the item without new code? It measures spawn plus readiness, not weight
+   loading alone.
 
 ### Rejected: `jaypipes/ghw` for VRAM detection
 
