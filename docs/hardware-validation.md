@@ -83,22 +83,25 @@ socket.
 Two separate claims, tracked separately on purpose.
 
 **Supported platforms** — what the control plane is intended to run on:
-linux/amd64, linux/arm64, darwin/arm64.
+linux/amd64, linux/arm64, darwin/amd64, darwin/arm64.
 
-**Released artifacts** — what a user can actually download today. The release
-workflow (`.github/workflows/release.yml`) currently builds **linux/amd64
-only**. The remaining targets are ticket 14's work.
+**Released artifacts** — what a user can actually download today.
+`scripts/package-release.sh` builds all four targets, each with a SHA-256
+checksum, a CycloneDX SBOM and a GitHub build-provenance attestation attached
+to the release; `.github/workflows/release.yml` gates publication on the MLX
+job and a real E2E pass against the packaged linux/amd64 tarball.
 
 | Target | Supported | Artifact published | Evidence level |
 |---|---|---|---|
-| linux/amd64 | yes | yes (prerelease) | CI-tested (llama.cpp) |
-| linux/arm64 | yes | no — ticket 14 | control-stack verified |
-| darwin/arm64 | yes | no — ticket 14 | CI-tested (MLX) |
+| linux/amd64 | yes | yes | CI-tested (llama.cpp) — the packaged tarball itself runs the E2E suite before every release publishes |
+| linux/arm64 | yes | yes | control-stack verified — nothing runs the compiled binary on this architecture in CI |
+| darwin/amd64 | yes | yes | control-stack verified — nothing runs the compiled binary on this architecture in CI |
+| darwin/arm64 | yes | yes | CI-tested (MLX) — the macOS job is a required release gate, but runs on the source tree, not the packaged artifact |
 
-Ticket 16's release receipt fills in a per-release copy of this table: one row
-per published artifact, naming the engine, model, runner and evidence level the
-release was actually proved at. A row with no recorded run says so rather than
-inheriting a claim from another platform.
+There is no per-release machine-readable receipt: the workflow runs linked from
+a release are the evidence trail. A row above with no CI-tested/hardware
+evidence is exactly as strong as it reads — published does not mean proven on
+that architecture.
 
 ## Running the suites
 

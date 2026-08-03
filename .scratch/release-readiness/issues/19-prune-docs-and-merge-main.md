@@ -1,7 +1,7 @@
 # 19 — Prune the planning docs and merge to main
 
 Type: task
-Status: open
+Status: partially resolved (docs done; merge/QA remain)
 Blocked by: 18
 Milestone: B (re-wire to the last Milestone C ticket when C graduates)
 Roadmap: P2 #11
@@ -56,3 +56,38 @@ Acceptance:
   `CONTEXT.md`, `docs/adr/` or `docs/architecture-overview.md`.
 - `make test`, `make lint`, `make coverage`, `make e2e`, `make e2e-browser`
   green on `main` after the merge.
+
+## Answer (partial — everything except the QA-gated merge)
+
+`phase-01-bootstrap` was already squash-merged to `main` as PR #1 well before
+this ticket was picked up, and feature work continued directly on `main` via
+ordinary PRs from then on — so "merge `phase-01-bootstrap`" no longer applies
+literally; there is no divergent branch left to merge.
+
+`docs/system-coverage-and-e2e-plan.md` was already gone by the time this
+ticket was worked (removed earlier, untracked here).
+
+Done in the PR that also closed tickets 14/15/16/17:
+
+- `docs/feature-roadmap.md` rewritten to list only undone work plus Milestone D.
+- `docs/hardware-validation.md`'s artifact/evidence table brought current (four
+  targets, all published, gated by MLX + packaged E2E; no separate receipt —
+  that was cut, see `map.md`).
+- `README.md` gained an `## Install` section (curl | sh, inspect-first,
+  stable/dev, SHA256SUMS/SBOM/attestation verification, macOS unsigned-binary
+  caveat) and dropped its stale "no release published yet" line.
+- `docs/agents/claiming-tickets.md` deleted, along with its `AGENTS.md` pointer.
+- Gateway security, backend concurrency and release identity/channels decisions
+  folded into `CONTEXT.md`. `docs/adr/` does not exist and was not created —
+  `CONTEXT.md` was judged sufficient for what needed to survive.
+- Resolved ticket files (01–10, 12–17, 20, 21) deleted from `.scratch/`; 11, 18
+  and this file were kept because the QA gates they cover have not run yet.
+
+Not done, deliberately: `docs/architecture-overview.md`, `docs/porting-matrix.md`
+and `docs/models-ini-two-way-sync.md` were not re-audited against the tree —
+nothing in this effort's work touched what they describe, so reconciling them
+is out of scope here rather than skipped.
+
+Remaining before this ticket fully closes: run ticket 18 (which needs 11
+first), then re-check this ticket's acceptance criteria hold and delete
+`.scratch/release-readiness/` entirely.

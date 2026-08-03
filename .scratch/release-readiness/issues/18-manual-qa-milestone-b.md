@@ -29,8 +29,9 @@ first-run experience judged by a human:
   profile, first inference, first log stream.
 - Deliberate mistakes: wrong token, bad model path, port already taken,
   insecure mode. Is each message actionable?
-- The release page itself: are the artifacts, checksums, receipt and
-  verification instructions legible?
+- The release page itself: are the artifacts, checksums, SBOM and provenance
+  verification instructions legible? (No separate release receipt exists —
+  that was cut; the packaged E2E and MLX CI runs are the evidence trail.)
 
 Acceptance: dry-run evidence in `## Answer`, and the effort owner has run the
 script and signed off. Milestone C work does not start until this is signed
