@@ -349,6 +349,9 @@ func (p *modelsPage) detail(width, height int, data snapshot) string {
 			}
 		}
 	case paneCatalog:
+		if ranked := rankedAccelerator(data.catalog.GetMachine()); ranked != "" {
+			rows = append(rows, tuikit.Field("Ranked for", tuikit.TruncMiddle(ranked, width-12)))
+		}
 		rows = append(rows, mutedStyle.Render("/: search catalog · i: install selected backend"))
 	case paneLocal:
 		if item := selectedItem(data.local.GetModels(), p.local.Cursor()); item != nil {
@@ -360,6 +363,23 @@ func (p *modelsPage) detail(width, height int, data snapshot) string {
 		}
 	}
 	return panel(accent, false, width, height, lipgloss.JoinVertical(lipgloss.Left, rows...))
+}
+
+// rankedAccelerator names the device the server ranked the catalog against,
+// with its capacity when it reported one. The name is what discloses a pooled
+// multi-GPU figure ("2× NVIDIA ...") or a CPU-only host — without it, a summed
+// capacity reads as though it came from a single device the model must fit in.
+// Returns "" when the server sent no name, which keeps older servers from
+// rendering an empty field.
+func rankedAccelerator(machine *controlv1.MachineProfile) string {
+	name := machine.GetAcceleratorName()
+	if name == "" {
+		return ""
+	}
+	if bytes := machine.GetAcceleratorMemoryBytes(); bytes > 0 {
+		return fmt.Sprintf("%s (%s)", name, tuikit.FormatBytes(int64(bytes)))
+	}
+	return name
 }
 
 func backendConflictReason(info *controlv1.GetInfoResponse, profile *controlv1.Profile) string {
