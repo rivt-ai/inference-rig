@@ -25,9 +25,10 @@ func TestFitBySizeUsesGPUThenRAM(t *testing.T) {
 	}
 }
 
-// minimalGGUF builds the smallest well-formed GGUF header carrying the
-// architecture keys sizing needs.
-func minimalGGUF(t *testing.T) []byte {
+// tensorlessGGUF builds a GGUF header with valid architecture keys but no
+// tensor table. Real models always carry tensors; this stands in for a
+// truncated or corrupt file on disk, which the estimator cannot size.
+func tensorlessGGUF(t *testing.T) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	write := func(v any) {
@@ -55,10 +56,34 @@ func minimalGGUF(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-func TestFitIncludesKVCacheForLocalModelWithContext(t *testing.T) {
+// The KV-cache figure itself comes from gguf-parser-go, which is tested
+// upstream against real models; what is worth pinning here is that a known
+// KV size lands in the estimate and is disclosed in the reason.
+func TestFitWithKVIncludesKVCache(t *testing.T) {
+	const gib = int64(1024 * 1024 * 1024)
+	host := backends.HostResources{AvailableRAMBytes: 64 * gib}
+
+	withKV := FitWithKV(4*gib, host, 2*gib, 32768)
+	withoutKV := FitBySize(4*gib, host)
+
+	if !strings.Contains(withKV.Reason, "KV cache") {
+		t.Fatalf("reason = %q, want mention of KV cache", withKV.Reason)
+	}
+	if withKV.RequiredBytes != withoutKV.RequiredBytes+2*gib {
+		t.Fatalf("required bytes with KV (%d) should exceed the flat estimate (%d) by the KV size",
+			withKV.RequiredBytes, withoutKV.RequiredBytes)
+	}
+	if !strings.Contains(withoutKV.Reason, "excludes KV cache") {
+		t.Fatalf("reason = %q, want it to disclose the missing KV term", withoutKV.Reason)
+	}
+}
+
+// A model file that cannot be sized must degrade to the flat estimate rather
+// than erroring or panicking — the estimator panics on some malformed files.
+func TestFitFallsBackForUnsizeableGGUF(t *testing.T) {
 	dir := t.TempDir()
 	modelPath := filepath.Join(dir, "model.gguf")
-	if err := os.WriteFile(modelPath, minimalGGUF(t), 0o644); err != nil {
+	if err := os.WriteFile(modelPath, tensorlessGGUF(t), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	b := New(Options{ModelStorageDir: dir})
@@ -67,25 +92,12 @@ func TestFitIncludesKVCacheForLocalModelWithContext(t *testing.T) {
 	p.EngineArgs = map[string]any{"ctx-size": 32768}
 
 	const gib = int64(1024 * 1024 * 1024)
-	const sizeBytes = 4 * gib
-	withCtx, err := b.Fit(p, sizeBytes, backends.HostResources{AvailableRAMBytes: 64 * gib})
+	est, err := b.Fit(p, 4*gib, backends.HostResources{AvailableRAMBytes: 64 * gib})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(withCtx.Reason, "KV cache") {
-		t.Fatalf("reason = %q, want mention of KV cache", withCtx.Reason)
-	}
-
-	withoutModel, err := b.Fit(demoProfile("demo", modelPath), sizeBytes, backends.HostResources{AvailableRAMBytes: 64 * gib})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if withCtx.RequiredBytes <= withoutModel.RequiredBytes {
-		t.Fatalf("required bytes with context (%d) should exceed the flat estimate without it (%d)",
-			withCtx.RequiredBytes, withoutModel.RequiredBytes)
-	}
-	if !strings.Contains(withoutModel.Reason, "excludes KV cache") {
-		t.Fatalf("reason = %q, want it to disclose the missing KV term", withoutModel.Reason)
+	if !strings.Contains(est.Reason, "excludes KV cache") {
+		t.Fatalf("reason = %q, want the flat-estimate disclosure for an unsizeable file", est.Reason)
 	}
 }
 

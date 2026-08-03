@@ -60,9 +60,9 @@ type Options struct {
 
 // Backend implements backends.Backend for llama.cpp.
 type Backend struct {
-	opts       Options
-	installer  *installer
-	ggufArches ggufArchCache
+	opts      Options
+	installer *installer
+	ggufKV    ggufKVCache
 }
 
 // New builds a llama.cpp backend with defaults filled from Options.

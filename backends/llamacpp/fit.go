@@ -15,27 +15,27 @@ import (
 // length, the estimate includes a KV-cache term read from that file's header;
 // otherwise it falls back to the flat on-disk-size-plus-overhead estimate.
 func (b *Backend) Fit(p profiles.Profile, sizeBytes int64, host backends.HostResources) (backends.FitEstimate, error) {
-	arch := b.archForProfile(p)
-	return FitWithArch(sizeBytes, host, arch, contextLenFromArgs(p.EngineArgs)), nil
+	contextLen := contextLenFromArgs(p.EngineArgs)
+	return FitWithKV(sizeBytes, host, b.kvBytesForProfile(p, contextLen), contextLen), nil
 }
 
 // FitBySize estimates fit for a known on-disk model size against the host's
 // discrete memory, adding flat runtime overhead. Ported from llamarig
 // core/modelcatalog/fit.go estimateFileFit (discrete RAM/VRAM policy).
 func FitBySize(sizeBytes int64, host backends.HostResources) backends.FitEstimate {
-	return FitWithArch(sizeBytes, host, nil, 0)
+	return FitWithKV(sizeBytes, host, 0, 0)
 }
 
-// FitWithArch is FitBySize plus an optional architecture and context length:
-// when both are known, the estimate's required bytes include a KV-cache term
-// (see modelcatalog.RequiredBytes); otherwise it is the same flat estimate as
+// FitWithKV is FitBySize plus an optional KV-cache size: when kvBytes is
+// positive, the estimate's required bytes include it (see
+// modelcatalog.RequiredBytes); otherwise it is the same flat estimate as
 // FitBySize.
-func FitWithArch(sizeBytes int64, host backends.HostResources, arch *modelcatalog.Arch, contextLen int) backends.FitEstimate {
+func FitWithKV(sizeBytes int64, host backends.HostResources, kvBytes int64, contextLen int) backends.FitEstimate {
 	capacity, resource := host.AvailableRAMBytes, "RAM"
 	if host.HasGPU && host.VRAMBytes > 0 {
 		capacity, resource = host.VRAMBytes, "VRAM"
 	}
-	required, note := modelcatalog.RequiredBytes(sizeBytes, arch, contextLen)
+	required, note := modelcatalog.RequiredBytes(sizeBytes, kvBytes, contextLen)
 	v := modelcatalog.EstimateFitDetailed(required, capacity, resource, note)
 	return backends.FitEstimate{
 		Level:          backends.FitLevel(v.Level),
@@ -45,21 +45,21 @@ func FitWithArch(sizeBytes int64, host backends.HostResources, arch *modelcatalo
 	}
 }
 
-// archForProfile resolves the profile's model to a local file, if one is
-// already downloaded, and reads its GGUF architecture metadata. It returns nil
-// when the model has no local file or the file cannot be parsed as GGUF —
-// both are routine (a catalog listing names models that are not downloaded
+// kvBytesForProfile resolves the profile's model to a local file, if one is
+// already downloaded, and estimates its KV-cache size at contextLen tokens. It
+// returns 0 when the model has no local file or the file cannot be parsed as
+// GGUF — both routine (a catalog listing names models that are not downloaded
 // yet), not errors.
-func (b *Backend) archForProfile(p profiles.Profile) *modelcatalog.Arch {
+func (b *Backend) kvBytesForProfile(p profiles.Profile, contextLen int) int64 {
 	if p.Model.Source == "" {
-		return nil
+		return 0
 	}
 	name, _ := resolveArtifact(p.Model.Source, p.Model.Reference)
 	root, err := b.modelStorageDir()
 	if err != nil {
-		return nil
+		return 0
 	}
-	return b.ggufArches.get(path.Join(root, path.Base(name)))
+	return b.ggufKV.get(path.Join(root, path.Base(name)), contextLen)
 }
 
 // contextLenFromArgs reads engine_args.ctx-size from a profile's free-form

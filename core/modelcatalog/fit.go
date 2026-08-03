@@ -18,55 +18,21 @@ const (
 // overhead term when they are.
 const DefaultOverheadBytes int64 = 512 * 1024 * 1024
 
-// DefaultKVBytesPerElem is the per-element size assumed for the KV cache
-// (f16). llama.cpp's --cache-type-k/v flags can change this at runtime; this
-// is a default, not a hard constant.
-const DefaultKVBytesPerElem int64 = 2
-
-// KVCacheBytes estimates the KV cache size for a model with architecture a
-// served at contextLen tokens, at bytesPerElem bytes per cached value.
-//
-// This is the standard estimate for transformer KV cache size (2 caches ×
-// layers × context × head_dim × kv_heads × element size) and is believed to
-// match llama.cpp's cache layout, but has not been verified against llama.cpp
-// source or a measured allocation — validate against a real model load before
-// relying on it for capacity decisions.
-func KVCacheBytes(a Arch, contextLen int, bytesPerElem int64) int64 {
-	if a.BlockCount == 0 || a.HeadCountKV == 0 || contextLen <= 0 || bytesPerElem <= 0 {
-		return 0
-	}
-	headDim := a.KeyLength
-	if headDim == 0 && a.EmbeddingLength > 0 && a.HeadCountKV > 0 {
-		headDim = a.EmbeddingLength / a.HeadCountKV
-	}
-	if headDim == 0 {
-		return 0
-	}
-	valueDim := a.ValueLength
-	if valueDim == 0 {
-		valueDim = headDim
-	}
-	perToken := int64(headDim+valueDim) * int64(a.HeadCountKV) * bytesPerElem
-	return perToken * int64(a.BlockCount) * int64(contextLen)
-}
-
-// RequiredBytes estimates the memory required to serve a model of sizeBytes
-// on disk. When arch is nil or contextLen is non-positive, it falls back to
-// sizeBytes plus DefaultOverheadBytes — today's behavior — and reports that
-// the estimate excludes the KV cache. Otherwise it adds the KV-cache term
-// computed from arch and contextLen.
-func RequiredBytes(sizeBytes int64, arch *Arch, contextLen int) (bytes int64, note string) {
+// RequiredBytes estimates the memory required to serve a model of sizeBytes on
+// disk, given a KV-cache size for the context it will be served at. kvBytes is
+// zero when the KV cache could not be sized — the model is not downloaded yet,
+// no context length is configured, or the file is not a readable GGUF — and the
+// estimate then falls back to sizeBytes plus DefaultOverheadBytes and says the
+// KV cache is excluded. Sizing the KV cache is the caller's job, since it is
+// engine-specific; see the llamacpp backend's ggufKVCache.
+func RequiredBytes(sizeBytes, kvBytes int64, contextLen int) (bytes int64, note string) {
 	if sizeBytes <= 0 {
 		return 0, ""
 	}
-	if arch == nil || contextLen <= 0 {
+	if kvBytes <= 0 {
 		return sizeBytes + DefaultOverheadBytes, "context not known; excludes KV cache"
 	}
-	kv := KVCacheBytes(*arch, contextLen, DefaultKVBytesPerElem)
-	if kv == 0 {
-		return sizeBytes + DefaultOverheadBytes, "architecture metadata incomplete; excludes KV cache"
-	}
-	return sizeBytes + DefaultOverheadBytes + kv, fmt.Sprintf("includes %.1f GiB KV cache at %d tokens context", gib(kv), contextLen)
+	return sizeBytes + DefaultOverheadBytes + kvBytes, fmt.Sprintf("includes %.1f GiB KV cache at %d tokens context", gib(kvBytes), contextLen)
 }
 
 // Verdict is a neutral memory-fit estimate.
