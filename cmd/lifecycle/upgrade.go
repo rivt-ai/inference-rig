@@ -63,8 +63,9 @@ func runUpgrade(command *cobra.Command, version string) error {
 
 	if err := runInstaller(command.Context(), version, out); err != nil {
 		// Bring back whatever was taken down, so a failed download does not
-		// also cost the user their running daemons.
-		startServices(out, stopped)
+		// also cost the user their running daemons. Any restart failure is
+		// already printed; the install error is the one worth returning.
+		_ = startServices(out, stopped)
 		return err
 	}
 	return startServices(out, stopped)
