@@ -1,6 +1,7 @@
 package llamacpp
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -156,31 +157,38 @@ func parseAMDVRAM(out []byte) (gpuVRAM, error) {
 		if !strings.HasPrefix(key, "card") {
 			continue
 		}
-		total, ok := fields["VRAM Total Memory (B)"]
+		total, used, ok, err := parseAMDCard(fields)
+		if err != nil {
+			return gpuVRAM{}, fmt.Errorf("parse rocm-smi VRAM for %s: %w", key, err)
+		}
 		if !ok {
 			continue
 		}
-		totalBytes, err := strconv.ParseInt(strings.TrimSpace(total), 10, 64)
-		if err != nil {
-			return gpuVRAM{}, fmt.Errorf("parse rocm-smi VRAM %q for %s: %w", total, key, err)
-		}
-		var usedBytes int64
-		if used, ok := fields["VRAM Total Used Memory (B)"]; ok {
-			usedBytes, _ = strconv.ParseInt(strings.TrimSpace(used), 10, 64)
-		}
-		vram.TotalBytes += totalBytes
-		vram.UsedBytes += usedBytes
+		vram.TotalBytes += total
+		vram.UsedBytes += used
 		vram.DeviceCount++
 		if vram.Name == "" {
-			if name, ok := fields["Card series"]; ok {
-				vram.Name = strings.TrimSpace(name)
-			} else {
-				vram.Name = "AMD GPU"
-			}
+			vram.Name = cmp.Or(strings.TrimSpace(fields["Card series"]), "AMD GPU")
 		}
 	}
 	vram.Name = poolName(vram.Name, vram.DeviceCount)
 	return vram, nil
+}
+
+// parseAMDCard pulls total/used VRAM bytes out of one rocm-smi card entry. ok is
+// false when the entry carries no VRAM total, which marks it as non-device
+// metadata rather than an error. A malformed used figure is treated as zero.
+func parseAMDCard(fields map[string]string) (total, used int64, ok bool, err error) {
+	raw, ok := fields["VRAM Total Memory (B)"]
+	if !ok {
+		return 0, 0, false, nil
+	}
+	total, err = strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	used, _ = strconv.ParseInt(strings.TrimSpace(fields["VRAM Total Used Memory (B)"]), 10, 64)
+	return total, used, true, nil
 }
 
 // poolName prefixes a device name with its count when more than one device

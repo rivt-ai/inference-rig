@@ -49,77 +49,29 @@ func ReadArch(path string) (Arch, error) {
 	if err != nil {
 		return Arch{}, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return readArch(bufio.NewReader(f))
 }
 
 func readArch(r io.Reader) (Arch, error) {
-	var magic, version uint32
-	if err := binary.Read(r, binary.LittleEndian, &magic); err != nil {
-		return Arch{}, fmt.Errorf("gguf: reading magic: %w", err)
-	}
-	if magic != ggufMagic {
-		return Arch{}, fmt.Errorf("gguf: not a GGUF file (magic %#x)", magic)
-	}
-	if err := binary.Read(r, binary.LittleEndian, &version); err != nil {
-		return Arch{}, fmt.Errorf("gguf: reading version: %w", err)
-	}
-	// Versions 2+ use uint64 counts; version 1 used uint32 but is long
-	// obsolete and unsupported here.
-	if _, err := readUint64(r); err != nil { // tensor count; unused, header stops before the tensor table
-		return Arch{}, fmt.Errorf("gguf: reading tensor count: %w", err)
-	}
-	kvCount64, err := readUint64(r)
+	kvCount, err := readPreamble(r)
 	if err != nil {
-		return Arch{}, fmt.Errorf("gguf: reading kv count: %w", err)
+		return Arch{}, err
 	}
-	kvCount := uint32(kvCount64)
 
 	var a Arch
-	for i := uint32(0); i < kvCount; i++ {
-		key, err := readGGUFString(r)
-		if err != nil {
-			return Arch{}, fmt.Errorf("gguf: reading kv %d key: %w", i, err)
-		}
-		typ, err := readUint32(r)
-		if err != nil {
-			return Arch{}, fmt.Errorf("gguf: reading kv %d type: %w", i, err)
-		}
-		switch {
-		case strings.HasSuffix(key, ".block_count"):
-			v, err := readUintValue(r, typ)
-			if err != nil {
-				return Arch{}, err
-			}
-			a.BlockCount = uint32(v)
-		case strings.HasSuffix(key, ".attention.head_count_kv"):
-			v, err := readUintValue(r, typ)
-			if err != nil {
-				return Arch{}, err
-			}
-			a.HeadCountKV = uint32(v)
-		case strings.HasSuffix(key, ".embedding_length"):
-			v, err := readUintValue(r, typ)
-			if err != nil {
-				return Arch{}, err
-			}
-			a.EmbeddingLength = uint32(v)
-		case strings.HasSuffix(key, ".attention.key_length"):
-			v, err := readUintValue(r, typ)
-			if err != nil {
-				return Arch{}, err
-			}
-			a.KeyLength = uint32(v)
-		case strings.HasSuffix(key, ".attention.value_length"):
-			v, err := readUintValue(r, typ)
-			if err != nil {
-				return Arch{}, err
-			}
-			a.ValueLength = uint32(v)
-		default:
-			if err := skipGGUFValue(r, typ); err != nil {
-				return Arch{}, fmt.Errorf("gguf: skipping kv %q: %w", key, err)
-			}
+	// Keys this parser wants, mapped to the field each fills. Anything else in
+	// the KV table is skipped.
+	wanted := map[string]*uint32{
+		".block_count":             &a.BlockCount,
+		".attention.head_count_kv": &a.HeadCountKV,
+		".embedding_length":        &a.EmbeddingLength,
+		".attention.key_length":    &a.KeyLength,
+		".attention.value_length":  &a.ValueLength,
+	}
+	for i := uint64(0); i < kvCount; i++ {
+		if err := readKV(r, wanted, i); err != nil {
+			return Arch{}, err
 		}
 	}
 	if a.BlockCount == 0 || a.HeadCountKV == 0 || a.EmbeddingLength == 0 {
@@ -127,6 +79,68 @@ func readArch(r io.Reader) (Arch, error) {
 			a.BlockCount, a.HeadCountKV, a.EmbeddingLength)
 	}
 	return a, nil
+}
+
+// readPreamble validates the GGUF magic and returns the KV-table entry count,
+// leaving r positioned at the first KV entry. Versions 2+ use uint64 counts;
+// version 1 used uint32 but is long obsolete and unsupported here.
+func readPreamble(r io.Reader) (uint64, error) {
+	magic, err := readUint32(r)
+	if err != nil {
+		return 0, fmt.Errorf("gguf: reading magic: %w", err)
+	}
+	if magic != ggufMagic {
+		return 0, fmt.Errorf("gguf: not a GGUF file (magic %#x)", magic)
+	}
+	if _, err := readUint32(r); err != nil { // version
+		return 0, fmt.Errorf("gguf: reading version: %w", err)
+	}
+	if _, err := readUint64(r); err != nil { // tensor count; unused, header stops before the tensor table
+		return 0, fmt.Errorf("gguf: reading tensor count: %w", err)
+	}
+	kvCount, err := readUint64(r)
+	if err != nil {
+		return 0, fmt.Errorf("gguf: reading kv count: %w", err)
+	}
+	return kvCount, nil
+}
+
+// readKV consumes one KV entry, storing its value when the key is one of the
+// wanted ones and skipping past it otherwise. i is only used for error context.
+func readKV(r io.Reader, wanted map[string]*uint32, i uint64) error {
+	key, err := readGGUFString(r)
+	if err != nil {
+		return fmt.Errorf("gguf: reading kv %d key: %w", i, err)
+	}
+	typ, err := readUint32(r)
+	if err != nil {
+		return fmt.Errorf("gguf: reading kv %d type: %w", i, err)
+	}
+	field := matchField(wanted, key)
+	if field == nil {
+		if err := skipGGUFValue(r, typ); err != nil {
+			return fmt.Errorf("gguf: skipping kv %q: %w", key, err)
+		}
+		return nil
+	}
+	v, err := readUintValue(r, typ)
+	if err != nil {
+		return err
+	}
+	*field = uint32(v)
+	return nil
+}
+
+// matchField returns the Arch field a GGUF key fills, or nil if the key is not
+// one this parser wants. Keys are namespaced by architecture ("llama.block_count"),
+// so matching is by suffix.
+func matchField(wanted map[string]*uint32, key string) *uint32 {
+	for suffix, field := range wanted {
+		if strings.HasSuffix(key, suffix) {
+			return field
+		}
+	}
+	return nil
 }
 
 func readUint32(r io.Reader) (uint32, error) {
@@ -180,12 +194,6 @@ func readUintValue(r io.Reader, typ uint32) (uint64, error) {
 		return uint64(v), nil
 	case ggufTypeUint64, ggufTypeInt64:
 		return readUint64(r)
-	case ggufTypeFloat32:
-		var v uint32
-		if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
-			return 0, err
-		}
-		return 0, fmt.Errorf("gguf: expected integer value, got float32")
 	default:
 		return 0, fmt.Errorf("gguf: expected integer value, got type %d", typ)
 	}
