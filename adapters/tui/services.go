@@ -276,7 +276,7 @@ func autostartServices() tea.Cmd {
 		}
 		started := []string{}
 		for _, name := range cfg.StartupServices {
-			args := map[string][]string{config.StartupServiceControl: {"serve"}, config.StartupServiceWeb: {"web"}}[name]
+			args := config.ServiceArgs(name)
 			if status, _ := process.StatusDetached(serviceProcessName(name)); status.Running {
 				continue
 			}
@@ -293,12 +293,7 @@ func autostartServices() tea.Cmd {
 	}
 }
 
-func serviceProcessName(service string) string {
-	if service == config.StartupServiceControl {
-		return config.ProjectName
-	}
-	return service
-}
+func serviceProcessName(service string) string { return config.ServiceProcessName(service) }
 
 func persistWeb(ctx context.Context, client controlv1connect.ControlServiceClient, enabled bool) error {
 	info, err := client.GetInfo(ctx, &controlv1.GetInfoRequest{})

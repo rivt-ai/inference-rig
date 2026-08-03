@@ -1,6 +1,7 @@
 import type {
   BackendInfo,
   BackendParameter,
+  BuildInfo,
   CatalogCacheState,
   CatalogModel,
   CommandResult,
@@ -49,6 +50,8 @@ export function createInferenceRigState() {
     selectedProfileName: '',
     activeProfileNames: [] as string[],
     activeBackend: '',
+    // Daemon build metadata, including latestVersion when an upgrade exists.
+    build: null as BuildInfo | null,
     profileRuntimeStates: {} as Record<string, string>,
     autostartProfiles: [] as string[],
     defaultProfile: '',

@@ -1,5 +1,6 @@
 # InferenceRig
 
+[![Release](https://img.shields.io/github/v/release/antonikliment/InferenceRig?include_prereleases&sort=semver)](https://github.com/antonikliment/InferenceRig/releases/latest)
 [![Test](https://github.com/antonikliment/InferenceRig/actions/workflows/test.yml/badge.svg)](https://github.com/antonikliment/InferenceRig/actions/workflows/test.yml)
 [![Lint](https://github.com/antonikliment/InferenceRig/actions/workflows/lint.yml/badge.svg)](https://github.com/antonikliment/InferenceRig/actions/workflows/lint.yml)
 [![E2E](https://github.com/antonikliment/InferenceRig/actions/workflows/e2e.yml/badge.svg)](https://github.com/antonikliment/InferenceRig/actions/workflows/e2e.yml)

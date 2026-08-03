@@ -5575,10 +5575,13 @@ func (x *GetInfoResponse) GetActiveBackend() string {
 }
 
 type BuildInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
-	Commit        string                 `protobuf:"bytes,2,opt,name=commit,proto3" json:"commit,omitempty"`
-	CommitTime    string                 `protobuf:"bytes,3,opt,name=commit_time,json=commitTime,proto3" json:"commit_time,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Version    string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Commit     string                 `protobuf:"bytes,2,opt,name=commit,proto3" json:"commit,omitempty"`
+	CommitTime string                 `protobuf:"bytes,3,opt,name=commit_time,json=commitTime,proto3" json:"commit_time,omitempty"`
+	// latest_version is the newest published release, set only when it is newer
+	// than version. Empty means up to date, unknown, or checking disabled.
+	LatestVersion string `protobuf:"bytes,4,opt,name=latest_version,json=latestVersion,proto3" json:"latest_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5630,6 +5633,13 @@ func (x *BuildInfo) GetCommit() string {
 func (x *BuildInfo) GetCommitTime() string {
 	if x != nil {
 		return x.CommitTime
+	}
+	return ""
+}
+
+func (x *BuildInfo) GetLatestVersion() string {
+	if x != nil {
+		return x.LatestVersion
 	}
 	return ""
 }
@@ -6893,12 +6903,13 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\x12autostart_profiles\x18\x05 \x03(\tR\x11autostartProfiles\x12)\n" +
 	"\x10startup_services\x18\x06 \x03(\tR\x0fstartupServices\x128\n" +
 	"\x05build\x18\a \x01(\v2\".inferencerig.control.v1.BuildInfoR\x05build\x12%\n" +
-	"\x0eactive_backend\x18\b \x01(\tR\ractiveBackend\"^\n" +
+	"\x0eactive_backend\x18\b \x01(\tR\ractiveBackend\"\x85\x01\n" +
 	"\tBuildInfo\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
 	"\x06commit\x18\x02 \x01(\tR\x06commit\x12\x1f\n" +
 	"\vcommit_time\x18\x03 \x01(\tR\n" +
-	"commitTime\"@\n" +
+	"commitTime\x12%\n" +
+	"\x0elatest_version\x18\x04 \x01(\tR\rlatestVersion\"@\n" +
 	"\x0eGetLogsRequest\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x14\n" +
 	"\x05lines\x18\x02 \x01(\x05R\x05lines\"O\n" +

@@ -563,6 +563,9 @@ message BuildInfo {
   string version = 1;
   string commit = 2;
   string commit_time = 3;
+  // latest_version is the newest published release, set only when it is newer
+  // than version. Empty means up to date, unknown, or checking disabled.
+  string latest_version = 4;
 }
 // Logs. service is a free-form service name ("control", "web", or a backend
 // runtime) rather than a closed enum, because which services exist depends on
