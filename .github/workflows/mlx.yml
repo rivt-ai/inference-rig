@@ -10,8 +10,7 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
-  push:
-    tags: ["v*"]
+  workflow_call:
   pull_request:
     paths:
       - "backends/mlx/**"

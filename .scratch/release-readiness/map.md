@@ -1,239 +1,60 @@
 # Map: Release and production readiness
 
-Effort: `release-readiness` · Started 2026-07-31 · Integration branch `phase-01-bootstrap`
+Effort: `release-readiness` · Started 2026-07-31
 
-## Destination
+## Status
 
-A signed, multi-platform, publicly installable InferenceRig release — Milestones
-A (beta reliability), B (release readiness) and C (operational quality) from
-`docs/feature-roadmap.md` — where the release states with evidence which
-platform, engine and model it was proved on.
+Milestone B is implemented. Tickets 01–10, 12–17, 20, 21 are resolved and their
+decisions are folded into [`CONTEXT.md`](../../CONTEXT.md) (gateway security,
+backend concurrency, release identity/channels) and
+[`docs/hardware-validation.md`](../../docs/hardware-validation.md) (evidence
+levels, the current artifact/evidence matrix). `v0.1.0` shipped before the SBOM
+and provenance work landed, from a repo that had already had
+`phase-01-bootstrap` squash-merged to `main` as PR #1 — the ticket branch
+workflow this map originally described was superseded by ordinary PRs partway
+through, which is why this file no longer tracks per-ticket branch mechanics.
 
-Reached when a tagged GitHub Release ships Linux amd64, Linux arm64 and macOS
-arm64 artifacts with checksums, SBOM, provenance and an install script, backed
-by green llama.cpp E2E, browser E2E, an MLX CI job that really infers, and
-signed-off manual TUI + web UI passes — and `phase-01-bootstrap` is merged to
-`main` with the planning docs pruned (ticket 19, the effort's last).
+What is left is exactly two manual QA gates, both HITL:
 
-## Notes
+- [11 — Milestone A manual QA](issues/11-manual-qa-milestone-a.md) — all
+  blockers resolved, ready to run.
+- [18 — Milestone B manual QA](issues/18-manual-qa-milestone-b.md) — blocked by
+  11.
 
-Domain: a neutral Go control plane for local inference engines. Required
-reading before code: `AGENTS.md` (neutrality + quality rules) and
-`docs/architecture-overview.md` (layers, import direction, entry points).
-`docs/feature-roadmap.md` is where these work items come from;
-`docs/system-coverage-and-e2e-plan.md` describes the test layers — most of that
-plan already landed (`scripts/go-coverage.sh`, `make e2e`, `make e2e-browser`,
-`make e2e-live-mlx`, `test/e2e/`), so verify before rebuilding any of it.
-
-**Every session must:**
-
-- Invoke `/ponytail` first and keep the change the laziest one that works.
-  Simplicity is the standing instruction for this effort — prefer stdlib and
-  existing owners over new packages, one line over fifty.
-- Claim the ticket before any work: set `Status: claimed` in the ticket file
-  and save it.
-- Work on a branch `ticket/NN-<slug>` cut from `phase-01-bootstrap`, and merge
-  back into `phase-01-bootstrap`. `main` stays untouched until the release.
-- Resolve exactly **one** ticket per session (research tickets excepted).
-- Commit small and often; leave `make test` and `make lint` green before
-  pushing. Never weaken or skip a test to make the gate green.
-- Record the outcome under `## Answer` in the ticket, set `Status: resolved`,
-  then append one line to **Decisions so far** below.
-
-**Standing facts for this effort:**
-
-- No users exist yet — breaking changes to config, profile schema, CLI flags
-  and gateway defaults are allowed with no migration path. Note them in the
-  release notes instead.
-- MLX is verified by the GitHub `macos-15` CI job throughout; local Apple
-  Silicon is reserved for the final release validation only.
-- Manual QA at each milestone gate = agent automated dry-run first, then a
-  trimmed numbered script the human runs on TUI and web UI against a real
-  llama.cpp profile.
-
-Skills: `/ponytail` always; `/grilling` + `/domain-modeling` on grilling
-tickets; `/tdd` where the behaviour is testable; `/research` on research
-tickets.
-
-**Picking a ticket:** see `docs/agents/claiming-tickets.md` — the frontier is
-every file in `issues/` whose `Status:` is `open` and whose `Blocked by:`
-tickets are all `Status: resolved`. Lowest number wins. Claim with a **pushed**
-commit before starting, or concurrent agents cannot see the claim. Grilling
-tickets and tasks marked `(HITL)` need the effort owner present; plain task and
-research tickets do not.
-
-## Decisions so far
-
-<!-- one line per resolved ticket: gist + link -->
-
-- Charting session (2026-07-31) — Destination is Milestones A+B+C; the map
-  carries execution as well as decisions; release vehicle is GitHub Releases
-  plus a stable/dev install script over Linux amd64, Linux arm64 and macOS
-  arm64; manual QA is an agent dry-run followed by a human-run script; MLX via
-  `macos-15` CI until the final local-hardware validation; agents branch per
-  ticket off `phase-01-bootstrap`; no existing users, so no migrations.
-- [01 — Decide the gateway security model](issues/01-gateway-security-policy.md)
-  — Authenticate every RPC and `/mcp` (delete `mutatingProcedures`), excepting
-  `/health` and the static app shell; no login system — the token persists to
-  `run/gateway.token` and is delivered by a `#token=` launch URL; insecure mode
-  stays but a non-loopback bind additionally requires
-  `allow_exposed_without_auth`; posture shown in startup log, `/health`, TUI
-  badge and a non-loopback-only web banner; redact credentials only, not paths
-  or argv; `AllowedOrigin` becomes a list, no `X-Forwarded-*` trust.
-- [02 — Fail fast on invalid configuration](issues/02-fail-fast-config.md)
-  — One new function, `config.LoadOrDefault()`: defaults on `fs.ErrNotExist`
-  alone, every other error fails startup. Replaces the error-swallowing loads in
-  `bootstrap/service.go`, `cmd/web.go` and the TUI's `autostartServices` (whose
-  `os.IsNotExist` guard never fired against a wrapped error). Strict decoding
-  already existed. `inferencerig config validate` calls the same function, so it
-  agrees with startup by construction, and dials nothing. The invalid-security
-  combination is left to ticket 09, which owns making it an error at all.
-- [03 — Decide backend concurrency semantics](issues/03-backend-concurrency-semantics.md)
-  — No new contract surface: `SingleActiveProfile` + `RuntimeActivator` already
-  distinguish exclusive (MLX) from router (llama.cpp) backends, and the manager
-  simply starts honouring them. One backend active at a time globally; the
-  active backend is tracked, cross-backend starts conflict, and an explicit
-  reset (not a daemon restart) switches. At most one
-  `runtimeSlot{process, profiles}` keyed by backend. No client can kill a
-  running engine implicitly — conflict unless `replace: true`. Non-active
-  backend profiles stay listed but render unstartable with the reason.
-- [04 — Explicit runtime state machine](issues/04-runtime-state-machine.md) —
-  `core/control/slot.go` owns one `runtimeSlot` with an explicit state
-  (`stopped`/`reconciling`/`starting`/`activating`/`running`/`stopping`/`failed`/
-  `orphaned`); the manager mutex is held only to reserve and commit, so a cold
-  start blocks neither status nor another profile's lifecycle call, and losers
-  get a typed conflict rather than a queue. Every transition carries an
-  operation ID, profile, backend and typed result into the event stream and
-  audit log. `replace`, `active_backend` and `ResetRuntimes` landed on the wire
-  (plus CLI `--replace`/`runtime reset` and the MCP equivalents), and the
-  registry now rejects a backend that is neither exclusive nor a router. A
-  router profile listening on a different address than the running process needs
-  `replace` too — ticket 03 had not spotted that the router binds the starting
-  profile's address.
-- [05 — Runtime recovery and reconciliation](issues/05-runtime-recovery.md) —
-  Startup now reconciles existing supervisor PID files and adopts a survivor
-  without restart only after executable, process-group, listening-port and
-  readiness verification. Results use the one neutral classification set
-  (`stale_pid_file`, `mismatched_executable`, `occupied_port`,
-  `unhealthy_survivor`, `valid_adoptee`), rebuild ticket 04's slot through
-  `reconciling`/`orphaned`, and are exposed through audit/events, CLI, TUI and
-  web. A compiled-binary crash/restart E2E proves same-PID adoption and shutdown.
-- [06 — Make profile autostart operational](issues/06-operational-autostart.md)
-  — Bootstrap validates the whole autostart set, reconciles first, then starts
-  profiles lexically with three bounded attempts and visible per-profile
-  outcomes; adopted profiles are not restarted and partial failure leaves the
-  daemon healthy. `inferencerig service` generates, installs, reinstalls and
-  uninstalls bounded systemd user units and `RunAtLoad` macOS LaunchAgents.
-- [12 — Decide release identity, channels and signing](issues/12-release-identity.md)
-  — Repo goes public before the first tag (it is private today, which would
-  break the install one-liner and bill the macOS MLX job); first release is
-  `v0.1.0` with the workflow regex relaxed to accept stable SemVer; signing is
-  GitHub build-provenance attestation only, no cosign and no maintainer key;
-  `stable`/`dev` read the existing release list rather than adding publishing
-  infrastructure; every automated gate including MLX hard-blocks a release,
-  and the human dispatching it is the manual-QA sign-off. Nothing
-  Apache-derived is in the tree — only `llamarig`/`mlxrig` licensing is left to
-  confirm. `release.yml` already does more than expected, so ticket 14 shrinks.
-- [09 — Enforce the gateway security policy](issues/09-enforce-gateway-security.md)
-  — Ticket 01's policy is implemented: every RPC and `/mcp` authenticated
-  (`/health` and the app shell excepted), the guard wrapping the Connect
-  *handler* rather than a unary interceptor, which closed an unauthenticated
-  hole on the three server streams. Token persists to `run/gateway.token` and
-  arrives in the browser via a `#token=` launch URL; `disable_auth` on a
-  non-loopback bind is now a load error without `allow_exposed_without_auth`;
-  posture shows in the startup message, `/health` JSON, TUI badge and a
-  non-loopback-only web banner; `allowed_origins` is a list that replaces the
-  loopback default, documented in `docs/reverse-proxy.md`; credential-shaped
-  argv is redacted from `command.Display`. Note for later tickets: the control
-  daemon rewrites `config.yaml` whole, so tests must write config before
-  starting it.
-- [13 — Research the release supply chain](issues/13-research-release-supply-chain.md)
-  — All three targets cross-build with `CGO_ENABLED=0` after the existing web
-  build, so retain the small `GOOS`/`GOARCH` matrix and `gh release create`;
-  provenance is `actions/attest-build-provenance@v4`, SBOMs come from pinned
-  `cyclonedx-gomod`, and macOS ad-hoc signing is not a substitute for Developer
-  ID signing plus notarization. Exact versions, permissions, verification
-  commands, Gatekeeper behavior and primary sources are in the linked research.
-
-- [07 — Persist downloads and recover partial artifacts](issues/07-download-persistence.md)
-  — Job records persist atomically to `<home>/state/downloads` and
-  `Manager.Recover` reconciles at startup (re-queue, complete, or discard a
-  `.part`, each logged); a partial resumes only on a `206` whose
-  `Content-Range` matches, otherwise the transfer restarts; `ArtifactItem`
-  carries a SHA-256 that is verified before finalize and removes the artifact
-  on mismatch; MLX pins snapshot URIs to the repository commit
-  (`ArtifactPlan.Revision`) while llama.cpp's network-free `Resolve` stays
-  unpinned; scheme, host allowlist, redirect count and a max transfer size are
-  enforced on redirects as well as the first request.
-- [08 — Harden engine installation and rollback](issues/08-engine-install-hardening.md)
-  — One neutral `backends.InstallRecord` (source, version, digest, platform,
-  accelerator, time) at `${INFERENCERIG_HOME}/engine/<backend>/state.json`,
-  active + previous, replacing both backends' bespoke state shapes; this is what
-  the release receipt and `doctor` read. llama.cpp extracts with `archive/tar`
-  and rejects traversal, escaping links and non-plain modes; a staged binary must
-  answer `--version` before it is activated. MLX installs an embedded
-  `requirements.lock` with `--no-deps` into a version-scoped venv and refuses any
-  version it has no lock for. `Backend.Rollback` joins the contract interface and
-  ships as `backend rollback <backend>`.
-- [10 — Correct documentation and evidence levels](issues/10-docs-evidence-correction.md)
-  — Four evidence levels defined and named (contract → control-stack →
-  CI-tested → hardware), with platform support kept separate from
-  released-artifact availability; `release.yml` publishes linux/amd64 only
-  today, so the artifact table has a row per target for ticket 16's receipt to
-  fill. `docs/hardware-validation.md` rewritten (it quoted a removed
-  `make e2e-live` target, env vars that exist nowhere, and claimed live tests
-  skip when they fail). The E2E plan keeps its text and gains verified
-  per-phase Outcomes: phases 1–4 landed, phase 5 partial — its numeric targets
-  are met but the areas it targeted are still the weakest and the "no
-  0%-covered function on a required path" clause has never been audited. The
-  enforced coverage gate is **68** (in `e2e.yml`), not the Makefile's 65.
-  Nothing in the repo claims hardware validation; no runs are recorded.
-- [20 — Render the active backend and replace in the UIs](issues/20-active-backend-in-the-uis.md)
-  — TUI and web now show the active backend and exact slot states, keep
-  cross-backend profiles visible but dimmed, offer a confirmed inline reset,
-  and confirm exclusive or incompatible-address replacement before sending
-  `replace: true`.
-- [21 — Make TUI profile creation and restart reachable](issues/21-tui-create-and-restart.md)
-  — `n` on a downloaded local model creates a complete neutral profile through
-  `PutProfile`; `R` on a selected running profile confirms before
-  `RestartRuntime`, with RPC validation errors and completion state visible.
+Ticket 19 (prune docs, dispose of this directory) has had its non-QA content
+done as part of the same PR that closed 14/15/16/17: `docs/feature-roadmap.md`
+pruned to only undone work, `docs/hardware-validation.md` and `README.md`
+brought current, `docs/agents/claiming-tickets.md` removed, decisions folded
+into `CONTEXT.md`, resolved ticket files deleted. What remains of 19 is
+recorded there directly rather than here.
 
 ## Not yet specified
 
-Milestone C (operational quality) is in scope but not yet sharp — each item
-below hangs on what Milestone A's state machine, reconciliation and config
-behaviour actually expose. Graduate these into tickets once
-`11-manual-qa-milestone-a` is signed off.
+Milestone C (operational quality) is in scope for a future effort but not yet
+sharp — graduate these into tickets once ticket 18 is signed off, per its own
+note.
 
-- **`inferencerig doctor`** (roadmap #10) — the check list is only writable
-  once the runtime states, reconciliation classifications and config validation
-  errors from tickets 02/04/05 exist to be reported on. Human and JSON output.
-- **Upgrade and rollback** — shape depends on what the install script and
-  release channels (tickets 14/15) end up producing.
-- **Backup, export and migration** (roadmap ODS #7) — versioned export of
-  profiles, config, model inventory, engine install records and receipts.
-  Blocked on the final config/profile schema after ticket 02.
-- **Hardware-aware defaults and explainable model fit** (roadmap ODS #1, #6) —
-  how much of this belongs in `backends` fit policy versus `core/modelcatalog`
-  depends on ticket 03's concurrency answer.
-- **Observability** (roadmap #12) — operation IDs across control/gateway/engine
-  logs, bounded metrics history, "not measured" versus measured zero,
-  diagnostic bundle. Depends on the state-machine transition records from
-  ticket 04.
-- **Model switchboard validation** (roadmap ODS #3) — proving model identity,
-  streaming, cancellation and unload after a switch. Needs ticket 03's answer
-  about whether a backend routes or restarts.
+- **`inferencerig doctor`** (roadmap) — check list depends on the runtime
+  states, reconciliation classifications and config validation errors that
+  now exist to report on.
+- **Upgrade and rollback** — shape depends on the install script and release
+  channels, which now exist (`internal/installer/install.sh`, `stable`/`dev`).
+- **Backup, export and migration** — versioned export of profiles, config,
+  model inventory, engine install records and receipts.
+- **Hardware-aware defaults and explainable model fit** — split between
+  `backends` fit policy and `core/modelcatalog`.
+- **Observability** — operation IDs across control/gateway/engine logs,
+  bounded metrics history, "not measured" versus measured zero, diagnostic
+  bundle.
+- **Model switchboard validation** — proving model identity, streaming,
+  cancellation and unload after a switch.
 
 ## Out of scope
 
 - RAG databases and ingestion pipelines; autonomous-agent frameworks; general
   workflow automation; speech and image generation; homelab orchestration;
-  general-purpose observability suites — `docs/feature-roadmap.md` rules these
-  outside the core control plane.
-- Windows support — the canonical local transport is a Unix socket
-  (`docs/hardware-validation.md`).
+  general-purpose observability suites.
+- Windows support — the canonical local transport is a Unix socket.
 - Milestone D (extensibility): backend authoring guide, external-backend
-  compatibility policy, additional engines. Past this destination; a later
-  effort.
-- Package managers beyond the install script (Homebrew tap, distro packages) —
-  ruled out when the release vehicle was chosen.
+  compatibility policy, additional engines. A later effort.
+- Package managers beyond the install script (Homebrew tap, distro packages).

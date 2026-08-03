@@ -42,10 +42,11 @@ for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
 	archive="$output_dir/$name.tar.gz"
 	tar -C "$stage" -czf "$archive" "$name"
 	archives+=("$archive")
+	cyclonedx-gomod bin -json -output "$output_dir/$name.cdx.json" "$package_dir/infr"
 done
 
 # The installer lives under internal/installer so `infr upgrade` can go:embed
 # it; the released asset keeps its familiar name.
 cp internal/installer/install.sh "$output_dir/install.sh"
 
-(cd "$output_dir" && sha256sum "${archives[@]##*/}" install.sh >SHA256SUMS)
+(cd "$output_dir" && sha256sum "${archives[@]##*/}" ./*.cdx.json install.sh >SHA256SUMS)

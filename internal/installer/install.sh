@@ -3,7 +3,12 @@
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/antonikliment/InferenceRig/main/internal/installer/install.sh | sh
-#   curl -fsSL .../install.sh | sh -s -- v0.1.0-alpha.2   # pin a release
+#   curl -fsSL .../install.sh | sh -s -- dev              # newest release, prereleases included
+#   curl -fsSL .../install.sh | sh -s -- v0.1.0-alpha.2   # pin an exact release
+#
+# Channels:
+#   stable (default)  latest non-prerelease release
+#   dev               latest release, prereleases included
 #
 # Env vars:
 #   INSTALL_DIR   where to place the binary (default: /usr/local/bin, falls
@@ -11,14 +16,16 @@
 set -eu
 
 repo="antonikliment/InferenceRig"
+channel="stable"
 version=""
 
 for arg in "$@"; do
 	case "$arg" in
 	-h | --help)
-		sed -n '2,10p' "$0" 2>/dev/null || echo "see script header for usage" >&2
+		sed -n '2,13p' "$0" 2>/dev/null || echo "see script header for usage" >&2
 		exit 0
 		;;
+	stable | dev) channel=$arg ;;
 	v*) version=$arg ;;
 	*)
 		echo "unknown argument: $arg" >&2
@@ -49,13 +56,23 @@ arm64 | aarch64) arch=arm64 ;;
 esac
 
 if [ -z "$version" ]; then
-	# Use the releases list, not /releases/latest: the latter excludes
-	# prereleases and 404s while only prereleases exist. The list is newest
-	# first, so the first tag_name is the most recent release.
-	version=$(curl -fsSL "https://api.github.com/repos/$repo/releases?per_page=1" | grep '"tag_name"' | head -1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
-	if [ -z "$version" ]; then
-		echo "could not determine latest release version" >&2
-		exit 1
+	if [ "$channel" = stable ]; then
+		# /releases/latest is GitHub's own "latest non-prerelease" resolution;
+		# it 404s while only prereleases exist, which is a clear failure rather
+		# than silently falling back to a prerelease.
+		version=$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | grep '"tag_name"' | head -1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+		if [ -z "$version" ]; then
+			echo "could not resolve the stable channel: no non-prerelease release exists yet (try 'dev')" >&2
+			exit 1
+		fi
+	else
+		# The releases list is newest first regardless of prerelease status, so
+		# the first tag_name is the newest release of any kind.
+		version=$(curl -fsSL "https://api.github.com/repos/$repo/releases?per_page=1" | grep '"tag_name"' | head -1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+		if [ -z "$version" ]; then
+			echo "could not determine latest release version" >&2
+			exit 1
+		fi
 	fi
 fi
 
@@ -65,6 +82,7 @@ base_url="https://github.com/$repo/releases/download/$version"
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
+echo "installing $version ($os/$arch) to ${INSTALL_DIR:-/usr/local/bin}..." >&2
 echo "downloading $name.tar.gz ($version)..." >&2
 curl -fsSL -o "$workdir/$name.tar.gz" "$base_url/$name.tar.gz"
 curl -fsSL -o "$workdir/SHA256SUMS" "$base_url/SHA256SUMS"
@@ -78,6 +96,24 @@ elif command -v shasum >/dev/null 2>&1; then
 else
 	echo "error: neither sha256sum nor shasum found; cannot verify download" >&2
 	exit 1
+fi
+
+# Build provenance verification is best-effort: gh is not a hard dependency of
+# this script, and releases published before provenance attestation existed
+# have none to check (HTTP 404, not a mismatch) — only an attestation that
+# exists and fails to verify indicates real tampering.
+if command -v gh >/dev/null 2>&1; then
+	if attestation_output=$(gh attestation verify "$workdir/$name.tar.gz" --repo "$repo" 2>&1); then
+		echo "$attestation_output" >&2
+	elif echo "$attestation_output" | grep -q "HTTP 404"; then
+		echo "note: no build provenance attestation found for $name.tar.gz (release predates attestation); skipping" >&2
+	else
+		echo "$attestation_output" >&2
+		echo "error: build provenance verification failed for $name.tar.gz" >&2
+		exit 1
+	fi
+else
+	echo "note: gh not found; skipping build provenance verification (install gh and re-run 'gh attestation verify' to check it yourself)" >&2
 fi
 
 tar -C "$workdir" -xzf "$workdir/$name.tar.gz"

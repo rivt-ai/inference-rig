@@ -28,21 +28,55 @@ What it does:
 
 The command is `infr`.
 
-> **Status: pre-release.** No release has been published yet, so building from
-> source is currently the only install path. Support claims are evidence-graded
-> in [`docs/hardware-validation.md`](docs/hardware-validation.md) — read that
+> Support claims are evidence-graded in
+> [`docs/hardware-validation.md`](docs/hardware-validation.md) — read that
 > before assuming a platform works.
 
 ## Prerequisites
 
-- **Go** — see `go.mod` for the minimum version.
-- **Node.js + [pnpm](https://pnpm.io/)** (via `corepack`) to build the web GUI.
 - **An engine.** `infr backend install <backend>` installs a managed copy, or
   bring your own. MLX requires Apple Silicon.
+- To build from source instead of installing a release: **Go** (see `go.mod`
+  for the minimum version) and **Node.js + [pnpm](https://pnpm.io/)** (via
+  `corepack`) to build the web GUI.
 
 Windows is not a target: the canonical local transport is a Unix socket.
 
-## Quickstart
+## Install
+
+Released binaries cover Linux (amd64, arm64) and macOS (amd64, arm64). Inspect
+the script before running it — it downloads a release tarball, verifies its
+checksum and (when [`gh`](https://cli.github.com/) is installed) its GitHub
+build provenance attestation, then extracts the binary:
+
+```bash
+curl -fsSL -o install.sh https://raw.githubusercontent.com/antonikliment/InferenceRig/main/internal/installer/install.sh
+less install.sh   # read it
+sh install.sh                # latest stable release
+sh install.sh dev             # latest release, prereleases included
+sh install.sh v0.1.0          # pin an exact release
+```
+
+`INSTALL_DIR` overrides the install location (default `/usr/local/bin`, falling
+back to `~/.local/bin`). Re-running upgrades in place. To remove it, delete the
+binary from wherever it printed.
+
+Each release also publishes `SHA256SUMS` and a CycloneDX SBOM (`*.cdx.json`)
+per binary, so you can verify by hand instead of trusting the script:
+
+```bash
+sha256sum --ignore-missing --check SHA256SUMS
+gh attestation verify inferencerig_<version>_<os>_<arch>.tar.gz --repo antonikliment/InferenceRig
+```
+
+The macOS binaries are ad-hoc built, not Developer ID signed or notarized —
+`curl`/`install.sh` is unaffected, but a browser download will need an explicit
+Gatekeeper override (right-click → Open, or System Settings → Privacy &
+Security → Open Anyway) on first launch. See
+[`docs/research/release-supply-chain.md`](docs/research/release-supply-chain.md)
+for why.
+
+## Build from source
 
 Build the frontend once per checkout, then run:
 
