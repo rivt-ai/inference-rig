@@ -2,6 +2,7 @@ package pidfile
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -33,7 +34,9 @@ func (f File) Read() (int, bool, error) {
 		return 0, false, err
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil || pid <= 0 {
+	// PIDs are int32 everywhere we pass them on, so reject anything that would
+	// wrap on conversion rather than signalling an unrelated process.
+	if err != nil || pid <= 0 || pid > math.MaxInt32 {
 		return 0, true, fmt.Errorf("invalid PID file %s", f.path)
 	}
 	return pid, true, nil
