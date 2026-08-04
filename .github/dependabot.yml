@@ -41,6 +41,12 @@ updates:
       semver-major-days: 14
       semver-minor-days: 7
       semver-patch-days: 3
+    # svelte-check 4.x refuses to run against TypeScript 7 unless both 6 and 7
+    # are installed side by side behind --tsgo, so a major bump here breaks
+    # `pnpm run check`. Stay on 6.x until svelte-check supports 7 directly.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     groups:
       web-dependencies:
         patterns: ["*"]
