@@ -38,6 +38,7 @@ func NewRootCommand() *cobra.Command {
 			return lifecycle.ReportStartupFailure(command, lifecycle.RunTUI(command, ""))
 		},
 	}
+	adaptercli.RegisterOutputFlag(rootCmd)
 	rootCmd.AddCommand(standaloneCommands(bootstrap.ValidateConfig)...)
 	rootCmd.AddCommand(daemonLifecycleCommands()...)
 	rootCmd.AddCommand(adaptercli.Commands(rpc.DialControl, bootstrap.ValidateConfig)...)

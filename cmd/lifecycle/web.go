@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"inferencerig/adapters/public_http"
 	"inferencerig/config"
 	"inferencerig/core/rpc"
+	"inferencerig/internal/style"
 	"inferencerig/platform/pidfile"
 	"inferencerig/webui"
 )
@@ -40,13 +42,19 @@ func WebCommand() *cobra.Command {
 				return err
 			}
 			var token string
+			paint := style.PainterFor(command.OutOrStdout())
 			if cfg.Security.DisableAuth {
 				// An open gateway must never be silent. A non-loopback bind is
 				// refused by config.ValidateSecurity unless deliberately opted
-				// into, and warns via config.WarnIfExposed when it is.
-				command.Printf("security.disable_auth is set; serving %s without authentication\n"+
+				// into, and warns via config.WarnIfExposed when it is. Painted
+				// red because it is the one line here that must not be skimmed
+				// past — the colour is redundant with the words, never a
+				// substitute for them, so a plain terminal loses nothing.
+				command.Printf("%s\n"+
 					"Every profile, model, log and audit record is readable, and every runtime\n"+
-					"operation is executable, by anything that can reach that address.\n\n", cfg.ListenAddr)
+					"operation is executable, by anything that can reach that address.\n\n",
+					paint(style.ErrorStyle, fmt.Sprintf(
+						"security.disable_auth is set; serving %s without authentication", cfg.ListenAddr)))
 			} else {
 				tokenPath, _ := config.GatewayTokenPath()
 				generated := false
@@ -57,7 +65,8 @@ func WebCommand() *cobra.Command {
 				}
 				// The token rides in the fragment, not the query: a fragment is
 				// never sent to the server, so it cannot land in an access log.
-				command.Printf("Open the web UI:\n\n    %s/#token=%s\n\n", config.BrowseURL(cfg.ListenAddr), token)
+				command.Printf("Open the web UI:\n\n    %s\n\n",
+					paint(style.LinkStyle, fmt.Sprintf("%s/#token=%s", config.BrowseURL(cfg.ListenAddr), token)))
 			}
 			server := &http.Server{
 				Addr: cfg.ListenAddr,

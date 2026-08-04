@@ -7,6 +7,7 @@ import (
 	"inferencerig/config"
 	"inferencerig/internal/buildinfo"
 	"inferencerig/internal/installer"
+	"inferencerig/internal/style"
 	"inferencerig/platform/process"
 
 	"github.com/spf13/cobra"
@@ -87,7 +88,9 @@ func stopServices(out io.Writer, services []string) []string {
 	stopped := []string{}
 	for _, name := range services {
 		if err := stopDetached(config.ServiceProcessName(name)); err != nil {
-			_, _ = fmt.Fprintf(out, "warning: could not stop %s: %v\n", name, err)
+			paint := style.PainterFor(out)
+			_, _ = fmt.Fprintf(out, "%s could not stop %s: %v\n",
+				paint(style.WarningStyle, "warning:"), name, err)
 			continue
 		}
 		_, _ = fmt.Fprintf(out, "stopped %s\n", name)

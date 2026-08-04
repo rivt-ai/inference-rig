@@ -14,7 +14,7 @@ require (
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.5
 	connectrpc.com/connect v1.20.0
-	github.com/antonikliment/tuikit v0.2.2
+	github.com/antonikliment/tuikit v0.3.1
 	github.com/dustin/go-humanize v1.0.1
 	github.com/gpustack/gguf-parser-go v0.25.0
 	github.com/shirou/gopsutil/v4 v4.26.6

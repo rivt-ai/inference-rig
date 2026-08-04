@@ -15,7 +15,15 @@ import (
 // prompt writes to one and reads from the other: redirecting either leaves
 // nobody to answer it.
 func IsInteractive(input io.Reader, output io.Writer) bool {
-	in, inOK := input.(interface{ Fd() uintptr })
-	out, outOK := output.(interface{ Fd() uintptr })
-	return inOK && outOK && term.IsTerminal(int(in.Fd())) && term.IsTerminal(int(out.Fd()))
+	return isTerminal(input) && isTerminal(output)
+}
+
+// The output-only question — may this stream take colour — is tuikit's
+// IsTerminalWriter, reached through internal/style. Rendering must not care
+// about stdin: `infr info < /dev/null` still has a human reading its stdout,
+// and asking IsInteractive there would answer no and silently drop the colour.
+
+func isTerminal(stream any) bool {
+	file, ok := stream.(interface{ Fd() uintptr })
+	return ok && term.IsTerminal(int(file.Fd()))
 }

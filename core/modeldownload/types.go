@@ -28,6 +28,27 @@ const (
 	StateAlreadyDownloaded State = "already_downloaded"
 )
 
+// IsTerminal reports whether a job in this state will never change again.
+//
+// It lives here, next to the constants, because every caller that waits on a
+// download needs the same answer and each one spelling out its own list is how
+// a new state gets missed by all but one of them. Callers that only have the
+// wire string can convert: State(job.GetState()).
+func (s State) IsTerminal() bool {
+	switch s {
+	case StateCompleted, StateFailed, StateCancelled, StateAlreadyDownloaded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Succeeded reports whether the job finished with the artifact in place.
+// already_downloaded is a success: the file the caller asked for is there.
+func (s State) Succeeded() bool {
+	return s == StateCompleted || s == StateAlreadyDownloaded
+}
+
 // Request starts execution of one backend-generated plan.
 type Request struct {
 	Plan    backends.ArtifactPlan `json:"plan"`

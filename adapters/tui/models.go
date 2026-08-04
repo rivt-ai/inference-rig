@@ -14,6 +14,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/antonikliment/tuikit"
 
+	"inferencerig/core/modeldownload"
 	controlv1 "inferencerig/core/rpc/gen/v1"
 )
 
@@ -167,7 +168,10 @@ func (p *modelsPage) enter(data snapshot) tea.Cmd {
 		}
 	case paneDownloads:
 		item := selectedItem(data.downloads, p.downloads.Cursor())
-		if item != nil && (item.GetState() == "completed" || item.GetState() == "already-downloaded") {
+		// The wire value is already_downloaded with an underscore; this
+		// compared against a hyphen, so applying a download that was already
+		// on disk silently did nothing.
+		if item != nil && modeldownload.State(item.GetState()).Succeeded() {
 			return requestCmd(rpcRequest{kind: rpcApply, profile: item.GetProfile(), id: item.GetId(), notice: "download applied"})
 		}
 	}
