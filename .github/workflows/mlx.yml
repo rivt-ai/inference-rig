@@ -11,13 +11,12 @@ on:
     - cron: "0 3 * * *"
   workflow_dispatch:
   workflow_call:
+  # Deliberately unfiltered. This job is a required status check, and a
+  # workflow skipped by a top-level `paths:` filter never reports one at all —
+  # the check sits Pending forever and blocks merge. The path filter lives in
+  # the `changes` job below instead, so the mlx job reports a `skipped`
+  # conclusion on unrelated pull requests, which does satisfy the requirement.
   pull_request:
-    paths:
-      - "backends/mlx/**"
-      - "core/control/**"
-      - "core/rpc/**"
-      - "test/e2e/mlx_live_test.go"
-      - ".github/workflows/mlx.yml"
 
 permissions:
   contents: read
@@ -27,8 +26,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The paths that used to sit under the pull_request trigger. Everything other
+  # than a pull request (schedule, dispatch, workflow_call) wants the run
+  # unconditionally.
+  changes:
+    name: MLX path filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mlx: ${{ steps.filter.outputs.mlx }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "mlx=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$BASE" "$HEAD" | grep -qE '^(backends/mlx/|core/control/|core/rpc/|test/e2e/mlx_live_test\.go|\.github/workflows/mlx\.yml$)'; then
+            echo "mlx=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mlx=false" >> "$GITHUB_OUTPUT"
+          fi
+
   mlx:
     name: MLX inference (Apple Silicon)
+    needs: changes
+    if: needs.changes.outputs.mlx == 'true'
     # Pinned rather than macos-latest so an image rollover cannot silently
     # change the hardware under the result. For a public repository this is an
     # Apple Silicon VM at no extra cost; the pinned model is small enough that a
