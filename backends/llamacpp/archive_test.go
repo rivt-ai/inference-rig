@@ -67,6 +67,24 @@ func TestExtractTarGzRejectsHostileEntries(t *testing.T) {
 	}
 }
 
+// Entries are validated against the symlink-resolved path, so a write landing
+// in a directory the archive symlinked earlier must still be accepted: it stays
+// inside the install root once resolved.
+func TestExtractTarGzWritesThroughAnInRootSymlink(t *testing.T) {
+	destination := filepath.Join(t.TempDir(), "install")
+	archive := writeArchive(t,
+		&tar.Header{Name: "real", Typeflag: tar.TypeDir, Mode: 0o755},
+		&tar.Header{Name: "alias", Linkname: "real", Typeflag: tar.TypeSymlink},
+		&tar.Header{Name: "alias/file", Typeflag: tar.TypeReg, Mode: 0o644},
+	)
+	if err := extractTarGz(archive, destination); err != nil {
+		t.Fatalf("legitimate entry rejected: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(destination, "real", "file")); err != nil {
+		t.Fatalf("entry not written through the symlink: %v", err)
+	}
+}
+
 func TestExtractTarGzWritesRegularEntries(t *testing.T) {
 	archive := writeArchive(t,
 		&tar.Header{Name: "build", Typeflag: tar.TypeDir, Mode: 0o755},

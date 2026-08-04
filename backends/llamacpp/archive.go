@@ -68,7 +68,8 @@ func extractEntry(reader io.Reader, root string, header *tar.Header) error {
 		}
 		return writeEntry(reader, target, header)
 	case tar.TypeSymlink, tar.TypeLink:
-		if _, err := entryPath(root, linkTarget(header)); err != nil {
+		resolved, err := entryPath(root, linkTarget(header))
+		if err != nil {
 			return fmt.Errorf("link %q: %w", header.Name, err)
 		}
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
@@ -81,20 +82,65 @@ func extractEntry(reader io.Reader, root string, header *tar.Header) error {
 			}
 			return os.Link(source, target)
 		}
-		return os.Symlink(header.Linkname, target)
+		// Link with a path recomputed from the validated destination rather
+		// than with the raw header value, so the bytes written into the
+		// symlink cannot differ from what was checked against the root.
+		link, err := filepath.Rel(filepath.Dir(target), resolved)
+		if err != nil {
+			return fmt.Errorf("link %q: %w", header.Name, err)
+		}
+		return os.Symlink(link, target)
 	default:
 		return fmt.Errorf("entry %q has unsupported type %q", header.Name, string(header.Typeflag))
 	}
 }
 
 // entryPath resolves name against root and rejects anything that would land
-// outside it: an absolute path, a traversal, or a link target climbing out.
+// outside it: an absolute path, a traversal, a link target climbing out, or a
+// path that reaches out through a symlink an earlier entry planted.
 func entryPath(root, name string) (string, error) {
 	clean := filepath.Clean(filepath.FromSlash(name))
 	if !filepath.IsLocal(clean) {
 		return "", fmt.Errorf("entry %q escapes the install directory", name)
 	}
-	return filepath.Join(root, clean), nil
+	joined := filepath.Join(root, clean)
+	// IsLocal rejects traversal in the name itself, but an earlier entry may
+	// have planted a symlinked directory that a later entry writes through.
+	// Resolve both sides and require the entry to stay under the real root.
+	realRoot, err := evalExistingPrefix(root)
+	if err != nil {
+		return "", err
+	}
+	realPath, err := evalExistingPrefix(joined)
+	if err != nil {
+		return "", err
+	}
+	if realPath != realRoot && !strings.HasPrefix(realPath, realRoot+string(os.PathSeparator)) {
+		return "", fmt.Errorf("entry %q escapes the install directory", name)
+	}
+	return joined, nil
+}
+
+// evalExistingPrefix resolves symlinks in the deepest part of path that exists
+// and re-attaches the components that do not. filepath.EvalSymlinks fails on a
+// missing path, and an archive entry is missing until it is written.
+func evalExistingPrefix(path string) (string, error) {
+	missing := ""
+	for {
+		resolved, err := filepath.EvalSymlinks(path)
+		if err == nil {
+			return filepath.Join(resolved, missing), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return "", err
+		}
+		missing = filepath.Join(filepath.Base(path), missing)
+		path = parent
+	}
 }
 
 // linkTarget is the path a link entry resolves to, relative to the link's own
