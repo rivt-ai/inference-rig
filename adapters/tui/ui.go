@@ -3,28 +3,26 @@ package tui
 import (
 	"image/color"
 
-	"charm.land/lipgloss/v2"
-	"github.com/antonikliment/tuikit"
+	"inferencerig/internal/style"
 )
 
+// The palette lives in internal/style so the CLI renders in the same colours.
+// These aliases keep the TUI's call sites unchanged; they are not a second
+// definition.
 var (
-	green  = lipgloss.Color("10")
-	blue   = lipgloss.Color("12")
-	yellow = lipgloss.Color("11")
-	red    = lipgloss.Color("9")
-	cyan   = lipgloss.Color("14")
-	muted  = lipgloss.Color("8")
+	green  = style.Green
+	blue   = style.Blue
+	yellow = style.Yellow
+	red    = style.Red
+	cyan   = style.Cyan
+	muted  = style.Muted
 
-	theme = tuikit.Theme{
-		Green: green, Blue: blue, Yellow: yellow, Red: red, Cyan: cyan,
-		Muted: muted, Brand: lipgloss.Color("63"), TabActiveFg: lipgloss.Color("0"),
-		FocusBorder: yellow,
-	}
-	mutedStyle    = lipgloss.NewStyle().Foreground(muted)
-	successStyle  = lipgloss.NewStyle().Foreground(green)
-	warningStyle  = lipgloss.NewStyle().Foreground(yellow)
-	errorStyle    = lipgloss.NewStyle().Foreground(red)
-	selectedStyle = lipgloss.NewStyle().Background(cyan).Foreground(lipgloss.Color("0"))
+	theme         = style.Theme
+	mutedStyle    = style.MutedStyle
+	successStyle  = style.SuccessStyle
+	warningStyle  = style.WarningStyle
+	errorStyle    = style.ErrorStyle
+	selectedStyle = style.SelectedStyle
 )
 
 func panel(accent color.Color, focused bool, width, height int, content string) string {
