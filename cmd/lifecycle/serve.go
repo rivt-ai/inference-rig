@@ -7,6 +7,7 @@ import (
 
 	"inferencerig/bootstrap"
 	"inferencerig/config"
+	"inferencerig/internal/style"
 	"inferencerig/platform/process"
 )
 
@@ -43,11 +44,13 @@ func DaemonCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				paint := style.PainterFor(command.OutOrStdout())
 				if !status.Running {
-					_, err = fmt.Fprintln(command.OutOrStdout(), "stopped")
+					_, err = fmt.Fprintln(command.OutOrStdout(), paint(style.ErrorStyle, "stopped"))
 					return err
 				}
-				_, err = fmt.Fprintf(command.OutOrStdout(), "running pid=%d uptime=%s\n", status.PID, status.Uptime)
+				_, err = fmt.Fprintf(command.OutOrStdout(), "%s pid=%d uptime=%s\n",
+					paint(style.SuccessStyle, "running"), status.PID, status.Uptime)
 				return err
 			},
 		},

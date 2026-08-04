@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/lipgloss/v2"
 	"github.com/antonikliment/tuikit"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -35,19 +34,12 @@ const cellWidth = 44
 // Only populated fields are rendered, which matches protojson's default
 // behaviour, so the text and JSON modes show the same set of facts.
 func renderProto(w io.Writer, message proto.Message) error {
-	r := renderer{styled: style.Colour(w)}
+	r := renderer{paint: style.PainterFor(w)}
 	_, err := io.WriteString(w, r.message(message.ProtoReflect(), 0))
 	return err
 }
 
-type renderer struct{ styled bool }
-
-func (r renderer) paint(s lipgloss.Style, text string) string {
-	if !r.styled {
-		return text
-	}
-	return s.Render(text)
-}
+type renderer struct{ paint style.Painter }
 
 // message renders every populated field of m, indented by depth levels.
 func (r renderer) message(m protoreflect.Message, depth int) string {

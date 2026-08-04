@@ -41,6 +41,9 @@ var (
 	WarningStyle  = lipgloss.NewStyle().Foreground(Yellow)
 	ErrorStyle    = lipgloss.NewStyle().Foreground(Red)
 	SelectedStyle = lipgloss.NewStyle().Background(Cyan).Foreground(lipgloss.Color("0"))
+	// LinkStyle marks a URL the user is meant to click or copy. Underlined as
+	// well as coloured, so it still reads as a link where colour is lost.
+	LinkStyle = lipgloss.NewStyle().Foreground(Cyan).Underline(true)
 )
 
 // Interactive reports whether w is a terminal a human is watching. It is the
@@ -51,6 +54,31 @@ var (
 // tool on their machine what they want; see https://no-color.org.
 func Interactive(w io.Writer) bool {
 	return terminal.IsWriterTerminal(w)
+}
+
+// Painter applies a style to text, or returns it untouched when the
+// destination cannot take escapes.
+//
+// Passing one of these around is what stops every call site from repeating the
+// "is this a terminal, and is NO_COLOR set" test — and from getting it subtly
+// different, which is how half a command's output ends up coloured.
+type Painter func(lipgloss.Style, string) string
+
+// Plain is the Painter that never paints. Tests use it to assert on content
+// without decoding escape sequences.
+func Plain(_ lipgloss.Style, text string) string { return text }
+
+// Paint is the Painter that always paints, for output already known to be
+// going to a terminal.
+func Paint(s lipgloss.Style, text string) string { return s.Render(text) }
+
+// PainterFor returns the Painter appropriate to w, deciding once so the answer
+// cannot change halfway through rendering one command's output.
+func PainterFor(w io.Writer) Painter {
+	if !Colour(w) {
+		return Plain
+	}
+	return Paint
 }
 
 // Colour reports whether output to w may carry ANSI escapes.

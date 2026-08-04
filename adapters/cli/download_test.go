@@ -8,12 +8,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	controlv1 "inferencerig/core/rpc/gen/v1"
+	"inferencerig/internal/style"
 )
 
 func testModel(job *controlv1.ModelDownload) *downloadModel {
 	m := newDownloadModel(context.Background(), nil, job)
 	// Colour off so the assertions below are about content, not escapes.
-	m.styled = false
+	m.paint = style.Plain
 	return m
 }
 

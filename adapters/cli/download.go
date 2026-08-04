@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 	"github.com/antonikliment/tuikit"
 	"github.com/spf13/cobra"
 
@@ -98,8 +98,7 @@ func followDownload(ctx context.Context, command *cobra.Command, client controlv
 // failed download exits non-zero, because a script that drops --detach should
 // still be able to test the exit status.
 func reportDownload(command *cobra.Command, job *controlv1.ModelDownload) error {
-	styled := style.Colour(command.OutOrStdout())
-	r := renderer{styled: styled}
+	r := renderer{paint: style.PainterFor(command.OutOrStdout())}
 	state := modeldownload.State(job.GetState())
 	if state == modeldownload.StateFailed {
 		return fmt.Errorf("download %s failed: %s", job.GetId(), job.GetError())
@@ -126,7 +125,7 @@ type downloadModel struct {
 	job     *controlv1.ModelDownload
 	meter   tuikit.Meter
 	spinner spinner.Model
-	styled  bool
+	paint   style.Painter
 	// cancelling records that the user pressed ctrl-c and the cancel RPC is in
 	// flight, so a second press is not mistaken for the first.
 	cancelling bool
@@ -145,7 +144,9 @@ func newDownloadModel(ctx context.Context, client controlv1connect.ControlServic
 	return &downloadModel{
 		ctx: ctx, client: client, job: job,
 		meter: tuikit.NewMeter(barWidth, style.Green), spinner: spin,
-		styled: true,
+		// The bar only ever runs on a terminal — followDownload is not reached
+		// otherwise — so it always paints.
+		paint: style.Paint,
 	}
 }
 
@@ -181,7 +182,7 @@ func (m *downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *downloadModel) View() tea.View {
-	r := renderer{styled: m.styled}
+	r := renderer{paint: m.paint}
 	label := m.job.GetProfile()
 	if label == "" {
 		label = m.job.GetId()
