@@ -4,14 +4,33 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # Let a release sit in public before we adopt it, so malicious or yanked
+    # versions get caught upstream first. gomod only supports default-days.
+    cooldown:
+      default-days: 7
     groups:
       go-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: "/webui"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      npm-dependencies:
         patterns: ["*"]
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns: ["*"]
