@@ -1,6 +1,12 @@
 module inferencerig
 
-go 1.26.3
+// Patch version is pinned deliberately: every workflow resolves its toolchain
+// from this line (setup-go with go-version-file: go.mod), so it is also the
+// version the standard library is scanned and shipped at. 1.26.5 clears
+// GO-2026-5856 (crypto/tls), GO-2026-5039 (net/textproto) and GO-2026-5037
+// (crypto/x509), all of which govulncheck reports as reachable from the
+// gateway's HTTP server. Bump this line to clear future stdlib advisories.
+go 1.26.5
 
 require (
 	charm.land/bubbles/v2 v2.1.1
@@ -133,8 +139,10 @@ require (
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
+	golang.org/x/vuln v1.1.4 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260715232425-e75dac1f907d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260715232425-e75dac1f907d // indirect
@@ -146,5 +154,6 @@ tool (
 	connectrpc.com/connect/cmd/protoc-gen-connect-go
 	github.com/antonikliment/go-code-metrics/cmd/sizeanalyzer
 	github.com/bufbuild/buf/cmd/buf
+	golang.org/x/vuln/cmd/govulncheck
 	google.golang.org/protobuf/cmd/protoc-gen-go
 )

@@ -1,0 +1,18 @@
+# Policy for the workflow audit in .github/workflows/security.yml.
+rules:
+  unpinned-uses:
+    config:
+      # zizmor's blanket default demands a commit hash for every action. That
+      # is the right default in general, but applied here it would pin ~40 uses
+      # of first-party GitHub actions to hashes that Dependabot then churns
+      # weekly, for no gain: `actions/*` and `github/*` are the same trust root
+      # that runs the workflow and stores the release credentials, so a hash
+      # pin does not reduce who has to be trusted.
+      #
+      # Everything outside those orgs is a genuinely separate publisher whose
+      # tags are mutable, and must be pinned to a hash.
+      policies:
+        actions/*: ref-pin
+        github/*: ref-pin
+        dependabot/*: ref-pin
+        "*": hash-pin

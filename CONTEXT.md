@@ -55,6 +55,23 @@ a list replacing the loopback default (`security.disable_origin_check` is the
 narrower opt-out for a proxy that terminates origin itself). Credential-shaped
 argv is redacted from `command.Display`; paths and other argv are not.
 
+## CI security gates
+
+`.github/workflows/security.yml` runs on every pull request, on pushes to main,
+and weekly — the schedule matters because a CVE disclosed against an untouched
+dependency never produces a commit to trigger on. Five jobs, each covering
+something no other one does: `govulncheck` (Go module vulnerabilities,
+reachability-based, so a finding means a vulnerable symbol is actually called),
+CodeQL for Go and for the Svelte/TS client, `pnpm audit` (the only check that
+reads `webui/pnpm-lock.yaml`), gitleaks over full history, and zizmor against
+the workflows themselves. They roll up into one aggregate check named
+`Security`, which is what branch protection and the release gate wait on, so
+adding a job never means editing that list. Scanners are installed from pinned
+versions rather than run as third-party actions, matching how `golangci-lint`
+is already installed and keeping the set of trusted actions small; zizmor's
+pinning policy lives in `.github/zizmor.yml` and requires a commit hash for
+every action outside the `actions`/`github`/`dependabot` orgs.
+
 ## Release identity and channels
 
 No signing key and no cosign: GitHub's keyless `actions/attest-build-provenance`
@@ -65,10 +82,16 @@ not a package manager; `stable` (install script default) resolves GitHub's own
 latest-non-prerelease via `/releases/latest`, `dev` takes the newest release of
 any kind — both resolve to an immutable tag before downloading, never a moving
 reference. A release publishes four targets (linux/amd64, linux/arm64,
-darwin/amd64, darwin/arm64); publication is gated on `Test`, `Lint`, the MLX
+darwin/amd64, darwin/arm64); publication is gated on `Test`, `Lint`, `Security`
+(the aggregate check in `.github/workflows/security.yml`), the MLX
 inference job (`.github/workflows/mlx.yml`, invoked as `workflow_call`) and a
 real E2E pass against the packaged linux/amd64 tarball — a failing gate blocks
-`gh release create` outright. macOS binaries are ad-hoc built, not Developer ID
+`gh release create` outright. All four packaged binaries are additionally
+scanned with `govulncheck -mode=binary` after packaging, so the shipped bytes
+are checked rather than only the commit they were built from. Binaries stay
+statically linked and are not built `-buildmode=pie`: PIE would make them
+dynamically linked against `ld-linux`, which the `curl | sh` installer cannot
+assume on an arbitrary host. macOS binaries are ad-hoc built, not Developer ID
 signed or notarized; see `docs/research/release-supply-chain.md` for why that
 gap is intentional for now. There is no separate machine-readable release
 receipt — the linked CI runs are the evidence trail (see

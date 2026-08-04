@@ -298,6 +298,20 @@ Two deliberate opt-outs exist, both documented in `config.example.yaml`:
 The control daemon's Unix socket intentionally has no bearer auth: it is
 local-process control plumbing. Do not expose it outside the local filesystem.
 
+### Supply chain
+
+Every pull request runs a `Security` check alongside `Test` and `Lint`:
+`govulncheck` over the Go module, CodeQL over the Go and Svelte/TypeScript
+sources, `pnpm audit` over the web lockfile, `gitleaks` over the full history,
+and `zizmor` over the workflows themselves. It also runs weekly, because a
+vulnerability disclosed against a dependency nobody touched produces no commit
+to trigger on.
+
+A release cannot publish unless that check passed on its commit, and each of
+the four packaged binaries is scanned again with `govulncheck -mode=binary`
+after packaging — so what is verified is the bytes being shipped, not just the
+source they came from. Run the same module scan locally with `make vuln`.
+
 ## HTTP
 
 The gateway serves the web GUI plus:
@@ -341,6 +355,7 @@ make build      # go build ./...
 make test       # go test ./...
 make lint       # custom golangci-lint
 make verify     # test + lint
+make vuln       # govulncheck (needs network; not part of verify)
 make coverage   # scoped coverage floor
 make generate   # regenerate proto (buf)
 ```

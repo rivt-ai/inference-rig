@@ -15,3 +15,17 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+
+  # The browser client's dependency tree was the one part of the project with
+  # no update path: gomod above does not see webui/pnpm-lock.yaml, so a fix
+  # published for vite, svelte or any of their transitive packages would only
+  # have arrived through a hand-written bump. The Security workflow audits this
+  # same lockfile, and without this entry a finding there would have had no
+  # routine way to be resolved.
+  - package-ecosystem: npm
+    directory: "/webui"
+    schedule:
+      interval: weekly
+    groups:
+      web-dependencies:
+        patterns: ["*"]

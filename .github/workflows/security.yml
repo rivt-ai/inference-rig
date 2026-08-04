@@ -1,0 +1,235 @@
+name: Security
+
+# The gates Test and Lint deliberately do not carry: known vulnerabilities in
+# dependencies, static analysis of first-party code, leaked credentials, and
+# the trustworthiness of the CI workflows themselves.
+#
+# The weekly schedule is not redundant with the pull_request trigger. Every
+# check here can start failing without a commit — a CVE disclosed against a
+# dependency nobody touched is precisely the case a push-triggered job never
+# catches.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  govulncheck:
+    name: Go vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      # webui/dist is a build artifact that is not committed, and
+      # webui/assets.go embeds it. Without it the webui package — and the
+      # gateway packages importing it — load incompletely, which would quietly
+      # narrow the scan rather than fail it.
+      - name: Build web UI
+        run: |
+          cd webui
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      # govulncheck is a go.mod tool directive, not a `go install`, for a
+      # reason specific to this module: `go install ...@latest` builds
+      # govulncheck with the Go version its own go.mod names, which is older
+      # than this module's, and such a binary cannot load these packages at all
+      # ("package requires newer Go version"). The tool directive pins the
+      # version in go.sum and builds it with the toolchain go.mod already
+      # names.
+      #
+      # Reachability-based by design: it reports a vulnerability only when a
+      # vulnerable symbol is actually called, so a finding here is actionable
+      # rather than a version-range match to triage away.
+      - name: govulncheck (source)
+        run: go tool govulncheck ./...
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Go needs a real compile, so it drives the build itself rather than
+          # relying on autobuild, which cannot know the web UI must exist first.
+          - language: go
+            build-mode: manual
+          # The Svelte/TS client is analyzed from source; nothing to build.
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        if: matrix.language == 'go'
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        if: matrix.language == 'go'
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v7
+        if: matrix.language == 'go'
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      # After init, so the CodeQL tracer observes the compiler invocations.
+      - name: Build Go
+        if: matrix.language == 'go'
+        run: |
+          cd webui
+          pnpm install --frozen-lockfile
+          pnpm run build
+          cd ..
+          go build ./...
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+
+  web-audit:
+    name: Web dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.22.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      # govulncheck covers the Go module graph and nothing else; this is the
+      # only check that sees webui/pnpm-lock.yaml. Dev dependencies are in
+      # scope on purpose — vite, vitest and playwright execute in CI, so a
+      # compromised one is a build-time compromise, not a test-only annoyance.
+      - name: pnpm audit
+        run: cd webui && pnpm audit --audit-level high
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Full history: a credential that was committed and then removed in a
+      # later commit is still published, and a shallow clone would not see it.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # Installed from a pinned tag rather than run as a third-party action,
+      # which is how this repository already installs golangci-lint and keeps
+      # the set of actions it trusts small.
+      - name: Install gitleaks
+        env:
+          GOBIN: /usr/local/bin
+        run: go install github.com/zricethezav/gitleaks/v8@v8.30.1
+
+      # --redact so a real finding does not get reprinted into a public log.
+      - name: gitleaks
+        run: gitleaks detect --source . --redact --no-banner
+
+  workflows:
+    name: Workflow audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # CI is itself an attack surface: these workflows hold contents: write
+      # and publish releases. zizmor audits them for the failure modes that
+      # matter here — spoofable actor checks, over-broad permissions, dangerous
+      # triggers, and unpinned third-party actions. Policy lives in
+      # .github/zizmor.yml.
+      - name: Install zizmor
+        run: pipx install zizmor==1.29.0
+
+      - name: zizmor
+        env:
+          # Enables the online audits (for example, flagging an action whose
+          # repository has been archived or renamed).
+          GH_TOKEN: ${{ github.token }}
+        run: zizmor .github/workflows/
+
+  security:
+    # One stable check name for branch protection and for the release
+    # workflow's gate to wait on, so adding a job above never means editing
+    # release.yml's required-check list.
+    name: Security
+    needs: [govulncheck, codeql, web-audit, secrets, workflows]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every security job to pass
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "security job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != success ]; then
+              echo "a security job did not succeed" >&2
+              exit 1
+            fi
+          done
