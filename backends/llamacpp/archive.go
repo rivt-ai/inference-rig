@@ -68,7 +68,8 @@ func extractEntry(reader io.Reader, root string, header *tar.Header) error {
 		}
 		return writeEntry(reader, target, header)
 	case tar.TypeSymlink, tar.TypeLink:
-		if _, err := entryPath(root, linkTarget(header)); err != nil {
+		resolved, err := entryPath(root, linkTarget(header))
+		if err != nil {
 			return fmt.Errorf("link %q: %w", header.Name, err)
 		}
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
@@ -81,7 +82,14 @@ func extractEntry(reader io.Reader, root string, header *tar.Header) error {
 			}
 			return os.Link(source, target)
 		}
-		return os.Symlink(header.Linkname, target)
+		// Link with a path recomputed from the validated destination rather
+		// than with the raw header value, so the bytes written into the
+		// symlink cannot differ from what was checked against the root.
+		link, err := filepath.Rel(filepath.Dir(target), resolved)
+		if err != nil {
+			return fmt.Errorf("link %q: %w", header.Name, err)
+		}
+		return os.Symlink(link, target)
 	default:
 		return fmt.Errorf("entry %q has unsupported type %q", header.Name, string(header.Typeflag))
 	}
