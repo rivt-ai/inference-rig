@@ -50,8 +50,18 @@ var (
 // NO_COLOR is honoured because a user who set it has already told every other
 // tool on their machine what they want; see https://no-color.org.
 func Interactive(w io.Writer) bool {
+	return terminal.IsWriterTerminal(w)
+}
+
+// Colour reports whether output to w may carry ANSI escapes.
+//
+// It is a separate question from Interactive on purpose. NO_COLOR says "do not
+// paint", not "change format": a user who sets it still wants the readable
+// table, just without the escapes. Conflating the two hands them JSON, which
+// is the opposite of what they asked for. See https://no-color.org.
+func Colour(w io.Writer) bool {
 	if _, set := os.LookupEnv("NO_COLOR"); set {
 		return false
 	}
-	return terminal.IsWriterTerminal(w)
+	return Interactive(w)
 }

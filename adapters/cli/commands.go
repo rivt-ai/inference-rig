@@ -18,6 +18,7 @@ import (
 	controlv1 "inferencerig/core/rpc/gen/v1"
 	"inferencerig/core/rpc/gen/v1/controlv1connect"
 	"inferencerig/core/runtime"
+	"inferencerig/internal/style"
 )
 
 // dialTimeoutMargin is added on top of the runtime supervisor's readiness
@@ -252,6 +253,9 @@ func rpcCommand(use, short string, args cobra.PositionalArgs, dial dialer, invok
 	command := &cobra.Command{
 		Use: use, Short: short, Args: args, ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(command *cobra.Command, values []string) error {
+			if err := validateOutput(command); err != nil {
+				return err
+			}
 			client, err := dial(resolveSocket(socket), dialTimeout())
 			if err != nil {
 				return err
@@ -274,6 +278,9 @@ func streamCommand(use, short string, dial dialer, invoke streamCall) *cobra.Com
 	command := &cobra.Command{
 		Use: use, Short: short, Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
+			if err := validateOutput(command); err != nil {
+				return err
+			}
 			client, err := dial(resolveSocket(socket), dialTimeout())
 			if err != nil {
 				return err
@@ -327,11 +334,33 @@ func resolveSocket(flag string) string {
 	return os.Getenv(config.ProjectSocketEnv)
 }
 
+// printProto is the single output path for every RPC-backed command, so it is
+// also the only place the text/JSON choice is made.
 func printProto(command *cobra.Command, message proto.Message) error {
-	data, err := protojson.MarshalOptions{Indent: "  "}.Marshal(message)
-	if err != nil {
+	if !renderText(command) {
+		data, err := protojson.MarshalOptions{Indent: "  "}.Marshal(message)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(command.OutOrStdout(), string(data))
 		return err
 	}
-	_, err = fmt.Fprintln(command.OutOrStdout(), string(data))
-	return err
+	return renderProto(command.OutOrStdout(), message)
+}
+
+// renderText answers "should this command print for a human?".
+//
+// The default is decided by where the output is going, not by a flag nobody
+// sets: a terminal gets text, a pipe gets JSON. That is what keeps every
+// existing `infr ... | jq` working untouched while making the styled output
+// the thing a person actually sees.
+func renderText(command *cobra.Command) bool {
+	switch outputMode(command) {
+	case outputJSON:
+		return false
+	case outputText:
+		return true
+	default:
+		return style.Interactive(command.OutOrStdout())
+	}
 }

@@ -13,7 +13,6 @@ var (
 	green  = style.Green
 	blue   = style.Blue
 	yellow = style.Yellow
-	red    = style.Red
 	cyan   = style.Cyan
 	muted  = style.Muted
 
