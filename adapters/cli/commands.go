@@ -122,9 +122,7 @@ func modelCommand(dial dialer) *cobra.Command {
 		rpcCommand("resolve <profile>", "Resolve a profile model", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
 			return client.ResolveProfileModel(ctx, &controlv1.ResolveProfileModelRequest{Profile: args[0]})
 		}),
-		rpcCommand("download <profile>", "Start a model download", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
-			return client.StartModelDownload(ctx, &controlv1.StartModelDownloadRequest{Profile: args[0]})
-		}),
+		downloadCommand(dial),
 		rpcCommand("get <id>", "Get download status", cobra.ExactArgs(1), dial, func(ctx context.Context, client controlv1connect.ControlServiceClient, args []string) (proto.Message, error) {
 			return client.GetModelDownload(ctx, &controlv1.GetModelDownloadRequest{Id: args[0]})
 		}),
