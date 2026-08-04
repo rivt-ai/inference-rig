@@ -86,10 +86,10 @@ func (r renderer) field(field protoreflect.FieldDescriptor, value protoreflect.V
 		return r.line(label, r.scalarList(field, value.List()), depth)
 	// A Struct is a map wearing a message's clothes; rendering it as a message
 	// would print a pointless "Fields:" heading above the pairs.
-	case isStruct(field):
+	case messageIs(field, structType):
 		fields := value.Message().Descriptor().Fields().ByName("fields")
 		return r.block(label, r.pairs(fields, value.Message().Get(fields).Map(), depth+1), depth)
-	case field.Kind() == protoreflect.MessageKind && !isTimestamp(field):
+	case field.Kind() == protoreflect.MessageKind && !messageIs(field, timestampType):
 		return r.block(label, r.message(value.Message(), depth+1), depth)
 	}
 	text := r.scalar(field, value)
@@ -222,11 +222,11 @@ func (r renderer) scalar(field protoreflect.FieldDescriptor, value protoreflect.
 func (r renderer) byType(field protoreflect.FieldDescriptor, value protoreflect.Value) (string, bool) {
 	name := string(field.Name())
 	switch {
-	case isTimestamp(field):
+	case messageIs(field, timestampType):
 		return relative(value.Message().Interface().(*timestamppb.Timestamp)), true
 	// A Struct's map values are Value messages. Without unwrapping them, every
 	// engine argument renders as the Go pointer behind the message.
-	case isValue(field):
+	case messageIs(field, valueType):
 		return r.structValue(value.Message().Interface().(*structpb.Value)), true
 	case field.Kind() == protoreflect.BoolKind:
 		if value.Bool() {
@@ -306,7 +306,7 @@ func tableColumns(descriptor protoreflect.MessageDescriptor, list protoreflect.L
 		if field.IsMap() || field.IsList() {
 			continue
 		}
-		if field.Kind() == protoreflect.MessageKind && !isTimestamp(field) {
+		if field.Kind() == protoreflect.MessageKind && !messageIs(field, timestampType) {
 			continue
 		}
 		if usedInAnyRow(field, list) {
@@ -353,20 +353,15 @@ func (r renderer) structValue(value *structpb.Value) string {
 	}
 }
 
+// The well-known types this renderer unwraps rather than descending into.
+const (
+	timestampType protoreflect.FullName = "google.protobuf.Timestamp"
+	structType    protoreflect.FullName = "google.protobuf.Struct"
+	valueType     protoreflect.FullName = "google.protobuf.Value"
+)
+
 func messageIs(field protoreflect.FieldDescriptor, name protoreflect.FullName) bool {
 	return field.Kind() == protoreflect.MessageKind && field.Message().FullName() == name
-}
-
-func isTimestamp(field protoreflect.FieldDescriptor) bool {
-	return messageIs(field, "google.protobuf.Timestamp")
-}
-
-func isStruct(field protoreflect.FieldDescriptor) bool {
-	return messageIs(field, "google.protobuf.Struct")
-}
-
-func isValue(field protoreflect.FieldDescriptor) bool {
-	return messageIs(field, "google.protobuf.Value")
 }
 
 // byteCount reads an integer field as a size, whatever its signedness.
