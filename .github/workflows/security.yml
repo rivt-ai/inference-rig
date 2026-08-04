@@ -72,6 +72,27 @@ jobs:
       - name: govulncheck (source)
         run: go tool govulncheck ./...
 
+      # The release workflow runs `govulncheck -mode=binary` over the shipped
+      # artifacts, and that scan can fail for reasons the source scan above
+      # cannot see: it reads the binary's symbol table, so the release build
+      # flags decide whether it does real symbol analysis or degrades to
+      # module-level matching and flags packages nothing imports. Running it
+      # here on a binary built with those same flags means such a break shows
+      # up on the pull request rather than halfway through a release.
+      #
+      # The flags are sourced from the packaging script rather than repeated,
+      # so the two cannot drift; only the -X values are stubbed, and those do
+      # not affect the scan.
+      - name: govulncheck (release binary)
+        run: |
+          version=v0.0.0
+          commit=$(printf '0%.0s' $(seq 40))
+          commit_time=1970-01-01T00:00:00Z
+          # shellcheck disable=SC1090
+          source <(grep '^ldflags=' scripts/package-release.sh)
+          CGO_ENABLED=0 go build -trimpath -ldflags "$ldflags" -o "$RUNNER_TEMP/infr" .
+          go tool govulncheck -mode=binary "$RUNNER_TEMP/infr"
+
   codeql:
     name: CodeQL (${{ matrix.language }})
     runs-on: ubuntu-latest

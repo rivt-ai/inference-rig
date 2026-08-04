@@ -28,7 +28,14 @@ mkdir -p "$output_dir"
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 archives=()
-ldflags="-s -w -X inferencerig/internal/buildinfo.Version=$version -X inferencerig/internal/buildinfo.Commit=$commit -X inferencerig/internal/buildinfo.CommitTime=$commit_time"
+# -w drops DWARF, but -s is deliberately absent: it strips the symbol table,
+# and without one `govulncheck -mode=binary` cannot tell which packages the
+# binary actually calls. It then falls back to module-level matching and
+# reports every symbol of any flagged package in a linked module — for this
+# binary, all of golang.org/x/crypto/openpgp, which nothing here imports and
+# which has no fixed version to upgrade to. The release workflow scans these
+# artifacts and would fail on that forever. The cost is ~3MB per binary.
+ldflags="-w -X inferencerig/internal/buildinfo.Version=$version -X inferencerig/internal/buildinfo.Commit=$commit -X inferencerig/internal/buildinfo.CommitTime=$commit_time"
 
 for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
 	os=${target%/*}
