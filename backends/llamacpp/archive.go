@@ -102,14 +102,7 @@ func entryPath(root, name string) (string, error) {
 	if !filepath.IsLocal(clean) {
 		return "", fmt.Errorf("entry %q escapes the install directory", name)
 	}
-	joined := filepath.Join(root, clean)
-	// IsLocal already rejects traversal, but assert containment on the joined
-	// path too: it is the property that actually matters, and it is the form
-	// static analysis can follow.
-	if !strings.HasPrefix(joined, filepath.Clean(root)+string(os.PathSeparator)) {
-		return "", fmt.Errorf("entry %q escapes the install directory", name)
-	}
-	return joined, nil
+	return filepath.Join(root, clean), nil
 }
 
 // linkTarget is the path a link entry resolves to, relative to the link's own
