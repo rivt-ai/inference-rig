@@ -71,12 +71,12 @@ jobs:
             done
           done
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
@@ -85,7 +85,7 @@ jobs:
         with:
           version: 10.22.0
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
           cache: pnpm
@@ -132,7 +132,7 @@ jobs:
           done
 
       - name: Cache pinned E2E fixtures
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/inferencerig-e2e
           key: e2e-fixtures-${{ hashFiles('scripts/e2e-fixtures.env') }}
@@ -153,7 +153,7 @@ jobs:
             INFERENCERIG_E2E_BINARY="$binary" go test -tags=e2e ./test/e2e -count=1 -timeout=15m
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4
         with:
           subject-path: "dist/release/*"
 

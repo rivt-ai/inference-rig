@@ -2,17 +2,20 @@
 rules:
   unpinned-uses:
     config:
-      # zizmor's blanket default demands a commit hash for every action. That
-      # is the right default in general, but applied here it would pin ~40 uses
-      # of first-party GitHub actions to hashes that Dependabot then churns
-      # weekly, for no gain: `actions/*` and `github/*` are the same trust root
-      # that runs the workflow and stores the release credentials, so a hash
-      # pin does not reduce who has to be trusted.
+      # Every action is hash-pinned, first-party GitHub ones included.
       #
-      # Everything outside those orgs is a genuinely separate publisher whose
-      # tags are mutable, and must be pinned to a hash.
+      # This reverses the earlier carve-out for `actions/*`, `github/*` and
+      # `dependabot/*`. That carve-out argued a hash pin adds nothing for orgs
+      # that are already the workflow's trust root. The threat it misses is not
+      # who owns the org, it is that a *tag* is mutable state: `@v7` is a
+      # pointer that can be moved, by a compromised maintainer account or a
+      # push that never gets reviewed, without any commit appearing in this
+      # repo. A hash cannot be moved. That is the whole property we want, and
+      # it is worth having on the actions that check out our code and hold the
+      # release credentials, not just on the ones from smaller publishers.
+      #
+      # The Dependabot churn the carve-out was avoiding is the intended
+      # behaviour: each bump becomes a reviewable diff with a cooldown in front
+      # of it, rather than a silent pointer move nobody sees.
       policies:
-        actions/*: ref-pin
-        github/*: ref-pin
-        dependabot/*: ref-pin
         "*": hash-pin
