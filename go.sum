@@ -52,6 +52,8 @@ github.com/antonikliment/go-code-metrics v0.0.4 h1:ivaP1pQ/WPczK0azhLN8ISLLYcBqG
 github.com/antonikliment/go-code-metrics v0.0.4/go.mod h1:KL08liq9NVqJlOcwSO4TTMtdJl0sm/EnU9YQgigTzzo=
 github.com/antonikliment/tuikit v0.2.2 h1:rFs/Tas67Vv1kpNfNxYA9wvkacJcPebZDJWC1GLW3Q0=
 github.com/antonikliment/tuikit v0.2.2/go.mod h1:fUsmbQOUT8IYMzlr8lsd7abYjmW+mp9HHJhG0R40Pmg=
+github.com/antonikliment/tuikit v0.3.0 h1:DQuSPU18TYW/12FV7RgsIMkrjk2f+A1CIvJSJzIGxKI=
+github.com/antonikliment/tuikit v0.3.0/go.mod h1:fUsmbQOUT8IYMzlr8lsd7abYjmW+mp9HHJhG0R40Pmg=
 github.com/atotto/clipboard v0.1.4 h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
 github.com/atotto/clipboard v0.1.4/go.mod h1:ZY9tmq7sm5xIbd9bOK4onWV4S6X0u6GY7Vn0Yu86PYI=
 github.com/aymanbagabas/go-udiff v0.4.1 h1:OEIrQ8maEeDBXQDoGCbbTTXYJMYRCRO1fnodZ12Gv5o=

@@ -22,6 +22,10 @@ import (
 // distinguishing part of a path lives.
 const cellWidth = 44
 
+// tableGap is the space between table columns: enough to read as a gap, not so
+// much that a five-column table stops fitting an 80-column terminal.
+const tableGap = 2
+
 // renderProto writes a proto message as human-readable text.
 //
 // It is deliberately generic rather than a renderer per response type. The
@@ -57,7 +61,7 @@ func (r renderer) message(m protoreflect.Message, depth int) string {
 		}
 	}
 	if len(blocks) == 0 {
-		return indent(r.paint(style.MutedStyle, "(empty)"), depth) + "\n"
+		return tuikit.Indent(r.paint(style.MutedStyle, "(empty)"), depth) + "\n"
 	}
 	return strings.Join(blocks, "")
 }
@@ -90,13 +94,13 @@ func (r renderer) field(field protoreflect.FieldDescriptor, value protoreflect.V
 	}
 	text := r.scalar(field, value)
 	if strings.Contains(text, "\n") {
-		return r.block(label, indentLines(text, depth+1), depth)
+		return r.block(label, tuikit.IndentLines(text, depth+1), depth)
 	}
 	return r.line(label, text, depth)
 }
 
 func (r renderer) line(label, value string, depth int) string {
-	return indent(r.paint(style.MutedStyle, label+":")+" "+value, depth) + "\n"
+	return tuikit.Indent(r.paint(style.MutedStyle, label+":")+" "+value, depth) + "\n"
 }
 
 // block renders a heading followed by its already-rendered body.
@@ -108,7 +112,7 @@ func (r renderer) block(label, body string, depth int) string {
 	if body == "" {
 		return r.line(label, r.paint(style.MutedStyle, "none"), depth)
 	}
-	heading := indent(r.paint(style.MutedStyle, label+":"), depth) + "\n"
+	heading := tuikit.Indent(r.paint(style.MutedStyle, label+":"), depth) + "\n"
 	if depth > 0 {
 		return heading + body
 	}
@@ -147,11 +151,11 @@ func (r renderer) table(field protoreflect.FieldDescriptor, list protoreflect.Li
 	}
 	// Widths come from the header too, so a short column never renders
 	// narrower than its own title.
-	widths := columnWidths(append([][]string{header}, rows...))
+	widths := tuikit.Columns(append([][]string{header}, rows...))
 	var b strings.Builder
-	b.WriteString(indent(r.paint(style.MutedStyle, joinCells(header, widths)), depth) + "\n")
+	b.WriteString(tuikit.Indent(r.paint(style.MutedStyle, tuikit.JoinCells(header, widths, tableGap)), depth) + "\n")
 	for _, row := range rows {
-		b.WriteString(indent(joinCells(row, widths), depth) + "\n")
+		b.WriteString(tuikit.Indent(tuikit.JoinCells(row, widths, tableGap), depth) + "\n")
 	}
 	return b.String()
 }
@@ -183,9 +187,9 @@ func (r renderer) pairs(field protoreflect.FieldDescriptor, m protoreflect.Map, 
 	}
 	slices.Sort(keys)
 	var b strings.Builder
-	width := longest(keys)
+	width := tuikit.Widest(keys)
 	for _, key := range keys {
-		b.WriteString(indent(r.paint(style.MutedStyle, pad(key, width))+"  "+values[key], depth) + "\n")
+		b.WriteString(tuikit.Indent(r.paint(style.MutedStyle, tuikit.Pad(key, width))+"  "+values[key], depth) + "\n")
 	}
 	return b.String()
 }
@@ -254,14 +258,14 @@ func (r renderer) byName(name, text string) string {
 	// is the only way to tell one from an ordinary string.
 	case isInstantName(name):
 		if at, err := time.Parse(time.RFC3339, text); err == nil {
-			return age(at)
+			return tuikit.Age(at, time.Now())
 		}
 	// Nanosecond precision on a wall-clock duration is noise in a column an
 	// operator is scanning for the one slow entry: 272.914939ms and 272ms lead
 	// to the same conclusion, and only one of them lines up.
 	case strings.Contains(name, "duration"):
 		if d, err := time.ParseDuration(text); err == nil {
-			return coarse(d).String()
+			return tuikit.CoarseDuration(d).String()
 		}
 	case name == "error" && text != "":
 		return r.paint(style.ErrorStyle, text)
@@ -387,18 +391,6 @@ func byteCount(field protoreflect.FieldDescriptor, value protoreflect.Value) (in
 
 // isInstantName covers the spellings the schema actually uses for an instant
 // carried as a string: checked_at, commit_time, and a bare time on an event.
-// coarse rounds a duration to about three significant figures, scaling the
-// unit with the magnitude so a sub-microsecond duration keeps its precision
-// while a multi-second one loses the digits nobody reads.
-func coarse(d time.Duration) time.Duration {
-	for _, unit := range []time.Duration{time.Second, time.Millisecond, time.Microsecond} {
-		if d.Abs() >= unit {
-			return d.Round(unit / 100)
-		}
-	}
-	return d
-}
-
 func isInstantName(name string) bool {
 	return strings.HasSuffix(name, "_at") || strings.HasSuffix(name, "_time") ||
 		name == "time" || name == "timestamp"
@@ -408,17 +400,5 @@ func relative(ts *timestamppb.Timestamp) string {
 	if ts == nil || !ts.IsValid() {
 		return ""
 	}
-	return age(ts.AsTime())
-}
-
-// age renders an instant as how long ago it was. An operator reading `infr
-// events list` wants "how long ago", and computing that from an RFC 3339
-// string in their head is the work this saves. Beyond a day the age stops
-// being the useful form, so the absolute local time comes back.
-func age(at time.Time) string {
-	since := time.Since(at).Round(time.Second)
-	if since < 0 || since > 24*time.Hour {
-		return at.Local().Format(time.RFC3339)
-	}
-	return since.String() + " ago"
+	return tuikit.Age(ts.AsTime(), time.Now())
 }

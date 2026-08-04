@@ -197,7 +197,8 @@ func (m *downloadModel) View() tea.View {
 		progress = fmt.Sprintf("%s %5.1f%%", m.meter.View(int(m.job.GetPercent())), m.job.GetPercent())
 	}
 	line := fmt.Sprintf("%s %s %s  %s",
-		m.spinner.View(), label, progress, r.paint(style.MutedStyle, transferred(m.job)))
+		m.spinner.View(), label, progress,
+		r.paint(style.MutedStyle, tuikit.TransferredBytes(m.job.GetReceivedBytes(), m.job.GetTotalBytes())))
 	if m.cancelling {
 		line += r.paint(style.WarningStyle, "  cancelling…")
 	} else {
@@ -206,17 +207,6 @@ func (m *downloadModel) View() tea.View {
 	// Not AltScreen: the bar renders inline so the summary line that follows
 	// it stays in the terminal's scrollback like any other command's output.
 	return tea.NewView(line + "\n")
-}
-
-// transferred renders "4.1 GiB / 6.6 GiB", or just the received count while
-// the daemon has not yet reported a total (a multi-file plan does not know its
-// size until every manifest is fetched).
-func transferred(job *controlv1.ModelDownload) string {
-	received := tuikit.FormatBytes(job.GetReceivedBytes())
-	if job.GetTotalBytes() <= 0 {
-		return received
-	}
-	return received + " / " + tuikit.FormatBytes(job.GetTotalBytes())
 }
 
 func (m *downloadModel) poll() tea.Cmd {

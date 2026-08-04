@@ -104,16 +104,3 @@ func TestTitleize(t *testing.T) {
 		}
 	}
 }
-
-// joinCells must measure with lipgloss.Width, not len: a coloured cell carries
-// escapes that occupy no columns, and padding by len skews the whole table.
-func TestJoinCellsPadsByDisplayWidth(t *testing.T) {
-	widths := columnWidths([][]string{{"aaa", "b"}, {"a", "bbb"}})
-	row := joinCells([]string{"a", "b"}, widths)
-	if got := strings.Index(row, "b"); got != 5 {
-		t.Errorf("second column starts at %d, want 5 (3-wide column + 2 gap): %q", got, row)
-	}
-	if strings.HasSuffix(row, " ") {
-		t.Errorf("row has trailing whitespace: %q", row)
-	}
-}
