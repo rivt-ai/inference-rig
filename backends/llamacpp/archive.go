@@ -96,20 +96,51 @@ func extractEntry(reader io.Reader, root string, header *tar.Header) error {
 }
 
 // entryPath resolves name against root and rejects anything that would land
-// outside it: an absolute path, a traversal, or a link target climbing out.
+// outside it: an absolute path, a traversal, a link target climbing out, or a
+// path that reaches out through a symlink an earlier entry planted.
 func entryPath(root, name string) (string, error) {
 	clean := filepath.Clean(filepath.FromSlash(name))
 	if !filepath.IsLocal(clean) {
 		return "", fmt.Errorf("entry %q escapes the install directory", name)
 	}
 	joined := filepath.Join(root, clean)
-	// IsLocal already rejects traversal, but assert containment on the joined
-	// path too: it is the property that actually matters, and it is the form
-	// static analysis can follow.
-	if !strings.HasPrefix(joined, filepath.Clean(root)+string(os.PathSeparator)) {
+	// IsLocal rejects traversal in the name itself, but an earlier entry may
+	// have planted a symlinked directory that a later entry writes through.
+	// Resolve both sides and require the entry to stay under the real root.
+	realRoot, err := evalExistingPrefix(root)
+	if err != nil {
+		return "", err
+	}
+	realPath, err := evalExistingPrefix(joined)
+	if err != nil {
+		return "", err
+	}
+	if realPath != realRoot && !strings.HasPrefix(realPath, realRoot+string(os.PathSeparator)) {
 		return "", fmt.Errorf("entry %q escapes the install directory", name)
 	}
 	return joined, nil
+}
+
+// evalExistingPrefix resolves symlinks in the deepest part of path that exists
+// and re-attaches the components that do not. filepath.EvalSymlinks fails on a
+// missing path, and an archive entry is missing until it is written.
+func evalExistingPrefix(path string) (string, error) {
+	missing := ""
+	for {
+		resolved, err := filepath.EvalSymlinks(path)
+		if err == nil {
+			return filepath.Join(resolved, missing), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return "", err
+		}
+		missing = filepath.Join(filepath.Base(path), missing)
+		path = parent
+	}
 }
 
 // linkTarget is the path a link entry resolves to, relative to the link's own
