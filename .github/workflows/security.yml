@@ -160,6 +160,32 @@ jobs:
       - name: pnpm audit
         run: cd webui && pnpm audit --audit-level high
 
+  dependency-review:
+    name: Dependency review
+    # Only meaningful on a pull request: the action diffs the base ref's
+    # manifests against the head ref's. On push and on the weekly schedule
+    # there is no such pair, so the job is skipped rather than failed — the
+    # gate below treats a skipped job as acceptable.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # Everything else here scans dependencies that are already merged.
+      # govulncheck reports a CVE in main after the fact; Dependabot opens a PR
+      # once one is disclosed. Neither stops a pull request from introducing a
+      # known-vulnerable package in the first place, which is what this does.
+      # It covers go.mod and webui/pnpm-lock.yaml alike, since it reads the
+      # dependency graph rather than either ecosystem's tooling.
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # Matches `pnpm audit --audit-level high` in web-audit, so the two
+          # checks cannot disagree about whether a given advisory blocks merge.
+          fail-on-severity: high
+
   secrets:
     name: Secret scan
     runs-on: ubuntu-latest
@@ -218,7 +244,7 @@ jobs:
     # workflow's gate to wait on, so adding a job above never means editing
     # release.yml's required-check list.
     name: Security
-    needs: [govulncheck, codeql, web-audit, secrets, workflows]
+    needs: [govulncheck, codeql, web-audit, dependency-review, secrets, workflows]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -228,7 +254,11 @@ jobs:
         run: |
           echo "security job results: $RESULTS"
           for result in $RESULTS; do
-            if [ "$result" != success ]; then
+            # skipped is allowed only because dependency-review declares an
+            # event guard; no job above is skipped for any other reason, since
+            # none of them depend on another. A failure still reports failure,
+            # and a cancelled run is still not success.
+            if [ "$result" != success ] && [ "$result" != skipped ]; then
               echo "a security job did not succeed" >&2
               exit 1
             fi

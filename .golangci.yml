@@ -1,7 +1,8 @@
 version: "2"
 
-# Standard complexity/duplication/size linters plus the module implementation
-# LOC budget enforced by the custom CI binary.
+# Standard complexity/duplication/size linters, the module implementation LOC
+# budget enforced by the custom CI binary, and gosec for first-party security
+# analysis that CodeQL and govulncheck do not cover.
 linters:
   enable:
     - gocyclo
@@ -10,6 +11,7 @@ linters:
     - nestif
     - dupl
     - goclocbudget
+    - gosec
 
   settings:
     gocyclo:
@@ -22,6 +24,34 @@ linters:
       ignore-comments: true
     nestif:
       min-complexity: 5
+    gosec:
+      # Every rule below fired only on behaviour that is this project's stated
+      # job, not on a defect. Excluding them by ID keeps gosec loud about the
+      # classes that would be real here — hardcoded credentials (G101), weak
+      # crypto and RNG (G401, G404, G501), disabled TLS verification (G402) —
+      # none of which fire today. The alternative, scattering #nosec across
+      # thirty call sites, would suppress the same findings while also hiding
+      # any future regression at those lines.
+      excludes:
+        # A supervisor that launches backend processes from configured paths is
+        # the product. G204 flags every exec.Command with a non-literal argv,
+        # and G304/G703 flag every file opened from a user-supplied model or
+        # config path.
+        - G204
+        - G304
+        - G703
+        # PIDs cross into int32 for gopsutil. A PID that overflows int32 is not
+        # a threat model this project has.
+        - G115
+        # The daemon owns its own directories and sets 0700/0600 deliberately;
+        # these rules misread os.Chmod on a directory as a file-permission bug.
+        - G301
+        - G302
+        - G306
+        # Background work outliving the request that started it is intentional:
+        # the download manager stores its cancel func in m.cancel rather than
+        # deferring it. govet's lostcancel still catches a genuinely leaked one.
+        - G118
     dupl:
       threshold: 100
     custom:
@@ -44,3 +74,14 @@ linters:
             # scripts/go-coverage.sh excludes the same package for the same
             # reason.
             - backends/backendtest
+
+  exclusions:
+    rules:
+      # Test code is not attack surface: fixtures write world-readable temp
+      # files and start timeout-free servers on loopback because doing it
+      # properly would only obscure the test. Production code keeps every rule
+      # that is not excluded above — notably G114, which fires today only in a
+      # supervisor test's throwaway http.Serve.
+      - path: (_test\.go|^backends/backendtest/)
+        linters:
+          - gosec
