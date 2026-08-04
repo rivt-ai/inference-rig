@@ -18,13 +18,10 @@ func IsInteractive(input io.Reader, output io.Writer) bool {
 	return isTerminal(input) && isTerminal(output)
 }
 
-// IsWriterTerminal reports whether output alone is a terminal. Rendering only
-// writes, so it must not care about stdin: `infr info < /dev/null` still has a
-// human reading its stdout, and asking IsInteractive there would answer no and
-// silently drop the colour.
-func IsWriterTerminal(output io.Writer) bool {
-	return isTerminal(output)
-}
+// The output-only question — may this stream take colour — is tuikit's
+// IsTerminalWriter, reached through internal/style. Rendering must not care
+// about stdin: `infr info < /dev/null` still has a human reading its stdout,
+// and asking IsInteractive there would answer no and silently drop the colour.
 
 func isTerminal(stream any) bool {
 	file, ok := stream.(interface{ Fd() uintptr })

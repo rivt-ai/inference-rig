@@ -7,13 +7,9 @@ package style
 
 import (
 	"image/color"
-	"io"
-	"os"
 
 	"charm.land/lipgloss/v2"
 	"github.com/antonikliment/tuikit"
-
-	"inferencerig/platform/terminal"
 )
 
 // The ANSI-16 palette. Numbered rather than hex so it inherits whatever the
@@ -46,50 +42,18 @@ var (
 	LinkStyle = lipgloss.NewStyle().Foreground(Cyan).Underline(true)
 )
 
-// Interactive reports whether w is a terminal a human is watching. It is the
-// predicate that decides styled-vs-machine output, and it delegates the TTY
-// half to platform/terminal so there is still only one owner of that question.
-//
-// NO_COLOR is honoured because a user who set it has already told every other
-// tool on their machine what they want; see https://no-color.org.
-func Interactive(w io.Writer) bool {
-	return terminal.IsWriterTerminal(w)
-}
+// The terminal-vs-pipe half of rendering now lives in tuikit, which owns the
+// same question for its own components. These names stay because they are what
+// this binary's call sites read as — Interactive is the predicate that decides
+// styled-vs-machine output, and Colour is deliberately a different question:
+// NO_COLOR says "do not paint", not "change format", and conflating the two
+// hands a user who set it the JSON they did not ask for. See https://no-color.org.
+type Painter = tuikit.Painter
 
-// Painter applies a style to text, or returns it untouched when the
-// destination cannot take escapes.
-//
-// Passing one of these around is what stops every call site from repeating the
-// "is this a terminal, and is NO_COLOR set" test — and from getting it subtly
-// different, which is how half a command's output ends up coloured.
-type Painter func(lipgloss.Style, string) string
-
-// Plain is the Painter that never paints. Tests use it to assert on content
-// without decoding escape sequences.
-func Plain(_ lipgloss.Style, text string) string { return text }
-
-// Paint is the Painter that always paints, for output already known to be
-// going to a terminal.
-func Paint(s lipgloss.Style, text string) string { return s.Render(text) }
-
-// PainterFor returns the Painter appropriate to w, deciding once so the answer
-// cannot change halfway through rendering one command's output.
-func PainterFor(w io.Writer) Painter {
-	if !Colour(w) {
-		return Plain
-	}
-	return Paint
-}
-
-// Colour reports whether output to w may carry ANSI escapes.
-//
-// It is a separate question from Interactive on purpose. NO_COLOR says "do not
-// paint", not "change format": a user who sets it still wants the readable
-// table, just without the escapes. Conflating the two hands them JSON, which
-// is the opposite of what they asked for. See https://no-color.org.
-func Colour(w io.Writer) bool {
-	if _, set := os.LookupEnv("NO_COLOR"); set {
-		return false
-	}
-	return Interactive(w)
-}
+var (
+	Plain       = tuikit.Plain
+	Paint       = tuikit.Paint
+	PainterFor  = tuikit.PainterFor
+	Interactive = tuikit.IsTerminalWriter
+	Colour      = tuikit.ColorEnabled
+)

@@ -136,7 +136,7 @@ func (r renderer) table(field protoreflect.FieldDescriptor, list protoreflect.Li
 	}
 	header := make([]string, len(columns))
 	for i, column := range columns {
-		header[i] = strings.ToUpper(titleize(string(column.Name())))
+		header[i] = titleize(string(column.Name()))
 	}
 	rows := make([][]string, 0, list.Len())
 	for i := range list.Len() {
@@ -149,15 +149,7 @@ func (r renderer) table(field protoreflect.FieldDescriptor, list protoreflect.Li
 		}
 		rows = append(rows, row)
 	}
-	// Widths come from the header too, so a short column never renders
-	// narrower than its own title.
-	widths := tuikit.Columns(append([][]string{header}, rows...))
-	var b strings.Builder
-	b.WriteString(tuikit.Indent(r.paint(style.MutedStyle, tuikit.JoinCells(header, widths, tableGap)), depth) + "\n")
-	for _, row := range rows {
-		b.WriteString(tuikit.Indent(tuikit.JoinCells(row, widths, tableGap), depth) + "\n")
-	}
-	return b.String()
+	return tuikit.IndentLines(style.Theme.Table(r.paint, header, rows, tableGap), depth)
 }
 
 // records is the fallback for a repeated message with no line-safe fields:
@@ -186,12 +178,11 @@ func (r renderer) pairs(field protoreflect.FieldDescriptor, m protoreflect.Map, 
 		return ""
 	}
 	slices.Sort(keys)
-	var b strings.Builder
-	width := tuikit.Widest(keys)
-	for _, key := range keys {
-		b.WriteString(tuikit.Indent(r.paint(style.MutedStyle, tuikit.Pad(key, width))+"  "+values[key], depth) + "\n")
+	ordered := make([]string, len(keys))
+	for i, key := range keys {
+		ordered[i] = values[key]
 	}
-	return b.String()
+	return tuikit.IndentLines(style.Theme.Pairs(r.paint, keys, ordered, tableGap), depth)
 }
 
 func (r renderer) scalarList(field protoreflect.FieldDescriptor, list protoreflect.List) string {
@@ -275,25 +266,8 @@ func (r renderer) byName(name, text string) string {
 	return text
 }
 
-// healthy names the values that mean "nothing to look at here". Everything
-// else in a state field is painted amber, so an operator scanning the output
-// only has to read the words that are not green.
-var healthy = map[string]bool{
-	"ok": true, "running": true, "ready": true, "completed": true,
-	"installed": true, "active": true, "healthy": true, "done": true,
-}
-
 func (r renderer) status(text string) string {
-	switch key := strings.ToLower(text); {
-	case healthy[key]:
-		return r.paint(style.SuccessStyle, text)
-	case strings.Contains(key, "fail") || strings.Contains(key, "error"):
-		return r.paint(style.ErrorStyle, text)
-	case text == "":
-		return text
-	default:
-		return r.paint(style.WarningStyle, text)
-	}
+	return style.Theme.StatusWord(r.paint, text)
 }
 
 // tableColumns picks the element fields worth a column: populated in at least
