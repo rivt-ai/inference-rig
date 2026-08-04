@@ -1,28 +1,19 @@
 version: 2
 updates:
+  # Every ecosystem below waits before adopting a release. A compromised
+  # version is typically live for hours to days before it is caught and yanked,
+  # and without a cooldown Dependabot opens a PR inside exactly that window.
+  # Waiting costs us nothing on a weekly schedule and moves us out of it.
+  # gomod and github-actions accept only default-days; npm supports semver
+  # tiers, so patches move faster than majors there.
   - package-ecosystem: gomod
     directory: "/"
     schedule:
       interval: weekly
-    # Let a release sit in public before we adopt it, so malicious or yanked
-    # versions get caught upstream first. gomod only supports default-days.
     cooldown:
       default-days: 7
     groups:
       go-dependencies:
-        patterns: ["*"]
-
-  - package-ecosystem: npm
-    directory: "/webui"
-    schedule:
-      interval: weekly
-    cooldown:
-      default-days: 7
-      semver-major-days: 14
-      semver-minor-days: 7
-      semver-patch-days: 3
-    groups:
-      npm-dependencies:
         patterns: ["*"]
 
   - package-ecosystem: github-actions
@@ -33,4 +24,23 @@ updates:
       default-days: 7
     groups:
       github-actions:
+        patterns: ["*"]
+
+  # The browser client's dependency tree was the one part of the project with
+  # no update path: gomod above does not see webui/pnpm-lock.yaml, so a fix
+  # published for vite, svelte or any of their transitive packages would only
+  # have arrived through a hand-written bump. The Security workflow audits this
+  # same lockfile, and without this entry a finding there would have had no
+  # routine way to be resolved.
+  - package-ecosystem: npm
+    directory: "/webui"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      web-dependencies:
         patterns: ["*"]

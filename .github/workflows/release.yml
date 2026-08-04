@@ -8,8 +8,11 @@ on:
         required: true
         type: string
 
+# Read-only by default. The one job that publishes re-declares the write
+# scopes it needs, so the MLX validation job called below — and any job added
+# later — cannot write to the repository just by existing.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
@@ -50,7 +53,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           deadline=$((SECONDS + 1200))
-          for check in Test Lint; do
+          # Security is the aggregate job in security.yml, so this list does
+          # not have to name each individual scan. A known vulnerability, a
+          # leaked credential or a CodeQL finding on this commit blocks
+          # publication the same way a failing test does.
+          for check in Test Lint Security; do
             while true; do
               read -r status conclusion <<<"$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs" \
                 --jq "([.check_runs[] | select(.name == \"$check\")] | sort_by(.started_at) | last) as \$r
@@ -66,6 +73,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
@@ -73,7 +81,7 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 10.22.0
 
@@ -100,6 +108,28 @@ jobs:
         run: |
           commit_time=$(git show -s --format=%cI "$GITHUB_SHA")
           scripts/package-release.sh "$RELEASE_VERSION" "$GITHUB_SHA" "$commit_time"
+
+      # The Security gate above proves the *commit* was clean when its checks
+      # ran; this proves the four binaries actually being published are. It
+      # scans the compiled artifact rather than the source tree, so what is
+      # verified is the shipped bytes — including the dependency versions the
+      # linker really chose — and it closes the window between that gate
+      # passing and this build running.
+      #
+      # Every published target is scanned, not just the linux/amd64 one the
+      # packaged E2E exercises: a vulnerability reachable only on darwin/arm64
+      # would otherwise ship unexamined.
+      - name: Scan release binaries for known vulnerabilities
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          scan_dir=$(mktemp -d)
+          for target in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64; do
+            name="inferencerig_${RELEASE_VERSION}_${target}"
+            tar -C "$scan_dir" -xzf "dist/release/$name.tar.gz"
+            echo "== $target =="
+            go tool govulncheck -mode=binary "$scan_dir/$name/infr"
+          done
 
       - name: Cache pinned E2E fixtures
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
