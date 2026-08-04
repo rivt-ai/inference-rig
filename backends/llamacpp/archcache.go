@@ -1,6 +1,7 @@
 package llamacpp
 
 import (
+	"math"
 	"os"
 	"sync"
 
@@ -78,6 +79,11 @@ func estimateKVBytes(path string, contextLen int) (kvBytes int64) {
 			kvBytes = 0
 		}
 	}()
+	// gguf-parser-go takes the context size as an int32; a value that would
+	// wrap there is not a context length we can estimate for.
+	if contextLen <= 0 || contextLen > math.MaxInt32 {
+		return 0
+	}
 	f, err := gguf.ParseGGUFFile(path)
 	if err != nil {
 		return 0
