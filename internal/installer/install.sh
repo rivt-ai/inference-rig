@@ -34,6 +34,19 @@ for arg in "$@"; do
 	esac
 done
 
+install_dir=${INSTALL_DIR:-/usr/local/bin}
+if [ ! -w "$install_dir" ] 2>/dev/null; then
+	install_dir="${INSTALL_DIR:-$HOME/.local/bin}"
+	mkdir -p "$install_dir"
+fi
+
+if existing_infr=$(command -v infr 2>/dev/null); then
+	if [ ! -e "$install_dir/infr" ] || [ ! "$existing_infr" -ef "$install_dir/infr" ]; then
+		echo "error: command 'infr' already exists at $existing_infr; remove or rename it before installing InferenceRig" >&2
+		exit 1
+	fi
+fi
+
 os=$(uname -s)
 arch=$(uname -m)
 
@@ -117,12 +130,6 @@ else
 fi
 
 tar -C "$workdir" -xzf "$workdir/$name.tar.gz"
-
-install_dir=${INSTALL_DIR:-/usr/local/bin}
-if [ ! -w "$install_dir" ] 2>/dev/null; then
-	install_dir="${INSTALL_DIR:-$HOME/.local/bin}"
-	mkdir -p "$install_dir"
-fi
 
 install -m 755 "$workdir/$name/infr" "$install_dir/infr"
 echo "installed $("$install_dir/infr" version) to $install_dir/infr" >&2
