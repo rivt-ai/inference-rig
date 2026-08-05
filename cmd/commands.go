@@ -20,6 +20,7 @@ func daemonLifecycleCommands() []*cobra.Command {
 		lifecycle.WebCommand(),
 		lifecycle.ServiceCommand(),
 		lifecycle.UpgradeCommand(),
+		lifecycle.UninstallCommand(),
 	}
 }
 

@@ -23,6 +23,7 @@ use the default socket or `INFERENCERIG_CONTROL_SOCKET`.
 | `infr doctor` | Check configuration, permissions, and daemon state. |
 | `infr version [--json]` | Print build information. |
 | `infr upgrade [version]` | Install a release and restart services. `update` is an alias. |
+| `infr uninstall` | Interactively remove services, settings, and the command. |
 
 ### Profiles
 
