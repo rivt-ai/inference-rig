@@ -94,7 +94,7 @@ it) keeps everything: `config.yaml`, `profiles/`, `models/`, `run/`, `logs/`.
 - **[CLI](docs/cli.md)** — commands for scripts and terminal workflows.
 - **[TUI](docs/tui.md)** — full-screen dashboard and keyboard controls.
 - **[Web UI](docs/web-ui.md)** — browser sections and controls.
-- **MCP** — tools exposed at the gateway's `/mcp` endpoint.
+- **[MCP](docs/mcp.md)** — tools exposed at the gateway's `/mcp` endpoint.
 
 ## The two services
 
@@ -274,19 +274,14 @@ kept in sync by hand.
 
 ## MCP
 
-MCP JSON-RPC endpoint, served by the gateway:
+MCP JSON-RPC is served by the gateway at:
 
 ```text
 http://127.0.0.1:7000/mcp
 ```
 
-Tools: `backends_list`, `backend_install`, `backend_install_status`,
-`backend_params`, `profiles_list`, `profile_get`, `profile_put`,
-`profile_delete`, `profile_cleanup`, `profile_autostart`, `catalog_search`,
-`models_local`, `model_delete`, `model_resolve`, `download_start`,
-`download_get`, `download_cancel`, `download_apply`, `runtime_status`,
-`runtime_start`, `runtime_stop`, `runtime_restart`, `runtime_reset`,
-`info_get`, `signals_get`, `events_list`, `startup_services_set`.
+See the **[MCP guide](docs/mcp.md)** for authentication, examples, and the tool
+list.
 
 ## Development
 
