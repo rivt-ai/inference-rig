@@ -48,11 +48,14 @@ less install.sh   # read it
 sh install.sh                # latest stable release
 sh install.sh dev             # latest release, prereleases included
 sh install.sh v0.1.0          # pin an exact release
+COMMAND_NAME=inference-rig sh install.sh  # install under another command name
 ```
 
 `INSTALL_DIR` overrides the install location (default `/usr/local/bin`, falling
-back to `~/.local/bin`). Re-running upgrades in place. To remove it, delete the
-binary from wherever it printed.
+back to `~/.local/bin`). `COMMAND_NAME` overrides the command name (default
+`infr`). Re-running upgrades preserves both. To remove it, delete the binary
+from wherever it printed. When renamed, use that command in place of `infr` in
+the examples below.
 
 Each release also publishes `SHA256SUMS` and a CycloneDX SBOM (`*.cdx.json`)
 per binary, so you can verify by hand instead of trusting the script:

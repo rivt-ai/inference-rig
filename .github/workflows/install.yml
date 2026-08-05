@@ -41,6 +41,11 @@ jobs:
           sh internal/installer/install.sh
           test 1 -eq "$(command -v infr | wc -l)"
 
+      - name: Install with a custom command name
+        run: |
+          COMMAND_NAME=inference-rig sh internal/installer/install.sh
+          inference-rig version
+
       - name: Tampered checksum aborts and installs nothing
         run: |
           rm -f /usr/local/bin/infr

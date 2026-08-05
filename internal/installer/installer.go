@@ -23,7 +23,7 @@ var script string
 // The script is fed on stdin rather than written to a temp file, so there is no
 // intermediate artifact to clean up or to have its permissions tampered with.
 func Run(ctx context.Context, version string, out io.Writer) error {
-	dir, err := installDir()
+	dir, commandName, err := installTarget()
 	if err != nil {
 		return err
 	}
@@ -41,25 +41,25 @@ func Run(ctx context.Context, version string, out io.Writer) error {
 	cmd.Stdin = strings.NewReader(script)
 	cmd.Stdout = out
 	cmd.Stderr = out
-	cmd.Env = append(os.Environ(), "INSTALL_DIR="+dir)
+	cmd.Env = append(os.Environ(), "INSTALL_DIR="+dir, "COMMAND_NAME="+commandName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("install failed: %w", err)
 	}
 	return nil
 }
 
-// installDir is the directory holding the running binary, so an upgrade
-// replaces it in place instead of leaving a second copy elsewhere on PATH.
-func installDir() (string, error) {
+// installTarget identifies the running binary so an upgrade keeps both its
+// directory and a custom command name.
+func installTarget() (string, string, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	// Resolve symlinks so a linked binary upgrades its target, not the link.
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
-	return filepath.Dir(exe), nil
+	return filepath.Dir(exe), filepath.Base(exe), nil
 }
 
 func checkWritable(dir string) error {
