@@ -32,21 +32,14 @@ The command is `infr`.
 > [`docs/hardware-validation.md`](docs/hardware-validation.md) — read that
 > before assuming a platform works.
 
-## Prerequisites
-
-- **An engine.** `infr backend install <backend>` installs a managed copy, or
-  bring your own. MLX requires Apple Silicon.
-- To build from source instead of installing a release: **Go** (see `go.mod`
-  for the minimum version) and **Node.js + [pnpm](https://pnpm.io/)** (via
-  `corepack`) to build the web GUI.
-
-Windows is not a target: the canonical local transport is a Unix socket.
-
 ## Install
 
-Released binaries cover Linux (amd64, arm64) and macOS (amd64, arm64). Inspect
-the script before running it — it downloads a release tarball, verifies its
-checksum and (when [`gh`](https://cli.github.com/) is installed) its GitHub
+Released binaries cover Linux (amd64, arm64) and macOS (amd64, arm64). Go,
+Node.js, and pnpm are not needed. Windows is not a target because the local
+control transport is a Unix socket.
+
+Inspect the script before running it. It downloads a release tarball, verifies
+its checksum and, when [`gh`](https://cli.github.com/) is installed, its GitHub
 build provenance attestation, then extracts the binary:
 
 ```bash
@@ -76,15 +69,7 @@ Security → Open Anyway) on first launch. See
 [`docs/research/release-supply-chain.md`](docs/research/release-supply-chain.md)
 for why.
 
-## Build from source
-
-Build the frontend once per checkout, then run:
-
-```bash
-corepack enable pnpm
-cd webui && pnpm install && pnpm run build && cd ..
-go build -o infr . && ./infr
-```
+## First run
 
 `infr` with no arguments opens the **TUI** — the front door for interactive
 use. The first run in an interactive terminal walks you through a setup wizard
@@ -103,6 +88,13 @@ http://127.0.0.1:7000/#token=...
 
 The home directory (`~/.inferencerig` by default, `INFERENCERIG_HOME` to move
 it) keeps everything: `config.yaml`, `profiles/`, `models/`, `run/`, `logs/`.
+
+## Control planes
+
+- **[CLI](docs/cli.md)** — commands for scripts and terminal workflows.
+- **[TUI](docs/tui.md)** — full-screen dashboard and keyboard controls.
+- **[Web UI](docs/web-ui.md)** — browser sections and controls.
+- **[MCP](docs/mcp.md)** — tools exposed at the gateway's `/mcp` endpoint.
 
 ## The two services
 
@@ -131,58 +123,6 @@ infr service generate systemd    # or launchd — prints the unit
 infr service install
 infr service uninstall
 ```
-
-## Entrypoints
-
-- **TUI** — `infr` (no args) or `infr tui`: dashboard for both services, profile
-  and runtime status, host resources.
-- **CLI** — the same binary against a running control daemon. Every command is a
-  thin shell over one `ControlService` RPC, so the CLI can do what the GUI can:
-
-  ```bash
-  infr health
-  infr info
-  infr signals
-
-  infr backend list
-  infr backend install llamacpp
-  infr backend status llamacpp
-  infr backend params llamacpp
-  infr backend rollback llamacpp
-
-  infr profile list
-  infr profile get dev
-  infr profile create dev ./dev.yaml
-  infr profile edit dev ./dev.yaml
-  infr profile autostart dev true
-  infr profile delete dev
-  infr profile cleanup dev          # also removes its unshared local model
-
-  infr model search llamacpp qwen
-  infr model list llamacpp
-  infr model download dev
-  infr model get <download-id>
-  infr model apply dev <download-id>
-  infr model rm llamacpp /path/to/model.gguf
-
-  infr runtime start dev
-  infr runtime start other --replace
-  infr runtime status dev
-  infr runtime restart dev
-  infr runtime stop dev
-  infr runtime reset
-
-  infr events list
-  infr events watch
-  infr config validate
-  infr config startup control web
-  infr doctor
-  ```
-
-  Use `--socket` or `INFERENCERIG_CONTROL_SOCKET` to target a non-default
-  control socket.
-
-- **Web GUI / HTTP / MCP** — served by the gateway, see below.
 
 ## Screenshots
 
@@ -334,21 +274,29 @@ kept in sync by hand.
 
 ## MCP
 
-MCP JSON-RPC endpoint, served by the gateway:
+MCP JSON-RPC is served by the gateway at:
 
 ```text
 http://127.0.0.1:7000/mcp
 ```
 
-Tools: `backends_list`, `backend_install`, `backend_install_status`,
-`backend_params`, `profiles_list`, `profile_get`, `profile_put`,
-`profile_delete`, `profile_cleanup`, `profile_autostart`, `catalog_search`,
-`models_local`, `model_delete`, `model_resolve`, `download_start`,
-`download_get`, `download_cancel`, `download_apply`, `runtime_status`,
-`runtime_start`, `runtime_stop`, `runtime_restart`, `runtime_reset`,
-`info_get`, `signals_get`, `events_list`, `startup_services_set`.
+See the **[MCP guide](docs/mcp.md)** for authentication, examples, and the tool
+list.
 
 ## Development
+
+Building from source requires Go (see `go.mod` for the minimum version) and
+Node.js with [pnpm](https://pnpm.io/) through `corepack`. Build the web UI once
+per checkout, then build the Go binary:
+
+```bash
+corepack enable pnpm
+cd webui && pnpm install && pnpm run build && cd ..
+go build -o infr .
+./infr
+```
+
+Common checks:
 
 ```bash
 make build      # go build ./...
