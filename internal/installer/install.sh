@@ -13,6 +13,7 @@
 # Env vars:
 #   INSTALL_DIR   where to place the binary (default: /usr/local/bin, falls
 #                 back to ~/.local/bin)
+#   COMMAND_NAME  installed command name (default: infr)
 set -eu
 
 repo="antonikliment/InferenceRig"
@@ -22,7 +23,7 @@ version=""
 for arg in "$@"; do
 	case "$arg" in
 	-h | --help)
-		sed -n '2,13p' "$0" 2>/dev/null || echo "see script header for usage" >&2
+		sed -n '2,16p' "$0" 2>/dev/null || echo "see script header for usage" >&2
 		exit 0
 		;;
 	stable | dev) channel=$arg ;;
@@ -33,6 +34,27 @@ for arg in "$@"; do
 		;;
 	esac
 done
+
+command_name=${COMMAND_NAME:-infr}
+case "$command_name" in
+*[!A-Za-z0-9._-]*)
+	echo "error: invalid COMMAND_NAME '$command_name'; use only letters, digits, '.', '_', and '-'" >&2
+	exit 1
+	;;
+esac
+
+install_dir=${INSTALL_DIR:-/usr/local/bin}
+if [ ! -w "$install_dir" ] 2>/dev/null; then
+	install_dir="${INSTALL_DIR:-$HOME/.local/bin}"
+	mkdir -p "$install_dir"
+fi
+
+if existing_command=$(command -v "$command_name" 2>/dev/null); then
+	if [ ! -e "$install_dir/$command_name" ] || [ ! "$existing_command" -ef "$install_dir/$command_name" ]; then
+		echo "error: command '$command_name' already exists at $existing_command; set COMMAND_NAME to install InferenceRig under another name" >&2
+		exit 1
+	fi
+fi
 
 os=$(uname -s)
 arch=$(uname -m)
@@ -82,7 +104,7 @@ base_url="https://github.com/$repo/releases/download/$version"
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
-echo "installing $version ($os/$arch) to ${INSTALL_DIR:-/usr/local/bin}..." >&2
+echo "installing $version ($os/$arch) to $install_dir/$command_name..." >&2
 echo "downloading $name.tar.gz ($version)..." >&2
 curl -fsSL -o "$workdir/$name.tar.gz" "$base_url/$name.tar.gz"
 curl -fsSL -o "$workdir/SHA256SUMS" "$base_url/SHA256SUMS"
@@ -118,14 +140,8 @@ fi
 
 tar -C "$workdir" -xzf "$workdir/$name.tar.gz"
 
-install_dir=${INSTALL_DIR:-/usr/local/bin}
-if [ ! -w "$install_dir" ] 2>/dev/null; then
-	install_dir="${INSTALL_DIR:-$HOME/.local/bin}"
-	mkdir -p "$install_dir"
-fi
-
-install -m 755 "$workdir/$name/infr" "$install_dir/infr"
-echo "installed $("$install_dir/infr" version) to $install_dir/infr" >&2
+install -m 755 "$workdir/$name/infr" "$install_dir/$command_name"
+echo "installed $("$install_dir/$command_name" version) to $install_dir/$command_name" >&2
 
 case ":$PATH:" in
 *":$install_dir:"*) ;;
