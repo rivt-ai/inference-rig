@@ -48,7 +48,7 @@ less install.sh   # read it
 sh install.sh                # latest stable release
 sh install.sh dev             # latest release, prereleases included
 sh install.sh v0.1.0          # pin an exact release
-COMMAND_NAME=inference-rig sh install.sh  # install under another command name
+COMMAND_NAME=irig sh install.sh  # install under another command name
 ```
 
 `INSTALL_DIR` overrides the install location (default `/usr/local/bin`, falling
