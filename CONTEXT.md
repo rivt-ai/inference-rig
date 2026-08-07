@@ -76,7 +76,7 @@ every action outside the `actions`/`github`/`dependabot` orgs.
 
 No signing key and no cosign: GitHub's keyless `actions/attest-build-provenance`
 is the one verification path (`gh attestation verify <artifact> --repo
-antonikliment/InferenceRig`), alongside a CycloneDX SBOM per binary
+rivt-ai/InferenceRig`), alongside a CycloneDX SBOM per binary
 (`cyclonedx-gomod bin`) and `SHA256SUMS`. Releases are plain GitHub Releases,
 not a package manager; `stable` (install script default) resolves GitHub's own
 latest-non-prerelease via `/releases/latest`, `dev` takes the newest release of

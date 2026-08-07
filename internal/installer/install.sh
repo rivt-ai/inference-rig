@@ -2,7 +2,7 @@
 # Installs infr (InferenceRig) from GitHub releases.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/antonikliment/InferenceRig/main/internal/installer/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/rivt-ai/InferenceRig/main/internal/installer/install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- dev              # newest release, prereleases included
 #   curl -fsSL .../install.sh | sh -s -- v0.1.0-alpha.2   # pin an exact release
 #
@@ -16,7 +16,7 @@
 #   COMMAND_NAME  installed command name (default: infr)
 set -eu
 
-repo="antonikliment/InferenceRig"
+repo="rivt-ai/InferenceRig"
 channel="stable"
 version=""
 

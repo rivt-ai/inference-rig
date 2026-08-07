@@ -153,7 +153,7 @@ jobs:
             INFERENCERIG_E2E_BINARY="$binary" go test -tags=e2e ./test/e2e -count=1 -timeout=15m
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: "dist/release/*"
 

@@ -91,7 +91,7 @@ exact user command is:
 ```sh
 cosign verify-blob artifact.tar.gz \
   --bundle artifact.sigstore.json \
-  --certificate-identity "https://github.com/antonikliment/InferenceRig/.github/workflows/release.yml@refs/heads/main" \
+  --certificate-identity "https://github.com/rivt-ai/InferenceRig/.github/workflows/release.yml@refs/heads/main" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
 
@@ -128,7 +128,7 @@ final and before publishing them.
 A user verifies a downloaded subject against this repository with:
 
 ```sh
-gh attestation verify artifact.tar.gz --repo antonikliment/InferenceRig
+gh attestation verify artifact.tar.gz --repo rivt-ai/InferenceRig
 ```
 
 GitHub documents the same command and repository binding
