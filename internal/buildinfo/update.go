@@ -17,7 +17,7 @@ import (
 // defaultReleasesAPI lists releases newest-first rather than using
 // /releases/latest, which excludes prereleases. scripts/install.sh resolves
 // versions the same way, so both agree on what "newest" means.
-const defaultReleasesAPI = "https://api.github.com/repos/antonikliment/InferenceRig/releases?per_page=1"
+const defaultReleasesAPI = "https://api.github.com/repos/rivt-ai/InferenceRig/releases?per_page=1"
 
 const (
 	updateCheckTTL     = 24 * time.Hour
