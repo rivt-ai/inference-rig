@@ -1,9 +1,9 @@
 # InferenceRig
 
-[![Release](https://img.shields.io/github/v/release/antonikliment/InferenceRig?include_prereleases&sort=semver)](https://github.com/antonikliment/InferenceRig/releases/latest)
-[![Test](https://github.com/antonikliment/InferenceRig/actions/workflows/test.yml/badge.svg)](https://github.com/antonikliment/InferenceRig/actions/workflows/test.yml)
-[![Lint](https://github.com/antonikliment/InferenceRig/actions/workflows/lint.yml/badge.svg)](https://github.com/antonikliment/InferenceRig/actions/workflows/lint.yml)
-[![E2E](https://github.com/antonikliment/InferenceRig/actions/workflows/e2e.yml/badge.svg)](https://github.com/antonikliment/InferenceRig/actions/workflows/e2e.yml)
+[![Release](https://img.shields.io/github/v/release/rivt-ai/InferenceRig?include_prereleases&sort=semver)](https://github.com/rivt-ai/InferenceRig/releases/latest)
+[![Test](https://github.com/rivt-ai/InferenceRig/actions/workflows/test.yml/badge.svg)](https://github.com/rivt-ai/InferenceRig/actions/workflows/test.yml)
+[![Lint](https://github.com/rivt-ai/InferenceRig/actions/workflows/lint.yml/badge.svg)](https://github.com/rivt-ai/InferenceRig/actions/workflows/lint.yml)
+[![E2E](https://github.com/rivt-ai/InferenceRig/actions/workflows/e2e.yml/badge.svg)](https://github.com/rivt-ai/InferenceRig/actions/workflows/e2e.yml)
 
 A neutral local control plane for language-model inference engines. Write one
 canonical YAML **profile** per model setup, then start, stop, switch and monitor
@@ -43,7 +43,7 @@ its checksum and, when [`gh`](https://cli.github.com/) is installed, its GitHub
 build provenance attestation, then extracts the binary:
 
 ```bash
-curl -fsSL -o install.sh https://raw.githubusercontent.com/antonikliment/InferenceRig/main/internal/installer/install.sh
+curl -fsSL -o install.sh https://raw.githubusercontent.com/rivt-ai/InferenceRig/main/internal/installer/install.sh
 less install.sh   # read it
 sh install.sh                # latest stable release
 sh install.sh dev             # latest release, prereleases included
@@ -62,7 +62,7 @@ per binary, so you can verify by hand instead of trusting the script:
 
 ```bash
 sha256sum --ignore-missing --check SHA256SUMS
-gh attestation verify inferencerig_<version>_<os>_<arch>.tar.gz --repo antonikliment/InferenceRig
+gh attestation verify inferencerig_<version>_<os>_<arch>.tar.gz --repo rivt-ai/InferenceRig
 ```
 
 The macOS binaries are ad-hoc built, not Developer ID signed or notarized —
