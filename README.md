@@ -1,9 +1,9 @@
 # InferenceRig
 
-[![Release](https://img.shields.io/github/v/release/rivt-ai/InferenceRig?include_prereleases&sort=semver)](https://github.com/rivt-ai/InferenceRig/releases/latest)
-[![Test](https://github.com/rivt-ai/InferenceRig/actions/workflows/test.yml/badge.svg)](https://github.com/rivt-ai/InferenceRig/actions/workflows/test.yml)
-[![Lint](https://github.com/rivt-ai/InferenceRig/actions/workflows/lint.yml/badge.svg)](https://github.com/rivt-ai/InferenceRig/actions/workflows/lint.yml)
-[![E2E](https://github.com/rivt-ai/InferenceRig/actions/workflows/e2e.yml/badge.svg)](https://github.com/rivt-ai/InferenceRig/actions/workflows/e2e.yml)
+[![Release](https://img.shields.io/github/v/release/rivt-ai/inference-rig?include_prereleases&sort=semver)](https://github.com/rivt-ai/inference-rig/releases/latest)
+[![Test](https://github.com/rivt-ai/inference-rig/actions/workflows/test.yml/badge.svg)](https://github.com/rivt-ai/inference-rig/actions/workflows/test.yml)
+[![Lint](https://github.com/rivt-ai/inference-rig/actions/workflows/lint.yml/badge.svg)](https://github.com/rivt-ai/inference-rig/actions/workflows/lint.yml)
+[![E2E](https://github.com/rivt-ai/inference-rig/actions/workflows/e2e.yml/badge.svg)](https://github.com/rivt-ai/inference-rig/actions/workflows/e2e.yml)
 
 A neutral local control plane for language-model inference engines. Write one
 canonical YAML **profile** per model setup, then start, stop, switch and monitor
@@ -43,7 +43,7 @@ its checksum and, when [`gh`](https://cli.github.com/) is installed, its GitHub
 build provenance attestation, then extracts the binary:
 
 ```bash
-curl -fsSL -o install.sh https://raw.githubusercontent.com/rivt-ai/InferenceRig/main/internal/installer/install.sh
+curl -fsSL -o install.sh https://raw.githubusercontent.com/rivt-ai/inference-rig/main/internal/installer/install.sh
 less install.sh   # read it
 sh install.sh                # latest stable release
 sh install.sh dev             # latest release, prereleases included
@@ -62,8 +62,14 @@ per binary, so you can verify by hand instead of trusting the script:
 
 ```bash
 sha256sum --ignore-missing --check SHA256SUMS
-gh attestation verify inferencerig_<version>_<os>_<arch>.tar.gz --repo rivt-ai/InferenceRig
+gh attestation verify inferencerig_<version>_<os>_<arch>.tar.gz --repo rivt-ai/inference-rig
 ```
+
+An attestation records the repository as it was named when the release was
+built, and this one was renamed from `rivt-ai/InferenceRig`. Releases published
+before the rename — v0.3.1 and earlier — verify only against that old name, so
+pass `--repo rivt-ai/InferenceRig` for those. `install.sh` accepts either name
+and needs no flag.
 
 The macOS binaries are ad-hoc built, not Developer ID signed or notarized —
 `curl`/`install.sh` is unaffected, but a browser download will need an explicit
