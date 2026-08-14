@@ -91,7 +91,7 @@ exact user command is:
 ```sh
 cosign verify-blob artifact.tar.gz \
   --bundle artifact.sigstore.json \
-  --certificate-identity "https://github.com/rivt-ai/InferenceRig/.github/workflows/release.yml@refs/heads/main" \
+  --certificate-identity "https://github.com/rivt-ai/inference-rig/.github/workflows/release.yml@refs/heads/main" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
 
@@ -128,8 +128,12 @@ final and before publishing them.
 A user verifies a downloaded subject against this repository with:
 
 ```sh
-gh attestation verify artifact.tar.gz --repo rivt-ai/InferenceRig
+gh attestation verify artifact.tar.gz --repo rivt-ai/inference-rig
 ```
+
+The repository binding is to the name the release was built under, which this
+repository's rename from `rivt-ai/InferenceRig` splits in two: releases up to
+v0.3.1 verify only against the old name, later ones only against the new.
 
 GitHub documents the same command and repository binding
 ([GitHub verification documentation](https://docs.github.com/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations)).

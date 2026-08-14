@@ -2,7 +2,7 @@
 # Installs infr (InferenceRig) from GitHub releases.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/rivt-ai/InferenceRig/main/internal/installer/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/rivt-ai/inference-rig/main/internal/installer/install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- dev              # newest release, prereleases included
 #   curl -fsSL .../install.sh | sh -s -- v0.1.0-alpha.2   # pin an exact release
 #
@@ -16,7 +16,16 @@
 #   COMMAND_NAME  installed command name (default: infr)
 set -eu
 
-repo="rivt-ai/InferenceRig"
+repo="rivt-ai/inference-rig"
+
+# The repository was renamed from rivt-ai/InferenceRig. GitHub redirects the
+# API and download URLs, so $repo alone is enough to fetch — but a build
+# provenance attestation records the repository as it was named at build time,
+# and `gh attestation verify` checks that name rather than following the
+# rename. Releases published before the rename therefore verify only against
+# the old name, and later ones only against the new. Both are accepted, in
+# newest-first order; verification fails only when no name verifies.
+attestation_repos="rivt-ai/inference-rig rivt-ai/InferenceRig"
 channel="stable"
 version=""
 
@@ -125,9 +134,24 @@ fi
 # have none to check (HTTP 404, not a mismatch) — only an attestation that
 # exists and fails to verify indicates real tampering.
 if command -v gh >/dev/null 2>&1; then
-	if attestation_output=$(gh attestation verify "$workdir/$name.tar.gz" --repo "$repo" 2>&1); then
+	attestation_verified=""
+	attestation_missing=""
+	attestation_output=""
+	for attestation_repo in $attestation_repos; do
+		if attestation_output=$(gh attestation verify "$workdir/$name.tar.gz" --repo "$attestation_repo" 2>&1); then
+			attestation_verified=$attestation_repo
+			break
+		fi
+		# Only a 404 means "this release has no attestation at all". A name
+		# the release was not built under fails differently, and that is not
+		# evidence of tampering while another name remains to try.
+		if echo "$attestation_output" | grep -q "HTTP 404"; then
+			attestation_missing=yes
+		fi
+	done
+	if [ -n "$attestation_verified" ]; then
 		echo "$attestation_output" >&2
-	elif echo "$attestation_output" | grep -q "HTTP 404"; then
+	elif [ -n "$attestation_missing" ]; then
 		echo "note: no build provenance attestation found for $name.tar.gz (release predates attestation); skipping" >&2
 	else
 		echo "$attestation_output" >&2
