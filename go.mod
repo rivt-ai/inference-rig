@@ -2,11 +2,12 @@ module inferencerig
 
 // Patch version is pinned deliberately: every workflow resolves its toolchain
 // from this line (setup-go with go-version-file: go.mod), so it is also the
-// version the standard library is scanned and shipped at. 1.26.5 clears
-// GO-2026-5856 (crypto/tls), GO-2026-5039 (net/textproto) and GO-2026-5037
-// (crypto/x509), all of which govulncheck reports as reachable from the
-// gateway's HTTP server. Bump this line to clear future stdlib advisories.
-go 1.26.5
+// version the standard library is scanned and shipped at. 1.26.6 clears
+// GO-2026-6218 (net/url), GO-2026-6090 (crypto/tls), GO-2026-6089 (net/http),
+// GO-2026-5972 (encoding/asn1) and GO-2026-5026 (net/http's vendored
+// golang.org/x/net/idna), all of which govulncheck reports as reachable from
+// the gateway's HTTP server. Bump this line to clear future stdlib advisories.
+go 1.26.6
 
 require (
 	charm.land/bubbles/v2 v2.1.1
