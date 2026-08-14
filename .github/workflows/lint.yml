@@ -1,9 +1,13 @@
 name: Lint
 
+# workflow_dispatch is here for the same reason as in test.yml: a push made
+# with GITHUB_TOKEN (Dependabot auto-merge) triggers no workflows, leaving a
+# main commit that release.yml's gate can never see a Lint result for.
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read

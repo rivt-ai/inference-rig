@@ -2,10 +2,17 @@ name: Test
 
 # Runs on every pull request (regardless of base) so stacked phase PRs are
 # gated, plus pushes to main.
+#
+# workflow_dispatch exists because a push made with GITHUB_TOKEN does not
+# trigger workflows: when Dependabot auto-merge lands a PR, main gets a commit
+# with no Test run on it, and release.yml's "Require passing main pipeline"
+# gate then waits for a check that will never appear. Dispatching this workflow
+# against main produces that check without an empty commit.
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
