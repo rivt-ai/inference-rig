@@ -130,7 +130,10 @@ func waitForControl(ctx context.Context, client controlClient) error {
 		}
 		select {
 		case <-waitCtx.Done():
-			return fmt.Errorf("wait for control daemon: %w", waitCtx.Err())
+			// A bare deadline says nothing about what is wrong. doctor
+			// inspects the PID file, the socket and the listen address, which
+			// is where the remaining causes live.
+			return fmt.Errorf("wait for control daemon: %w (run `%s doctor` to diagnose)", waitCtx.Err(), config.CommandName)
 		case <-ticker.C:
 		}
 	}

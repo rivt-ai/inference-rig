@@ -26,12 +26,38 @@ type DetachedStatus struct {
 	Uptime  time.Duration
 }
 
+// runningSelf reports the PID recorded in file, but only when that PID is
+// still running this same binary.
+//
+// pidfile.Running answers "does a process with this PID exist", which a
+// recycled PID answers yes to. A daemon that died without cleaning up then
+// looks alive forever: StartDetached refuses to start a replacement and
+// StatusDetached reports Running, so callers wait on a socket nobody is
+// listening to. Treating a mismatched PID as stale — and clearing the file —
+// lets the next start recover on its own.
+func runningSelf(file pidfile.File) (int, bool, error) {
+	pid, ok, err := file.Running()
+	if err != nil || !ok {
+		return 0, false, err
+	}
+	self, err := os.Executable()
+	if err != nil {
+		// Without our own path there is nothing to compare against; trust the
+		// PID file rather than killing a daemon that may well be healthy.
+		return pid, true, nil
+	}
+	if _, err := SameExecutable(context.Background(), pid, self); err != nil {
+		return 0, false, file.Remove(pid)
+	}
+	return pid, true, nil
+}
+
 func StartDetached(name string, args ...string) error {
 	file, err := detachedPIDFile(name)
 	if err != nil {
 		return err
 	}
-	if pid, ok, err := file.Running(); err != nil {
+	if pid, ok, err := runningSelf(file); err != nil {
 		return err
 	} else if ok {
 		return errors.New("detached " + config.ProjectName + " " + name + " already running pid=" + strconv.Itoa(pid))
@@ -70,7 +96,7 @@ func StatusDetached(name string) (DetachedStatus, error) {
 		return DetachedStatus{}, err
 	}
 	status := DetachedStatus{}
-	pid, ok, err := file.Running()
+	pid, ok, err := runningSelf(file)
 	if err != nil {
 		return DetachedStatus{}, err
 	}
@@ -90,7 +116,9 @@ func StopDetached(name string) error {
 	if err != nil {
 		return err
 	}
-	pid, ok, err := file.Running()
+	// runningSelf refuses to hand back a recycled PID, so a crashed daemon
+	// whose PID the OS has since reassigned is cleared rather than signalled.
+	pid, ok, err := runningSelf(file)
 	if err != nil {
 		return err
 	}
@@ -100,14 +128,6 @@ func StopDetached(name string) error {
 	proc, err := gopsprocess.NewProcess(int32(pid))
 	if err != nil {
 		return file.Remove(pid)
-	}
-	// PIDs are recycled: a crashed daemon can leave a pidfile pointing at a
-	// PID the OS has since handed to an unrelated process. Refuse to signal
-	// it unless it is still running the same binary.
-	if self, err := os.Executable(); err == nil {
-		if _, err := SameExecutable(context.Background(), pid, self); err != nil {
-			return file.Remove(pid)
-		}
 	}
 	_ = proc.Terminate()
 	wait := defaultShutdownTimeout + time.Second
