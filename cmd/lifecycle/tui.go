@@ -22,6 +22,11 @@ import (
 	"inferencerig/platform/process"
 )
 
+// controlProbeTimeout bounds the "is a daemon already serving?" check. A live
+// daemon answers in milliseconds and a dead socket fails to connect at once,
+// so this only caps the pathological case.
+const controlProbeTimeout = 2 * time.Second
+
 func TuiCommand() *cobra.Command {
 	var socket string
 	command := &cobra.Command{
@@ -88,6 +93,18 @@ func runFirstSetup(command *cobra.Command, client controlv1connect.ControlServic
 }
 
 func ensureControl(ctx context.Context, client controlClient) (bool, error) {
+	// A daemon that answers on the socket is running, whatever the PID file
+	// says. The PID file can go missing while the daemon is perfectly healthy
+	// — it is removed on any failed start, including the duplicate this
+	// function would otherwise spawn — and starting a second daemon then fails
+	// on a socket the first still holds, removing the PID file again. Probing
+	// the socket first breaks that loop: liveness is what the daemon answers,
+	// not what a file claims.
+	probeCtx, cancel := context.WithTimeout(ctx, controlProbeTimeout)
+	defer cancel()
+	if _, err := client.Health(probeCtx, &controlv1.HealthRequest{}); err == nil {
+		return false, nil
+	}
 	status, err := process.StatusDetached(config.ProjectName)
 	if err != nil {
 		return false, err
@@ -130,7 +147,10 @@ func waitForControl(ctx context.Context, client controlClient) error {
 		}
 		select {
 		case <-waitCtx.Done():
-			return fmt.Errorf("wait for control daemon: %w", waitCtx.Err())
+			// A bare deadline says nothing about what is wrong. doctor
+			// inspects the PID file, the socket and the listen address, which
+			// is where the remaining causes live.
+			return fmt.Errorf("wait for control daemon: %w (run `%s doctor` to diagnose)", waitCtx.Err(), config.CommandName)
 		case <-ticker.C:
 		}
 	}
