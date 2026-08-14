@@ -18,7 +18,7 @@ require (
 	github.com/antonikliment/tuikit v0.3.1
 	github.com/dustin/go-humanize v1.0.1
 	github.com/gpustack/gguf-parser-go v0.25.0
-	github.com/shirou/gopsutil/v4 v4.26.6
+	github.com/shirou/gopsutil/v4 v4.26.7
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/mod v0.38.0
 	golang.org/x/term v0.45.0
@@ -72,7 +72,7 @@ require (
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/ebitengine/purego v0.10.0 // indirect
+	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
 	github.com/go-enry/go-enry/v2 v2.8.0 // indirect
