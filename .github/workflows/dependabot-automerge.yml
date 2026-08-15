@@ -35,9 +35,25 @@ jobs:
       #
       # --auto queues the merge behind the repository's required checks, so
       # Test, Lint and Security still have to pass before anything lands.
+      #
+      # The merge itself must NOT run as secrets.GITHUB_TOKEN: GitHub never
+      # starts a new workflow run from an event produced by the default
+      # token (the one documented exception is workflow_dispatch /
+      # repository_dispatch), so a GITHUB_TOKEN-driven merge to main silently
+      # skips every `push: branches: [main]` workflow — Test, Lint, Security,
+      # E2E all included. That starved release.yml's "Require passing main
+      # pipeline" gate, which polls for exactly those check-runs on main and
+      # has nothing to find, so every release after a Dependabot auto-merge
+      # timed out and failed.
+      #
+      # DEPENDABOT_AUTOMERGE_PAT is a fine-grained PAT scoped to this repo
+      # only (Contents: read/write, Pull requests: read/write) so the merge
+      # push is attributed to that token instead and main's CI fires
+      # normally. Falls back to GITHUB_TOKEN — same broken behavior as
+      # before — until that secret is added.
       - name: Enable auto-merge for patch/minor
         if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_PAT || secrets.GITHUB_TOKEN }}
