@@ -21,7 +21,11 @@ import (
 // socket immediately; anything slower is not a daemon this check can vouch for.
 const socketDialTimeout = 500 * time.Millisecond
 
-const startCommand = "inferencerig serve --detach"
+var startCommand = config.CommandName + " serve --detach"
+
+// stopCommand is what recovers a daemon that is running without a PID file:
+// nothing can adopt the orphan, so it has to go before a new one can bind.
+var stopCommand = config.CommandName + " daemon stop"
 
 // recentFailureLimit bounds what the report shows; the journal keeps more.
 const recentFailureLimit = 5
@@ -38,8 +42,14 @@ func checkPIDFile(_ context.Context, e *env) Check {
 	pid, exists, err := pidfile.New(path).Read()
 	switch {
 	case err != nil:
+		if orphan, found := orphanDaemon(e); found {
+			return orphan.withDetail(orphan.Detail + "\nThe PID file could not be read: " + err.Error())
+		}
 		return fail(id, title, "the PID file is unreadable").withDetail(err.Error())
 	case !exists:
+		if orphan, found := orphanDaemon(e); found {
+			return orphan
+		}
 		return ok(id, title, "not running").
 			withRemedies(Remedy{ID: "start-daemon", Title: "start the control daemon", Command: startCommand})
 	case pidfile.Alive(pid):
@@ -50,6 +60,39 @@ func checkPIDFile(_ context.Context, e *env) Check {
 				". The next start or stop removes the stale file.").
 			withRemedies(Remedy{ID: "start-daemon", Title: "start the control daemon", Command: startCommand})
 	}
+}
+
+// orphanDaemon covers the case a missing PID file otherwise reports as "not
+// running": a daemon that is alive and accepting on the control socket while
+// nothing records its PID. Concluding "not running" from the absent file alone
+// contradicts the socket and control-plane checks in the same report, and
+// sends the operator into a start loop — every new daemon fails to bind, and
+// removes the PID file again on its way out.
+//
+// The listener's PID comes from the socket's peer credentials, which the
+// kernel fills in and no bookkeeping of ours can lose.
+func orphanDaemon(e *env) (Check, bool) {
+	const id, title = "daemon.pidfile", "daemon process"
+	if !socketAccepts(e.paths.ControlSocket) {
+		return Check{}, false
+	}
+	summary := "running without a PID file"
+	detail := "A daemon is accepting on " + e.paths.ControlSocket + " but " +
+		pidFilePath(e.paths) + " is missing, so nothing can adopt or stop it by PID.\n" +
+		"Starting another daemon will fail with \"socket is already in use\"."
+	pid, err := process.SocketPeerPID(e.paths.ControlSocket, socketDialTimeout)
+	if err != nil {
+		detail += "\nIts PID could not be read from the socket: " + err.Error()
+		return warn(id, title, summary).withDetail(detail).
+			withRemedies(Remedy{ID: "stop-daemon", Title: "stop the running control daemon", Command: stopCommand}), true
+	}
+	summary = "running as pid " + strconv.Itoa(pid) + " without a PID file"
+	return warn(id, title, summary).withDetail(detail).
+		withRemedies(
+			Remedy{ID: "stop-daemon", Title: "stop the running control daemon", Command: stopCommand},
+			Remedy{ID: "kill-daemon", Title: "terminate the daemon directly if it will not stop",
+				Command: "kill -TERM " + strconv.Itoa(pid)},
+		), true
 }
 
 // identifyDaemon confirms the live PID is actually this binary. PIDs are
@@ -135,7 +178,7 @@ func checkDaemonReachable(ctx context.Context, e *env) Check {
 func checkRecentLog(_ context.Context, e *env) Check {
 	const id, title = "daemon.recent_log", "recent daemon log"
 	pid, exists, err := pidfile.New(pidFilePath(e.paths)).Read()
-	if err == nil && exists && pidfile.Alive(pid) {
+	if (err == nil && exists && pidfile.Alive(pid)) || socketAccepts(e.paths.ControlSocket) {
 		return skip(id, title, "the daemon is running")
 	}
 	present, err := audit.LogExists(config.ProjectName)
