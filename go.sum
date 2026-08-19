@@ -50,8 +50,8 @@ github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYW
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
 github.com/antonikliment/go-code-metrics v0.0.4 h1:ivaP1pQ/WPczK0azhLN8ISLLYcBqGdzi6yfEQLeRMD0=
 github.com/antonikliment/go-code-metrics v0.0.4/go.mod h1:KL08liq9NVqJlOcwSO4TTMtdJl0sm/EnU9YQgigTzzo=
-github.com/antonikliment/tuikit v0.3.1 h1:TFFBbzI6lq80HakHWnOWeV/Fz8lP4QPb2+X4keS40zQ=
-github.com/antonikliment/tuikit v0.3.1/go.mod h1:/BxEExvSW7VJ+TCuh4f6sSp8VSqOARn+HOrR+Pbt4KU=
+github.com/antonikliment/tuikit v0.4.0 h1:16pq+buEhiwnsaSH1DECeTarYRcI2+MRmFasEyjFOK4=
+github.com/antonikliment/tuikit v0.4.0/go.mod h1:/BxEExvSW7VJ+TCuh4f6sSp8VSqOARn+HOrR+Pbt4KU=
 github.com/atotto/clipboard v0.1.4 h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
 github.com/atotto/clipboard v0.1.4/go.mod h1:ZY9tmq7sm5xIbd9bOK4onWV4S6X0u6GY7Vn0Yu86PYI=
 github.com/aymanbagabas/go-udiff v0.4.1 h1:OEIrQ8maEeDBXQDoGCbbTTXYJMYRCRO1fnodZ12Gv5o=
