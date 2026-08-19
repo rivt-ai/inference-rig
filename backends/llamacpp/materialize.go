@@ -2,6 +2,7 @@ package llamacpp
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 
 	"inferencerig/backends"
@@ -51,11 +52,16 @@ func (b *Backend) MaterializeProfiles(ps []profiles.Profile) (backends.Materiali
 }
 
 // render turns the backend defaults and profiles into deterministic models.ini
-// text, validating every section as it goes.
+// text, validating every section as it goes. The model storage directory is
+// resolved once, because each section names its model by absolute path.
 func (b *Backend) render(ps []profiles.Profile) (string, error) {
+	storage, err := b.modelStorageDir()
+	if err != nil {
+		return "", err
+	}
 	sections := make([]section, 0, len(ps))
 	for _, p := range ps {
-		s, err := profileSection(p)
+		s, err := profileSection(p, storage)
 		if err != nil {
 			return "", err
 		}
@@ -66,7 +72,7 @@ func (b *Backend) render(ps []profiles.Profile) (string, error) {
 
 // profileSection maps one canonical profile onto its models.ini stanza: the
 // model source becomes `model`, and each engine_arg becomes a canonical key.
-func profileSection(p profiles.Profile) (section, error) {
+func profileSection(p profiles.Profile, storageDir string) (section, error) {
 	if err := validateSectionName(p.Name); err != nil {
 		return section{}, err
 	}
@@ -75,9 +81,23 @@ func profileSection(p profiles.Profile) (section, error) {
 		return section{}, err
 	}
 	if p.Model.Source != "" {
-		values[modelKey] = config.ExpandHome(p.Model.Source)
+		values[modelKey] = modelPath(p.Model, storageDir)
 	}
 	return section{Name: p.Name, Values: values}, nil
+}
+
+// modelPath is the absolute path of the profile's model file. A repo id, a
+// download URL or a bare filename all name an artifact the downloader lands in
+// model storage under its base name (see Plan), so the same base name is what
+// the section points at; an absolute source is already a path and is kept. The
+// path is absolute so the preset resolves without --models-dir, which the
+// router is given only when it may serve models no profile declares.
+func modelPath(m profiles.ModelSpec, storageDir string) string {
+	if expanded := config.ExpandHome(m.Source); filepath.IsAbs(expanded) {
+		return expanded
+	}
+	name, _ := resolveArtifact(m.Source, m.Reference)
+	return filepath.Join(storageDir, name)
 }
 
 // engineArgValues converts a profile's free-form engine_args into canonical

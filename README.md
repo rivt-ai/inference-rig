@@ -196,6 +196,8 @@ engine_args:
 or a catalog reference it can download. Engine-native config (llama.cpp's
 `models.ini`, for instance) is *generated* from the profile before launch; the
 YAML is canonical, and regeneration overwrites hand edits to the generated file.
+The generated file names each model by absolute path, so the set of profiles is
+by itself the set of models the engine serves.
 
 InferenceRig serves **one backend at a time**. While a runtime exists, a profile
 naming a different backend cannot start; `infr runtime reset` stops everything
@@ -220,6 +222,11 @@ Defaults:
 - catalog cache: `~/.inferencerig/cache/hf-catalog`, TTL `6h`
 - log archive retention: `168h` (`0s` keeps archives indefinitely)
 - autostart: profiles listed in `autostart_profiles`
+- only models a profile declares are served: the llama.cpp router is pointed at
+  the generated preset alone, so a model file in storage that no profile
+  references is neither listed nor loadable. Set
+  `expose_models_without_profile: true` to also hand the router the model
+  storage directory, as earlier versions always did.
 
 See [`config.example.yaml`](config.example.yaml) for the annotated file.
 

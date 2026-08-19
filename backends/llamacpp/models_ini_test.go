@@ -133,3 +133,40 @@ func TestMaterializeReturnsGeneratedFile(t *testing.T) {
 		}
 	}
 }
+
+// Every section names its model by absolute path, so the preset resolves
+// without the router being given a models dir.
+func TestProfileSectionModelIsAbsolute(t *testing.T) {
+	storage := "/storage"
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("no home directory")
+	}
+	cases := map[string]struct {
+		source, reference, want string
+	}{
+		"absolute path is kept":        {source: "/models/a.gguf", want: "/models/a.gguf"},
+		"home-relative path is kept":   {source: "~/a.gguf", want: filepath.Join(home, "a.gguf")},
+		"bare filename lands in store": {source: "a.gguf", want: "/storage/a.gguf"},
+		"repo id resolves its artifact": {
+			source: "TheBloke/Llama-2-7B-GGUF", reference: "sub/llama.Q4_K_M.gguf",
+			want: "/storage/llama.Q4_K_M.gguf",
+		},
+		"download url resolves its artifact": {
+			source: "https://example.com/d/a.gguf", want: "/storage/a.gguf",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			p := demoProfile("demo", tc.source)
+			p.Model.Reference = tc.reference
+			s, err := profileSection(p, storage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if s.Values["model"] != tc.want {
+				t.Fatalf("model = %q, want %q", s.Values["model"], tc.want)
+			}
+		})
+	}
+}

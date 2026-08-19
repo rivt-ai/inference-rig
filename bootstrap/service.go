@@ -151,7 +151,10 @@ func controlInputs(cfg config.Config) (*backends.Registry, *profiles.FileStore, 
 	}
 	modelStorageDir = config.ExpandHome(modelStorageDir)
 	registry := backends.NewRegistry()
-	if err := all.Register(registry, all.Options{ModelStorageDir: modelStorageDir}); err != nil {
+	if err := all.Register(registry, all.Options{
+		ModelStorageDir:            modelStorageDir,
+		ExposeModelsWithoutProfile: cfg.ExposeModelsWithoutProfile,
+	}); err != nil {
 		return nil, nil, config.Paths{}, "", err
 	}
 	paths, err := config.ResolvePaths()

@@ -73,6 +73,21 @@ func TestParseDefaults(t *testing.T) {
 	if len(cfg.StartupServices) != 2 {
 		t.Errorf("startup_services = %v, want both defaults", cfg.StartupServices)
 	}
+	if cfg.ExposeModelsWithoutProfile {
+		t.Error("expose_models_without_profile = true, want a profile to be required by default")
+	}
+}
+
+// The restriction is on by default and can be turned off, which is why it is
+// spelled as an opt-out: the configuration decodes over the defaults.
+func TestParseExposeModelsWithoutProfileOptsOut(t *testing.T) {
+	cfg, err := Parse([]byte("expose_models_without_profile: true\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.ExposeModelsWithoutProfile {
+		t.Error("expose_models_without_profile = false, want the opt-out honored")
+	}
 }
 
 func TestParseRejectsUnknownField(t *testing.T) {
