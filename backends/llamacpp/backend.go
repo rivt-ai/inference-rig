@@ -47,6 +47,11 @@ type Options struct {
 	Executable string
 	// ModelsMax caps concurrently loaded router models. Zero means 1.
 	ModelsMax int
+	// ExposeModelsWithoutProfile points the router at the model storage
+	// directory as well as at the generated preset file, so it also serves
+	// models no profile declares. The zero value keeps the router to the
+	// preset, whose sections are the profiles by construction.
+	ExposeModelsWithoutProfile bool
 	// Defaults are the backend-wide models.ini keys rendered into the [*]
 	// cascade section (canonical CLI keys). Empty renders no [*] section.
 	Defaults map[string]string

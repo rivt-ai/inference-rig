@@ -24,7 +24,9 @@ func (b *Backend) ValidateProfile(p profiles.Profile) (profiles.Profile, error) 
 	if _, err := engineArgValues(p.EngineArgs); err != nil {
 		return profiles.Profile{}, err
 	}
-	if _, err := profileSection(p); err != nil {
+	// The storage directory only decides where a section's model path points,
+	// never whether the profile renders, so validation needs no real one.
+	if _, err := profileSection(p, ""); err != nil {
 		return profiles.Profile{}, err
 	}
 	if p.Listen.Host == "" {

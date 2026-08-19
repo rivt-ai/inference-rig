@@ -81,14 +81,20 @@ func ServiceArgs(service string) []string {
 
 // Config is the neutral, backend-agnostic application configuration.
 type Config struct {
-	ListenAddr          string         `yaml:"listen_addr" json:"listen_addr"`
-	ModelStorageDir     string         `yaml:"model_storage_dir" json:"model_storage_dir"`
-	CatalogCacheDir     string         `yaml:"catalog_cache_dir" json:"catalog_cache_dir"`
-	CatalogCacheTTL     time.Duration  `yaml:"catalog_cache_ttl" json:"catalog_cache_ttl"`
-	LogArchiveRetention time.Duration  `yaml:"log_archive_retention" json:"log_archive_retention"`
-	StartupServices     []string       `yaml:"startup_services" json:"startup_services,omitempty"`
-	AutostartProfiles   []string       `yaml:"autostart_profiles" json:"autostart_profiles,omitempty"`
-	Security            SecurityConfig `yaml:"security" json:"security"`
+	ListenAddr          string        `yaml:"listen_addr" json:"listen_addr"`
+	ModelStorageDir     string        `yaml:"model_storage_dir" json:"model_storage_dir"`
+	CatalogCacheDir     string        `yaml:"catalog_cache_dir" json:"catalog_cache_dir"`
+	CatalogCacheTTL     time.Duration `yaml:"catalog_cache_ttl" json:"catalog_cache_ttl"`
+	LogArchiveRetention time.Duration `yaml:"log_archive_retention" json:"log_archive_retention"`
+	StartupServices     []string      `yaml:"startup_services" json:"startup_services,omitempty"`
+	AutostartProfiles   []string      `yaml:"autostart_profiles" json:"autostart_profiles,omitempty"`
+	// ExposeModelsWithoutProfile lets a backend runtime serve models found in
+	// model storage that no profile declares. Off by default: a profile is the
+	// unit of configuration, so a model nobody configured is not offered. It is
+	// named as an opt-out because the configuration decodes over the defaults,
+	// which leaves a positively named bool unable to be turned back off.
+	ExposeModelsWithoutProfile bool           `yaml:"expose_models_without_profile" json:"expose_models_without_profile"`
+	Security                   SecurityConfig `yaml:"security" json:"security"`
 }
 
 type SecurityConfig struct {
