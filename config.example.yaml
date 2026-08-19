@@ -6,6 +6,11 @@ log_archive_retention: 168h # 0s keeps archives indefinitely
 startup_services:
   - control
   - web
+# Let a backend runtime also serve model files sitting in model_storage_dir that
+# no profile declares. Off by default: a profile is the unit of configuration,
+# so the llama.cpp router is pointed only at the generated preset — one section
+# per profile — and a model nobody configured is not listed or loadable.
+expose_models_without_profile: false
 security:
   # Environment variable holding the gateway token. Unset, the gateway
   # generates one and persists it to ${INFERENCERIG_HOME}/run/gateway.token,

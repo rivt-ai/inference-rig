@@ -60,10 +60,14 @@ func (b *Backend) ImportGenerated(docs []profiles.ProfileDocument) (map[string]s
 	if err != nil {
 		return nil, nil, fmt.Errorf("read baseline %s%s: %w", path, baselineSuffix, err)
 	}
-	return importSections(docs, edited, base)
+	storage, err := b.modelStorageDir()
+	if err != nil {
+		return nil, nil, err
+	}
+	return importSections(docs, edited, base, storage)
 }
 
-func importSections(docs []profiles.ProfileDocument, edited, base map[string]section) (map[string]string, []string, error) {
+func importSections(docs []profiles.ProfileDocument, edited, base map[string]section, storageDir string) (map[string]string, []string, error) {
 	adopt := map[string]string{}
 	var conflicts []string
 	for _, doc := range docs {
@@ -71,7 +75,7 @@ func importSections(docs []profiles.ProfileDocument, edited, base map[string]sec
 		if doc.Effective.Backend != Name || !ok {
 			continue // not ours, or a section deleted by hand and restored next render
 		}
-		want, err := profileSection(doc.Effective)
+		want, err := profileSection(doc.Effective, storageDir)
 		if err != nil {
 			return nil, nil, err
 		}
