@@ -80,7 +80,13 @@ func TestCanonicalControlStackWithBothBackends(t *testing.T) {
 		&http.Client{Transport: transport, Timeout: 3 * time.Second}, "http://unix",
 	)
 	ctx := context.Background()
-	putProfile(t, ctx, client, "single", llamacpp.Name, "/models/demo.gguf", 8081)
+	// A real file: a start refuses a profile whose absolute model path is not
+	// on disk, rather than letting the engine fail per request later.
+	modelPath := filepath.Join(home, "demo.gguf")
+	if err := os.WriteFile(modelPath, []byte("model"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	putProfile(t, ctx, client, "single", llamacpp.Name, modelPath, 8081)
 	putProfile(t, ctx, client, "snapshot", mlx.Name, "local-snapshot", 8082)
 	listed, err := client.ListBackends(ctx, &controlv1.ListBackendsRequest{})
 	if err != nil || len(listed.GetBackends()) != 2 {

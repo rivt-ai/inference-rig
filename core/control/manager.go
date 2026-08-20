@@ -203,17 +203,28 @@ func (m *Manager) PutProfile(ctx context.Context, name, yaml string, createOnly 
 	// observes err — matching the previous behavior of mapping at every return,
 	// without a path that can forget to.
 	defer func() { err = mapProfileError(err) }()
+	doc, err = m.write(ctx, name, yaml, createOnly)
+	if err != nil {
+		return profiles.ProfileDocument{}, err
+	}
+	return doc, m.regenerate(ctx, doc.Effective)
+}
+
+// write persists the profile and returns the stored document, leaving the
+// generated-file side of a write to its caller.
+func (m *Manager) write(ctx context.Context, name, yaml string, createOnly bool) (profiles.ProfileDocument, error) {
 	create := profiles.CreateRequest{Name: name, ProfileYAML: yaml}
 	if createOnly {
 		return m.profiles.Create(ctx, create)
 	}
-	if _, err = m.profiles.Get(ctx, name); errors.Is(err, os.ErrNotExist) {
+	_, err := m.profiles.Get(ctx, name)
+	if errors.Is(err, os.ErrNotExist) {
 		return m.profiles.Create(ctx, create)
 	}
 	if err != nil {
 		return profiles.ProfileDocument{}, err
 	}
-	if _, err = m.profiles.Replace(ctx, name, yaml); err != nil {
+	if _, err := m.profiles.Replace(ctx, name, yaml); err != nil {
 		return profiles.ProfileDocument{}, err
 	}
 	return m.profiles.Get(ctx, name)
@@ -296,12 +307,12 @@ func (m *Manager) StartRuntime(ctx context.Context, name string, replace bool) (
 			return result, err
 		}
 	}
-	materialization, err := m.materialize(ctx, backend, doc.Effective)
-	if err != nil {
-		return result, CoreError(ErrorInvalidInput, err.Error(), err)
+	if err = requireModelFile(doc.Effective); err != nil {
+		return result, err
 	}
-	if err := writeMaterialization(materialization); err != nil {
-		return result, CoreError(ErrorRuntime, err.Error(), err)
+	materialization, err := m.render(ctx, backend, doc.Effective)
+	if err != nil {
+		return result, err
 	}
 	spec, err := backend.LaunchSpec(doc.Effective, materialization)
 	if err != nil {
@@ -597,6 +608,55 @@ func (m *Manager) materialize(ctx context.Context, backend backends.Backend, sel
 		}
 	}
 	return batch.MaterializeProfiles(items)
+}
+
+// render materializes the profiles a backend owns and writes the generated
+// files, with the typed error kinds every caller wants. Rendering and writing
+// are never done apart: a materialization that is not written is derived state
+// nothing on disk reflects.
+func (m *Manager) render(
+	ctx context.Context,
+	backend backends.Backend,
+	selected profiles.Profile,
+) (backends.Materialization, error) {
+	materialization, err := m.materialize(ctx, backend, selected)
+	if err != nil {
+		return backends.Materialization{}, CoreError(ErrorInvalidInput, err.Error(), err)
+	}
+	if err := writeMaterialization(materialization); err != nil {
+		return backends.Materialization{}, CoreError(ErrorRuntime, err.Error(), err)
+	}
+	return materialization, nil
+}
+
+// regenerate re-renders a backend's generated files after a profile write. The
+// generated file is a function of the profiles, so every write recomputes it:
+// when only a start did, editing a profile left the generated file naming the
+// model the profile no longer used, and the engine answered every request for
+// that profile with a load failure.
+func (m *Manager) regenerate(ctx context.Context, selected profiles.Profile) error {
+	backend, err := m.Backend(selected.Backend)
+	if err != nil {
+		return err
+	}
+	_, err = m.render(ctx, backend, selected)
+	return err
+}
+
+// requireModelFile refuses a start whose model file is not on disk. Only an
+// absolute source names a file this can check; a repo id or URL is resolved and
+// downloaded elsewhere. Without it a deleted or moved model reaches the engine
+// as an opaque per-request load failure long after the start reported success.
+func requireModelFile(p profiles.Profile) error {
+	source := config.ExpandHome(p.Model.Source)
+	if !filepath.IsAbs(source) {
+		return nil
+	}
+	if _, err := os.Stat(source); err != nil {
+		return Errorf(ErrorNotFound,
+			"profile %q model file %s is missing; update model.source or download it again", p.Name, source)
+	}
+	return nil
 }
 
 func writeMaterialization(materialization backends.Materialization) error {
