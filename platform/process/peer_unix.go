@@ -4,7 +4,6 @@ package process
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"time"
 )
@@ -22,18 +21,13 @@ func SocketPeerPID(path string, timeout time.Duration) (int, error) {
 		return 0, err
 	}
 	defer func() { _ = conn.Close() }()
-	unixConn, ok := conn.(*net.UnixConn)
-	if !ok {
-		return 0, fmt.Errorf("%s is not a unix connection", path)
-	}
-	raw, err := unixConn.SyscallConn()
+	// net.DialTimeout on a unix address always yields a *net.UnixConn.
+	raw, err := conn.(*net.UnixConn).SyscallConn()
 	if err != nil {
 		return 0, err
 	}
-	var (
-		pid     int
-		credErr error
-	)
+	var pid int
+	var credErr error
 	if err := raw.Control(func(fd uintptr) { pid, credErr = peerPID(fd) }); err != nil {
 		return 0, err
 	}
