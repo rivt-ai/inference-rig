@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -314,5 +315,69 @@ func TestRemedyPreviewNamesThePortFromTheFileNotTheDefault(t *testing.T) {
 	edit := find(t, report, "config.valid").Remedies[0].ConfigEdit
 	if !strings.Contains(edit, "127.0.0.1:9999") {
 		t.Errorf("remedy = %q, want the port the file actually names", edit)
+	}
+}
+
+// The production incident: a daemon alive and accepting on the control socket
+// with no PID file beside it. Reporting that as "not running" contradicts the
+// socket and control-plane checks in the same report, and sends the operator
+// into a start loop.
+func TestDoctorReportsLiveDaemonWithNoPIDFile(t *testing.T) {
+	home := writeConfig(t, healthyConfig)
+	socket := filepath.Join(home, "run", "control.sock")
+	if err := os.MkdirAll(filepath.Dir(socket), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	report := runDoctor(t, Options{
+		ValidateConfig: realValidator,
+		DialControl:    func(string) (HealthChecker, error) { return stubHealth{}, nil },
+	})
+
+	pidCheck := find(t, report, "daemon.pidfile")
+	if pidCheck.Status != StatusWarn {
+		t.Errorf("daemon.pidfile = %q, want warn for a live daemon with no PID file", pidCheck.Status)
+	}
+	if strings.Contains(pidCheck.Summary, "not running") {
+		t.Errorf("daemon.pidfile summary %q still claims the daemon is not running", pidCheck.Summary)
+	}
+	// The listener is this test process, so the socket's peer credentials are
+	// the one PID the report can be checked against.
+	if want := strconv.Itoa(os.Getpid()); !strings.Contains(pidCheck.Summary, want) {
+		t.Errorf("daemon.pidfile summary %q does not name the listening pid %s", pidCheck.Summary, want)
+	}
+	if len(pidCheck.Remedies) == 0 {
+		t.Error("daemon.pidfile carries no remedy for the orphaned daemon")
+	}
+	// The bug signature: these three must never all read ok together.
+	if find(t, report, "daemon.socket").Status != StatusOK ||
+		find(t, report, "daemon.reachable").Status != StatusOK {
+		t.Fatal("expected the socket and control plane to be ok in this scenario")
+	}
+	if pidCheck.Status == StatusOK {
+		t.Error("not running, accepting connections and healthy all reported ok")
+	}
+	if got := find(t, report, "daemon.recent_log").Status; got != StatusSkipped {
+		t.Errorf("daemon.recent_log = %q, want skip while the daemon is accepting", got)
+	}
+}
+
+// Every hint doctor prints has to be a command the installed binary answers to.
+func TestDoctorHintsUseTheInstalledCommandName(t *testing.T) {
+	writeConfig(t, healthyConfig)
+
+	report := runDoctor(t, Options{ValidateConfig: realValidator})
+
+	for _, c := range report.Checks {
+		for _, r := range c.Remedies {
+			if strings.HasPrefix(r.Command, config.ProjectName+" ") {
+				t.Errorf("check %s remedy %s names %q, not %q", c.ID, r.ID, config.ProjectName, config.CommandName)
+			}
+		}
 	}
 }
