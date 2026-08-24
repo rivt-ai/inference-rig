@@ -667,10 +667,13 @@ export function createInferenceRigClient() {
     });
   }
 
-  async function loadModelCatalog() {
+  // refresh is an explicit parameter rather than part of catalogQuery so it
+  // applies to the one call the user asked for and never persists into
+  // subsequent automatic reloads, which should still be served from cache.
+  async function loadModelCatalog(refresh = false) {
     state.catalogLoading = true;
     try {
-      const data = await api.listModelCatalog({ ...state.catalogQuery, backend: state.selectedBackend });
+      const data = await api.listModelCatalog({ ...state.catalogQuery, backend: state.selectedBackend, refresh });
       state.catalogModels = data.models;
       state.catalogMachine = data.machine || null;
       state.catalogCache = data.cache || null;
@@ -698,9 +701,12 @@ export function createInferenceRigClient() {
     }
   }
 
+  // The Refresh control bypasses the daemon's catalog cache: re-reading a
+  // cached entry is what the automatic reloads already do, so a manual refresh
+  // that did the same could not recover a stale or outdated entry.
   async function refreshResourcesAndCatalog() {
     await refreshSignals();
-    await loadModelCatalog();
+    await loadModelCatalog(true);
   }
 
   function connectCatalogEvents() {

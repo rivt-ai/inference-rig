@@ -18,6 +18,9 @@ export type CatalogQuery = {
   limit?: number;
   sort?: string;
   minFit?: FitLevel;
+  // refresh bypasses the daemon's cached entry and refetches from the remote
+  // catalog. It is not part of the stored query state: callers pass it per call.
+  refresh?: boolean;
 };
 
 // createApiClient exposes the whole control surface over Connect. Unlike the
@@ -75,7 +78,8 @@ export function createApiClient(getSession: () => SessionState, fetcher: typeof 
         query: params.query,
         limit: params.limit,
         sort: params.sort,
-        minFit: params.minFit
+        minFit: params.minFit,
+        refresh: params.refresh
       }),
     watchModelCatalog: (signal: AbortSignal) => control().watchModelCatalog({}, { signal }),
     estimateFit: (backend: string, sizeBytes: bigint) => control().estimateFit({ backend, sizeBytes }),
