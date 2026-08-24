@@ -165,12 +165,16 @@ func (c *Client) fetch(ctx context.Context, req SearchRequest, policy CatalogPol
 		return Result{}, err
 	}
 	query := endpoint.Query()
-	query.Set("pipeline_tag", "text-generation")
 	query.Set("sort", "downloads")
 	query.Set("direction", "-1")
 	query.Set("limit", strconv.Itoa(req.Limit))
 	if filter := policy.SearchFilter(); filter != "" {
 		query.Set("filter", filter)
+	} else {
+		// Without a format filter, pipeline_tag keeps the unfiltered firehose
+		// out. With one, it would wrongly exclude multimodal repos (whose
+		// pipeline_tag is image-text-to-text, not text-generation).
+		query.Set("pipeline_tag", "text-generation")
 	}
 	if req.Query != "" {
 		query.Set("search", req.Query)
