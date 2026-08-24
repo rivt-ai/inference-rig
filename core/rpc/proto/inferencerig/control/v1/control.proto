@@ -404,6 +404,10 @@ message ListModelCatalogRequest {
   string sort = 4;
   // min_fit drops models whose best variant does not reach this fit level.
   FitLevel min_fit = 5;
+  // refresh bypasses the cached entry and refetches from the remote catalog,
+  // so a client can recover from a cache populated by older query logic
+  // without waiting out the TTL.
+  bool refresh = 6;
 }
 message ListModelCatalogResponse {
   bool ok = 1;

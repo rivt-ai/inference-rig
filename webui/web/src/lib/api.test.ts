@@ -106,6 +106,23 @@ describe('createApiClient', () => {
     });
   });
 
+  // The daemon serves a fresh cache entry without refetching, so a manual
+  // refresh only reaches the remote catalog if this flag is on the wire.
+  it('sends refresh so a catalog refresh bypasses the daemon cache', async () => {
+    let body = '';
+    const fetcher: typeof fetch = async (input, init) => {
+      body = await new Request(new URL(String(input), 'http://localhost'), init).text();
+      return connectResponse();
+    };
+    const api = createApiClient(() => ({ apiBase: '', token: '' }), fetcher);
+
+    await api.listModelCatalog({ backend: 'llamacpp', refresh: true });
+    expect(JSON.parse(body).refresh).toBe(true);
+
+    await api.listModelCatalog({ backend: 'llamacpp' });
+    expect(JSON.parse(body).refresh).toBeUndefined();
+  });
+
   // Logs used to be five hand-rolled REST endpoints alongside the Connect
   // client. They are RPCs now, so they carry the same auth and error handling
   // as everything else instead of a parallel implementation of both.
