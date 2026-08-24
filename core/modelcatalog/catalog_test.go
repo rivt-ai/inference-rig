@@ -71,3 +71,64 @@ func TestClientSearchesBothArtifactPoliciesAndCachesByBackend(t *testing.T) {
 		t.Fatal("timed out waiting for catalog refresh")
 	}
 }
+
+// A cache entry written by older query logic outlives an upgrade, and a fresh
+// entry is never refreshed on its own, so a client needs a way to bypass it.
+// Refresh must also store over the entry a normal read loads: if it filled a
+// parallel key the next ordinary read would serve the stale models again.
+func TestSearchRefreshBypassesAndReplacesTheCachedEntry(t *testing.T) {
+	var listings int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/models" {
+			listings++
+			if listings == 1 {
+				_, _ = w.Write([]byte(`[{"id":"owner/before","downloads":1}]`))
+				return
+			}
+			_, _ = w.Write([]byte(`[{"id":"owner/after","downloads":2}]`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"siblings":[{"rfilename":"model-q4.gguf","lfs":{"size":30}}]}`))
+	}))
+	defer server.Close()
+
+	// An hour-long TTL keeps the entry fresh, so nothing but Refresh can
+	// dislodge it — a stale entry would refresh on its own and prove nothing.
+	client := modelcatalog.NewClient(modelcatalog.ClientOptions{
+		HTTPClient: server.Client(), BaseURL: server.URL,
+		CacheDir: filepath.Join(t.TempDir(), "cache"), CacheTTL: time.Hour,
+	})
+	ctx := context.Background()
+	policy := llamacpp.New(llamacpp.Options{}).CatalogPolicy()
+	request := modelcatalog.SearchRequest{Backend: "single", Limit: 1}
+
+	first, err := client.Search(ctx, request, policy)
+	if err != nil || len(first.Models) != 1 || first.Models[0].ID != "owner/before" {
+		t.Fatalf("first result = %#v, err = %v", first, err)
+	}
+	cached, err := client.Search(ctx, request, policy)
+	if err != nil || !cached.CacheHit || cached.Models[0].ID != "owner/before" {
+		t.Fatalf("cached result = %#v, err = %v", cached, err)
+	}
+	if listings != 1 {
+		t.Fatalf("cached read refetched: listings = %d, want 1", listings)
+	}
+
+	refresh := request
+	refresh.Refresh = true
+	refreshed, err := client.Search(ctx, refresh, policy)
+	if err != nil || refreshed.CacheHit || refreshed.Models[0].ID != "owner/after" {
+		t.Fatalf("refreshed result = %#v, err = %v", refreshed, err)
+	}
+
+	// The decisive assertion: an ordinary read now serves the refreshed models
+	// from cache, so Refresh replaced the entry instead of adding a new one.
+	after, err := client.Search(ctx, request, policy)
+	if err != nil || !after.CacheHit || after.Models[0].ID != "owner/after" {
+		t.Fatalf("post-refresh cached result = %#v, err = %v", after, err)
+	}
+	if listings != 2 {
+		t.Fatalf("listings = %d, want 2", listings)
+	}
+}
