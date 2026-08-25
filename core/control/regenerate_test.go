@@ -120,61 +120,81 @@ func (b *routerGeneratingBackend) ActivateRuntime(_ context.Context, p profiles.
 	return nil
 }
 
-// A router engine reads the shared generated file only at startup, so a profile
-// created or deleted while the router ran never appeared in (or left) its model
-// list until a manual restart. A write that changes the file must replace the
-// process and re-activate the profiles it held; a write that changes nothing
-// must leave it alone.
-func TestProfileWriteReloadsARunningRouter(t *testing.T) {
+// routerReloadFixture is a running router (serving profile "one") whose
+// backend renders all profiles into one shared generated file.
+type routerReloadFixture struct {
+	manager *Manager
+	backend *routerGeneratingBackend
+	engines *[]*fakeRuntime
+}
+
+func startedRouter(t *testing.T) routerReloadFixture {
+	t.Helper()
 	backend := &routerGeneratingBackend{generatingBackend: &generatingBackend{Fake: backendtest.New("test")}}
 	registry := backends.NewRegistry()
 	if err := registry.Register(backend); err != nil {
 		t.Fatal(err)
 	}
 	t.Chdir(t.TempDir())
-	var engines []*fakeRuntime
+	engines := &[]*fakeRuntime{}
 	manager := NewManager(Dependencies{
 		Registry: registry,
 		Profiles: profiles.NewFileStore(t.TempDir(), 0, registry.BackendLookup()),
 		RuntimeFactory: func(coreruntime.LaunchSpec) Runtime {
 			engine := &fakeRuntime{}
-			engines = append(engines, engine)
+			*engines = append(*engines, engine)
 			return engine
 		},
 	})
-	ctx := context.Background()
-	if _, err := manager.PutProfile(ctx, "one", profileYAML("one", "https://example.test/m"), true); err != nil {
+	f := routerReloadFixture{manager: manager, backend: backend, engines: engines}
+	f.put(t, "one", true)
+	if _, err := manager.StartRuntime(context.Background(), "one", false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.StartRuntime(ctx, "one", false); err != nil {
-		t.Fatal(err)
-	}
+	return f
+}
 
-	if _, err := manager.PutProfile(ctx, "two", profileYAML("two", "https://example.test/m"), true); err != nil {
+func (f routerReloadFixture) put(t *testing.T, name string, createOnly bool) {
+	t.Helper()
+	if _, err := f.manager.PutProfile(context.Background(), name, profileYAML(name, "https://example.test/m"), createOnly); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// A router engine reads the shared generated file only at startup, so a profile
+// created while the router ran never appeared in its model list until a manual
+// restart. A write that changes the file must replace the process and
+// re-activate the profiles it held; a write that changes nothing must leave it
+// alone.
+func TestProfileWriteReloadsARunningRouter(t *testing.T) {
+	f := startedRouter(t)
+	f.put(t, "two", true)
+	engines := *f.engines
 	if len(engines) != 2 || engines[0].stops != 1 || engines[1].starts != 1 {
 		t.Fatalf("creating a profile under a running router: %d engines, first stops = %d", len(engines), engines[0].stops)
 	}
-	if got := strings.Join(backend.activated, ","); got != "one,one" {
+	if got := strings.Join(f.backend.activated, ","); got != "one,one" {
 		t.Fatalf("activated = %q, want the held profile re-activated after the reload", got)
 	}
-	if status, err := manager.RuntimeStatus(ctx, "one"); err != nil || status.State != coreruntime.Running {
+	if status, err := f.manager.RuntimeStatus(context.Background(), "one"); err != nil || status.State != coreruntime.Running {
 		t.Fatalf("held profile after reload: status = %#v, err = %v", status, err)
 	}
+	f.put(t, "two", false)
+	if len(*f.engines) != 2 {
+		t.Fatalf("a write changing nothing replaced the process: %d engines", len(*f.engines))
+	}
+}
 
-	if _, err := manager.PutProfile(ctx, "two", profileYAML("two", "https://example.test/m"), false); err != nil {
+// A deleted profile must leave the shared generated file, and the running
+// router must be replaced so its model list drops the profile too.
+func TestProfileDeleteReloadsARunningRouter(t *testing.T) {
+	f := startedRouter(t)
+	f.put(t, "two", true)
+	if _, err := f.manager.DeleteProfile(context.Background(), "two"); err != nil {
 		t.Fatal(err)
 	}
-	if len(engines) != 2 {
-		t.Fatalf("a write changing nothing replaced the process: %d engines", len(engines))
-	}
-
-	if _, err := manager.DeleteProfile(ctx, "two"); err != nil {
-		t.Fatal(err)
-	}
-	if len(engines) != 3 || strings.Contains(readGenerated(t), "[two]") {
-		t.Fatalf("deleting a profile: %d engines, generated file = %q", len(engines), readGenerated(t))
+	if len(*f.engines) != 3 || strings.Contains(readGenerated(t), "[two]") {
+		t.Fatalf("deleting a profile: %d engines, generated file = %q", len(*f.engines), readGenerated(t))
 	}
 }
 

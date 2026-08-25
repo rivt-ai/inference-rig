@@ -53,19 +53,9 @@ func (m *Manager) reloadRouter(ctx context.Context, backend backends.Backend) er
 	op := m.reserveLocked(held[0], m.slot.backend, coreruntime.Stopping)
 	m.mu.Unlock()
 
-	// The router is bound to the address of whichever held profile started it,
-	// so any held profile's spec names the same process; the first one serves.
-	doc, err := m.GetProfile(ctx, held[0])
+	spec, err := m.routerSpec(ctx, backend, held[0])
 	if err != nil {
 		return m.fail(ctx, op, err, true)
-	}
-	materialization, err := m.materialize(ctx, backend, doc.Effective)
-	if err != nil {
-		return m.fail(ctx, op, CoreError(ErrorInvalidInput, err.Error(), err), true)
-	}
-	spec, err := backend.LaunchSpec(doc.Effective, materialization)
-	if err != nil {
-		return m.fail(ctx, op, CoreError(ErrorInvalidInput, err.Error(), err), true)
 	}
 	m.transition(ctx, op, coreruntime.Stopping, nil)
 	if process != nil {
@@ -87,4 +77,23 @@ func (m *Manager) reloadRouter(ctx context.Context, backend backends.Backend) er
 	}
 	m.commitStart(ctx, op, replacement)
 	return nil
+}
+
+// routerSpec rebuilds the launch spec of the running router from one profile it
+// holds. The router is bound to the address of whichever held profile started
+// it, so any held profile's spec names the same process.
+func (m *Manager) routerSpec(ctx context.Context, backend backends.Backend, profile string) (coreruntime.LaunchSpec, error) {
+	doc, err := m.GetProfile(ctx, profile)
+	if err != nil {
+		return coreruntime.LaunchSpec{}, err
+	}
+	materialization, err := m.materialize(ctx, backend, doc.Effective)
+	if err != nil {
+		return coreruntime.LaunchSpec{}, CoreError(ErrorInvalidInput, err.Error(), err)
+	}
+	spec, err := backend.LaunchSpec(doc.Effective, materialization)
+	if err != nil {
+		return coreruntime.LaunchSpec{}, CoreError(ErrorInvalidInput, err.Error(), err)
+	}
+	return spec, nil
 }
