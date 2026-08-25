@@ -230,14 +230,21 @@ func (m *Manager) write(ctx context.Context, name, yaml string, createOnly bool)
 	return m.profiles.Get(ctx, name)
 }
 
-// DeleteProfile stops its backend runtime before deleting the profile.
+// DeleteProfile stops its backend runtime before deleting the profile, then
+// regenerates the backend's files so the deleted profile leaves them too.
 func (m *Manager) DeleteProfile(ctx context.Context, name string) (result profiles.DeleteResult, err error) {
 	defer m.recording(ctx, "profile.delete", &err)()
+	doc, err := m.GetProfile(ctx, name)
+	if err != nil {
+		return result, err
+	}
 	if _, stopErr := m.StopRuntime(ctx, name); stopErr != nil && Kind(stopErr) != ErrorNotFound {
 		return result, stopErr
 	}
-	result, err = m.profiles.Delete(ctx, name)
-	return result, mapProfileError(err)
+	if result, err = m.profiles.Delete(ctx, name); err != nil {
+		return result, mapProfileError(err)
+	}
+	return result, m.regenerate(ctx, doc.Effective)
 }
 
 // InstallBackend runs a backend's managed installer.
@@ -634,13 +641,27 @@ func (m *Manager) render(
 // when only a start did, editing a profile left the generated file naming the
 // model the profile no longer used, and the engine answered every request for
 // that profile with a load failure.
+//
+// A running router reads that file only at startup, so when the write changed
+// its content the process is replaced too — without that, a profile created or
+// deleted while the router runs never appears in (or leaves) its model list.
 func (m *Manager) regenerate(ctx context.Context, selected profiles.Profile) error {
 	backend, err := m.Backend(selected.Backend)
 	if err != nil {
 		return err
 	}
-	_, err = m.render(ctx, backend, selected)
-	return err
+	materialization, err := m.materialize(ctx, backend, selected)
+	if err != nil {
+		return CoreError(ErrorInvalidInput, err.Error(), err)
+	}
+	changed := materializationChanged(materialization)
+	if err := writeMaterialization(materialization); err != nil {
+		return CoreError(ErrorRuntime, err.Error(), err)
+	}
+	if !changed {
+		return nil
+	}
+	return m.reloadRouter(ctx, backend)
 }
 
 // requireModelFile refuses a start whose model file is not on disk. Only an
