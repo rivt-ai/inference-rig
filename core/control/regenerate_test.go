@@ -101,6 +101,83 @@ func assertRegenerated(t *testing.T, sources []string) {
 	}
 }
 
+// routerGeneratingBackend is a router (several profiles in one process) whose
+// profiles all render into one shared generated file, like llama.cpp's
+// models.ini.
+type routerGeneratingBackend struct {
+	*generatingBackend
+	activated []string
+}
+
+func (b *routerGeneratingBackend) Capabilities() backends.Capabilities {
+	capabilities := b.Fake.Capabilities()
+	capabilities.SingleActiveProfile = false
+	return capabilities
+}
+
+func (b *routerGeneratingBackend) ActivateRuntime(_ context.Context, p profiles.Profile) error {
+	b.activated = append(b.activated, p.Name)
+	return nil
+}
+
+// A router engine reads the shared generated file only at startup, so a profile
+// created or deleted while the router ran never appeared in (or left) its model
+// list until a manual restart. A write that changes the file must replace the
+// process and re-activate the profiles it held; a write that changes nothing
+// must leave it alone.
+func TestProfileWriteReloadsARunningRouter(t *testing.T) {
+	backend := &routerGeneratingBackend{generatingBackend: &generatingBackend{Fake: backendtest.New("test")}}
+	registry := backends.NewRegistry()
+	if err := registry.Register(backend); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(t.TempDir())
+	var engines []*fakeRuntime
+	manager := NewManager(Dependencies{
+		Registry: registry,
+		Profiles: profiles.NewFileStore(t.TempDir(), 0, registry.BackendLookup()),
+		RuntimeFactory: func(coreruntime.LaunchSpec) Runtime {
+			engine := &fakeRuntime{}
+			engines = append(engines, engine)
+			return engine
+		},
+	})
+	ctx := context.Background()
+	if _, err := manager.PutProfile(ctx, "one", profileYAML("one", "https://example.test/m"), true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.StartRuntime(ctx, "one", false); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.PutProfile(ctx, "two", profileYAML("two", "https://example.test/m"), true); err != nil {
+		t.Fatal(err)
+	}
+	if len(engines) != 2 || engines[0].stops != 1 || engines[1].starts != 1 {
+		t.Fatalf("creating a profile under a running router: %d engines, first stops = %d", len(engines), engines[0].stops)
+	}
+	if got := strings.Join(backend.activated, ","); got != "one,one" {
+		t.Fatalf("activated = %q, want the held profile re-activated after the reload", got)
+	}
+	if status, err := manager.RuntimeStatus(ctx, "one"); err != nil || status.State != coreruntime.Running {
+		t.Fatalf("held profile after reload: status = %#v, err = %v", status, err)
+	}
+
+	if _, err := manager.PutProfile(ctx, "two", profileYAML("two", "https://example.test/m"), false); err != nil {
+		t.Fatal(err)
+	}
+	if len(engines) != 2 {
+		t.Fatalf("a write changing nothing replaced the process: %d engines", len(engines))
+	}
+
+	if _, err := manager.DeleteProfile(ctx, "two"); err != nil {
+		t.Fatal(err)
+	}
+	if len(engines) != 3 || strings.Contains(readGenerated(t), "[two]") {
+		t.Fatalf("deleting a profile: %d engines, generated file = %q", len(engines), readGenerated(t))
+	}
+}
+
 // A model file that is not on disk must fail the start with a typed, readable
 // error rather than reaching the engine as an opaque per-request load failure.
 func TestStartRejectsAProfileWhoseModelFileIsMissing(t *testing.T) {
