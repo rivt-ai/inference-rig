@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"inferencerig/core/profiles"
 )
 
 // ProfilesUsingModel names the profiles whose model source points at path.
@@ -20,12 +22,28 @@ func (m *Manager) ProfilesUsingModel(ctx context.Context, path string) ([]string
 	}
 	var names []string
 	for _, doc := range docs {
-		if referencesModel(doc.Effective.Model.Source, path) {
+		if profileReferencesModel(doc.Effective, path) {
 			names = append(names, doc.Name)
 		}
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// profileReferencesModel reports whether a profile designates path, either as
+// its model source or through an engine arg pointing at a model file. A draft
+// or projector model (model-draft, mmproj) is referenced only from engine_args,
+// so ignoring those reports a file in daily use as unused.
+func profileReferencesModel(p profiles.Profile, path string) bool {
+	if referencesModel(p.Model.Source, path) {
+		return true
+	}
+	for _, value := range p.EngineArgs {
+		if source, ok := value.(string); ok && referencesModel(source, path) {
+			return true
+		}
+	}
+	return false
 }
 
 // referencesModel reports whether a profile's model source designates path.
