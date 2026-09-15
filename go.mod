@@ -17,11 +17,11 @@ require (
 	connectrpc.com/connect v1.20.0
 	github.com/antonikliment/tuikit v0.8.2
 	github.com/dustin/go-humanize v1.0.1
-	github.com/gpustack/gguf-parser-go v0.26.1
+	github.com/gpustack/gguf-parser-go v0.26.3
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/mod v0.40.0
-	golang.org/x/sys v0.47.0
+	golang.org/x/mod v0.41.0
+	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.45.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
