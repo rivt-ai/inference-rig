@@ -22,7 +22,7 @@ func (m *Manager) ProfilesUsingModel(ctx context.Context, path string) ([]string
 	}
 	var names []string
 	for _, doc := range docs {
-		if profileReferencesModel(doc.Effective, path) {
+		if profileReferencesModel(doc.Effective, path) || referencesModel(m.downloadTarget(ctx, doc.Effective), path) {
 			names = append(names, doc.Name)
 		}
 	}
@@ -44,6 +44,28 @@ func profileReferencesModel(p profiles.Profile, path string) bool {
 		}
 	}
 	return false
+}
+
+// downloadTarget is where the backend's resolver would download the profile's
+// model. A URL or repo source names no local path, yet the profile runs the file
+// downloaded there; without this such a model reads as unused and deletable.
+// Resolution failures yield "" so an unresolvable profile simply matches nothing.
+// Multi-file backends are skipped: their resolver queries the network, which a
+// listing run once per local model cannot afford.
+func (m *Manager) downloadTarget(ctx context.Context, p profiles.Profile) string {
+	backend, err := m.Backend(p.Backend)
+	if err != nil || backend.Capabilities().MultiFileArtifacts {
+		return ""
+	}
+	resolved, err := backend.Resolve(ctx, p)
+	if err != nil {
+		return ""
+	}
+	plan, err := backend.Plan(resolved)
+	if err != nil {
+		return ""
+	}
+	return plan.TargetRoot
 }
 
 // referencesModel reports whether a profile's model source designates path.
