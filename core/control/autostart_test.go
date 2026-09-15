@@ -42,6 +42,23 @@ func TestSetProfileAutostartRejectsImpossibleConfiguration(t *testing.T) {
 		t.Fatalf("config = %#v, err = %v", cfg, err)
 	}
 }
+
+func TestDeleteProfileRemovesItFromAutostart(t *testing.T) {
+	manager, _ := lifecycleManager(t, backendtest.New("test"), &fakeRuntime{}, "one")
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("autostart_profiles: [one]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manager.config = configstore.NewFileStore(path, 0)
+	if _, err := manager.DeleteProfile(t.Context(), "one"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := manager.config.Read(t.Context())
+	if err != nil || len(cfg.AutostartProfiles) != 0 {
+		t.Fatalf("config = %#v, err = %v", cfg, err)
+	}
+}
+
 func (*failingStartRuntime) Stop(context.Context) (coreruntime.CommandResult, error) {
 	return coreruntime.CommandResult{Action: "stop"}, nil
 }
