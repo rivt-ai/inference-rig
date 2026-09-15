@@ -49,6 +49,39 @@ func TestResolveDirectURLAndPlanSingleFile(t *testing.T) {
 	}
 }
 
+// A URL-sourced profile runs the file its plan downloads into storage, flat;
+// model usage matches local files against this target.
+func TestPlanTargetsURLSourceInStorage(t *testing.T) {
+	storage := t.TempDir()
+	b := New(Options{ModelStorageDir: storage})
+	cases := []struct{ source, reference, want string }{
+		{
+			"https://huggingface.co/peculiar-ragdoll/Cyber-Tiel-Coder-35B-A3B-GGUF-MTP/resolve/main/Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q4_K_M.gguf",
+			"peculiar-ragdoll/Cyber-Tiel-Coder-35B-A3B-GGUF-MTP/Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q4_K_M.gguf",
+			"Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q4_K_M.gguf",
+		},
+		{
+			"https://huggingface.co/NANI-Nithin/K2-Horizon-MoVA-36B-A4B-GGUF/resolve/main/K2-Horizon-MoVA-36B-A4B-Q4_K_M.gguf",
+			"", "K2-Horizon-MoVA-36B-A4B-Q4_K_M.gguf",
+		},
+	}
+	for _, tc := range cases {
+		p := demoProfile("demo", tc.source)
+		p.Model.Reference = tc.reference
+		r, err := b.Resolve(context.Background(), p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := b.Plan(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if plan.TargetRoot != filepath.Join(storage, tc.want) {
+			t.Fatalf("target = %q, want %q", plan.TargetRoot, tc.want)
+		}
+	}
+}
+
 func TestResolveRejectsEmptySource(t *testing.T) {
 	b := New(Options{ModelStorageDir: t.TempDir()})
 	if _, err := b.Resolve(context.Background(), demoProfile("demo", "")); err == nil {
