@@ -244,6 +244,12 @@ func (m *Manager) DeleteProfile(ctx context.Context, name string) (result profil
 	if result, err = m.profiles.Delete(ctx, name); err != nil {
 		return result, mapProfileError(err)
 	}
+	// A deleted profile left in autostart_profiles fails every daemon start.
+	if m.config != nil {
+		if _, err = m.config.SetProfileAutostart(ctx, name, false); err != nil {
+			return result, mapConfigError(err)
+		}
+	}
 	return result, m.regenerate(ctx, doc.Effective)
 }
 
