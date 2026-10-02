@@ -56,6 +56,12 @@ type SearchRequest struct {
 	Backend string
 	Query   string
 	Limit   int
+	// Refresh bypasses a cached entry and refetches from the remote catalog.
+	// It is excluded from the cache key (json:"-") so a refreshing read stores
+	// its result over the entry a normal read would load, rather than filling a
+	// parallel one — which is what lets it recover a cache written by older
+	// query logic without waiting out the TTL.
+	Refresh bool `json:"-"`
 }
 
 type Result struct {
@@ -104,7 +110,7 @@ func (c *Client) Search(ctx context.Context, req SearchRequest, policy CatalogPo
 	if req.Backend == "" {
 		return Result{}, errors.New("backend is required")
 	}
-	if entry, ok := c.cache.load(req); ok {
+	if entry, ok := c.cache.load(req); ok && !req.Refresh {
 		entry.Result.CacheHit = true
 		entry.Result.Stale = time.Since(entry.UpdatedAt) > c.cache.ttl
 		if entry.Result.Stale {

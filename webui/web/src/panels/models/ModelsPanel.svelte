@@ -253,7 +253,7 @@
               <Field.Field><Field.Label for="catalog-search">Search</Field.Label><Input id="catalog-search" bind:value={appState.catalogQuery.query} placeholder="qwen coder" /></Field.Field>
               <Field.Field><Field.Label for="catalog-sort">Sort</Field.Label><Select.Root type="single" bind:value={appState.catalogQuery.sort}><Select.Trigger id="catalog-sort">{sortOptions.find((option) => option.value === appState.catalogQuery.sort)?.label}</Select.Trigger><Select.Content>{#each sortOptions as option}<Select.Item value={option.value}>{option.label}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
               <Field.Field><Field.Label for="catalog-fit">Fit</Field.Label><Select.Root type="single" value={String(appState.catalogQuery.minFit)} onValueChange={(next: string) => (appState.catalogQuery.minFit = Number(next))}><Select.Trigger id="catalog-fit">{fitOptions.find((option) => option.value === appState.catalogQuery.minFit)?.label}</Select.Trigger><Select.Content>{#each fitOptions as option}<Select.Item value={String(option.value)}>{option.label}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
-              <div class="flex items-end"><Button onclick={app.loadModelCatalog} disabled={appState.catalogLoading}><Search /> Apply</Button></div>
+              <div class="flex items-end"><Button onclick={() => app.loadModelCatalog()} disabled={appState.catalogLoading}><Search /> Apply</Button></div>
             </div>
 
             <ScrollArea class="panel-scroll pr-3">

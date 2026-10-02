@@ -3803,7 +3803,11 @@ type ListModelCatalogRequest struct {
 	// sort orders results server-side: "downloads", "likes", "modified", "fit".
 	Sort string `protobuf:"bytes,4,opt,name=sort,proto3" json:"sort,omitempty"`
 	// min_fit drops models whose best variant does not reach this fit level.
-	MinFit        FitLevel `protobuf:"varint,5,opt,name=min_fit,json=minFit,proto3,enum=inferencerig.control.v1.FitLevel" json:"min_fit,omitempty"`
+	MinFit FitLevel `protobuf:"varint,5,opt,name=min_fit,json=minFit,proto3,enum=inferencerig.control.v1.FitLevel" json:"min_fit,omitempty"`
+	// refresh bypasses the cached entry and refetches from the remote catalog,
+	// so a client can recover from a cache populated by older query logic
+	// without waiting out the TTL.
+	Refresh       bool `protobuf:"varint,6,opt,name=refresh,proto3" json:"refresh,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3871,6 +3875,13 @@ func (x *ListModelCatalogRequest) GetMinFit() FitLevel {
 		return x.MinFit
 	}
 	return FitLevel_FIT_LEVEL_UNSPECIFIED
+}
+
+func (x *ListModelCatalogRequest) GetRefresh() bool {
+	if x != nil {
+		return x.Refresh
+	}
+	return false
 }
 
 type ListModelCatalogResponse struct {
@@ -6775,13 +6786,14 @@ const file_inferencerig_control_v1_control_proto_rawDesc = "" +
 	"\x05state\x18\n" +
 	" \x01(\tR\x05state\x12\x1a\n" +
 	"\brecovery\x18\v \x01(\tR\brecovery\x12\x16\n" +
-	"\x06detail\x18\f \x01(\tR\x06detail\"\xaf\x01\n" +
+	"\x06detail\x18\f \x01(\tR\x06detail\"\xc9\x01\n" +
 	"\x17ListModelCatalogRequest\x12\x18\n" +
 	"\abackend\x18\x01 \x01(\tR\abackend\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x12\n" +
 	"\x04sort\x18\x04 \x01(\tR\x04sort\x12:\n" +
-	"\amin_fit\x18\x05 \x01(\x0e2!.inferencerig.control.v1.FitLevelR\x06minFit\"\xb9\x02\n" +
+	"\amin_fit\x18\x05 \x01(\x0e2!.inferencerig.control.v1.FitLevelR\x06minFit\x12\x18\n" +
+	"\arefresh\x18\x06 \x01(\bR\arefresh\"\xb9\x02\n" +
 	"\x18ListModelCatalogResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12=\n" +
 	"\x06models\x18\x02 \x03(\v2%.inferencerig.control.v1.CatalogModelR\x06models\x12\x1b\n" +

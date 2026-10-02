@@ -322,6 +322,7 @@ func (s *ControlService) ListModelCatalog(ctx context.Context, req *controlv1.Li
 	}
 	result, err := s.manager.ListModelCatalog(ctx, modelcatalog.SearchRequest{
 		Backend: req.GetBackend(), Query: req.GetQuery(), Limit: int(req.GetLimit()),
+		Refresh: req.GetRefresh(),
 	})
 	if err != nil {
 		return nil, rpcError(err)
