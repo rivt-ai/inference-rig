@@ -106,7 +106,7 @@ func (b *Backend) Parameters(context.Context) ([]backends.Parameter, error) {
 		{Name: "engine_args.*", Description: "setup or server command argument", Type: backends.ParameterString},
 		{
 			Name: "engine_args.family", Description: "model family (size-name sources only)",
-			Type: backends.ParameterString, ValueHint: "qwen", DefaultValue: "qwen",
+			Type: backends.ParameterString, ValueHint: "qwen",
 		},
 		{
 			Name: "engine_args.context", Description: "context length (size-name sources only)",
