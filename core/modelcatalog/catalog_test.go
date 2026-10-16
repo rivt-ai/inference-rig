@@ -99,36 +99,34 @@ func TestSearchRefreshBypassesAndReplacesTheCachedEntry(t *testing.T) {
 		HTTPClient: server.Client(), BaseURL: server.URL,
 		CacheDir: filepath.Join(t.TempDir(), "cache"), CacheTTL: time.Hour,
 	})
-	ctx := context.Background()
 	policy := llamacpp.New(llamacpp.Options{}).CatalogPolicy()
 	request := modelcatalog.SearchRequest{Backend: "single", Limit: 1}
 
-	first, err := client.Search(ctx, request, policy)
-	if err != nil || len(first.Models) != 1 || first.Models[0].ID != "owner/before" {
-		t.Fatalf("first result = %#v, err = %v", first, err)
-	}
-	cached, err := client.Search(ctx, request, policy)
-	if err != nil || !cached.CacheHit || cached.Models[0].ID != "owner/before" {
-		t.Fatalf("cached result = %#v, err = %v", cached, err)
-	}
+	expectFirstModel(t, client, request, policy, false, "owner/before")
+	expectFirstModel(t, client, request, policy, true, "owner/before")
 	if listings != 1 {
 		t.Fatalf("cached read refetched: listings = %d, want 1", listings)
 	}
 
 	refresh := request
 	refresh.Refresh = true
-	refreshed, err := client.Search(ctx, refresh, policy)
-	if err != nil || refreshed.CacheHit || refreshed.Models[0].ID != "owner/after" {
-		t.Fatalf("refreshed result = %#v, err = %v", refreshed, err)
-	}
+	expectFirstModel(t, client, refresh, policy, false, "owner/after")
 
 	// The decisive assertion: an ordinary read now serves the refreshed models
 	// from cache, so Refresh replaced the entry instead of adding a new one.
-	after, err := client.Search(ctx, request, policy)
-	if err != nil || !after.CacheHit || after.Models[0].ID != "owner/after" {
-		t.Fatalf("post-refresh cached result = %#v, err = %v", after, err)
-	}
+	expectFirstModel(t, client, request, policy, true, "owner/after")
 	if listings != 2 {
 		t.Fatalf("listings = %d, want 2", listings)
+	}
+}
+
+func expectFirstModel(t *testing.T, client *modelcatalog.Client, request modelcatalog.SearchRequest,
+	policy modelcatalog.CatalogPolicy, wantHit bool, wantID string,
+) {
+	t.Helper()
+	result, err := client.Search(context.Background(), request, policy)
+	if err != nil || result.CacheHit != wantHit || len(result.Models) != 1 || result.Models[0].ID != wantID {
+		t.Fatalf("search(refresh=%v) = %#v, err = %v; want hit=%v id=%s",
+			request.Refresh, result, err, wantHit, wantID)
 	}
 }
