@@ -36,8 +36,8 @@ flowchart TB
         SUPERVISOR["core/runtime.Supervisor\n(generic process lifecycle)"]
     end
 
-    BACKENDS["backends.Backend\n(llamacpp, mlx)"]
-    ENGINE["Inference engine process\n(llama-server, mlx_lm.server, ...)"]
+    BACKENDS["backends.Backend\n(llamacpp, mlx, strata)"]
+    ENGINE["Inference engine process\n(llama-server, mlx_lm.server, Strata server, ...)"]
 
     subgraph domain["Core domain packages"]
         PROFILES["core/profiles"]
@@ -136,8 +136,12 @@ catalog policy. Optional facets sit *outside* the interface (e.g.
 
 - `backends/registry.go` — registration + `BackendLookup` for the profile store
 - `backends/all/register.go` — which backends exist on this host (MLX only on
-  darwin/arm64)
-- `backends/llamacpp/`, `backends/mlx/` — the two implementations
+  darwin/arm64, Strata only on linux)
+- `backends/llamacpp/`, `backends/mlx/`, `backends/strata/` — the
+  implementations. Strata (Linux only) drives Strata's own `setup.py` /
+  `serve/server.py`: a profile's `model.source` is either a size name (run
+  through setup in the managed checkout) or a setup-written `strata-*.json`
+  (served directly from that checkout)
 - `backends/backendtest/` + `backends/contract_test.go` — contract conformance
   suite every backend must pass
 
