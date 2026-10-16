@@ -216,3 +216,31 @@ func TestAutostartRouterProfilesRequireOneListenAddress(t *testing.T) {
 		t.Fatalf("router validation error = %v", err)
 	}
 }
+
+// cancellingRuntime cancels its caller's context mid-start, the way a client
+// that stops waiting does, and records what the start then sees.
+type cancellingRuntime struct {
+	fakeRuntime
+	cancel context.CancelFunc
+	seen   error
+}
+
+func (r *cancellingRuntime) Start(ctx context.Context) (coreruntime.CommandResult, error) {
+	r.cancel()
+	r.seen = ctx.Err()
+	return r.fakeRuntime.Start(ctx)
+}
+
+func TestStartRuntimeOutlivesACallerThatStopsWaiting(t *testing.T) {
+	manager, _ := lifecycleManager(t, backendtest.New("test"), &fakeRuntime{}, "zeta")
+	ctx, cancel := context.WithCancel(t.Context())
+	engine := &cancellingRuntime{cancel: cancel}
+	manager.factory = func(coreruntime.LaunchSpec) Runtime { return engine }
+	if _, err := manager.StartRuntime(ctx, "zeta", false); err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.RuntimeStatus(t.Context(), "zeta")
+	if engine.seen != nil || err != nil || status.State != coreruntime.Running {
+		t.Fatalf("seen = %v, status = %#v, err = %v", engine.seen, status, err)
+	}
+}
