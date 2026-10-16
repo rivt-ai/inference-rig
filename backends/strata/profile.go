@@ -32,7 +32,7 @@ func (b *Backend) ValidateProfile(p profiles.Profile) (profiles.Profile, error) 
 	if p.Listen.Host == "" {
 		p.Listen.Host = defaultHost
 	}
-	if _, err := buildCommand(b.checkout(), p); err != nil {
+	if _, err := buildCommand(b.checkout(), b.dataDir(), p); err != nil {
 		return profiles.Profile{}, err
 	}
 	return p, nil
@@ -41,7 +41,7 @@ func (b *Backend) ValidateProfile(p profiles.Profile) (profiles.Profile, error) 
 // Materialize renders the command without writing backend files: Strata's
 // setup writes and owns its own engine config.
 func (b *Backend) Materialize(p profiles.Profile) (backends.Materialization, error) {
-	command, err := buildCommand(b.checkout(), p)
+	command, err := buildCommand(b.checkout(), b.dataDir(), p)
 	if err != nil {
 		return backends.Materialization{}, err
 	}
@@ -56,7 +56,7 @@ func (b *Backend) LaunchSpec(p profiles.Profile, _ backends.Materialization) (ru
 		LogName: config.LogServiceEngine,
 	}
 	checkout := b.checkout()
-	command, err := buildCommand(checkout, p)
+	command, err := buildCommand(checkout, b.dataDir(), p)
 	switch {
 	case err != nil:
 		spec.BuildErr = fmt.Errorf("render Strata command: %w", err)
@@ -73,6 +73,17 @@ func (b *Backend) LaunchSpec(p profiles.Profile, _ backends.Materialization) (ru
 		spec.BuildErr = err
 	}
 	return spec, nil
+}
+
+// dataDir is where Strata keeps its model data: under the engine root, beside
+// the checkouts, so it survives upgrades and stays out of the shared model
+// storage other backends scan.
+func (b *Backend) dataDir() string {
+	root, err := b.engineRoot()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(root, "data")
 }
 
 // checkout is the managed Strata checkout, or "" when none is installed.
