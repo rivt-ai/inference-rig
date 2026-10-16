@@ -140,8 +140,10 @@ catalog policy. Optional facets sit *outside* the interface (e.g.
 - `backends/llamacpp/`, `backends/mlx/`, `backends/strata/` — the
   implementations. Strata (Linux only) drives Strata's own `setup.py` /
   `serve/server.py`: a profile's `model.source` is either a size name (run
-  through setup in the managed checkout) or a setup-written `strata-*.json`
-  (served directly from that checkout)
+  through setup in the managed checkout, with its model data pinned to
+  `engine/strata/data`) or a `strata-*.json` (served from the checkout that
+  holds it, else from the managed one — so a calibrated config can live in
+  `engine/strata/configs/`)
 - `backends/backendtest/` + `backends/contract_test.go` — contract conformance
   suite every backend must pass
 
