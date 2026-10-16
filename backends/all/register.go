@@ -7,6 +7,7 @@ import (
 	"inferencerig/backends"
 	"inferencerig/backends/llamacpp"
 	"inferencerig/backends/mlx"
+	"inferencerig/backends/strata"
 )
 
 // Options supplies neutral settings shared by every built-in backend.
@@ -18,15 +19,18 @@ type Options struct {
 }
 
 // Register adds every built-in backend that can run on this host. MLX is
-// registered only on Apple silicon: elsewhere its installer and its runtime
-// both fail by construction, so offering it only produces a backend the user
-// can select but never start.
+// registered only on Apple silicon and Strata only on Linux: elsewhere their
+// installers fail by construction, so offering them only produces a backend
+// the user can select but never start.
 func Register(registry *backends.Registry, options Options) error {
 	if err := registry.Register(llamacpp.New(llamacpp.Options{
 		ModelStorageDir:            options.ModelStorageDir,
 		ExposeModelsWithoutProfile: options.ExposeModelsWithoutProfile,
 	})); err != nil {
 		return err
+	}
+	if runtime.GOOS == "linux" {
+		return registry.Register(strata.New(strata.Options{ModelStorageDir: options.ModelStorageDir}))
 	}
 	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
 		return nil

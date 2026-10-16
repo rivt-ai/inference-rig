@@ -335,6 +335,11 @@ func (m *Manager) StartRuntime(ctx context.Context, name string, replace bool) (
 	if err != nil {
 		return result, err
 	}
+	// Once the slot is reserved the start belongs to the daemon, not the
+	// caller: an engine may need far longer to become ready than a client
+	// waits, and a client giving up must not kill a half-loaded engine. The
+	// outcome still lands in the slot and the event stream.
+	ctx = context.WithoutCancel(ctx)
 	result = coreruntime.CommandResult{Action: "start"}
 	if plan.stop != nil {
 		m.transition(ctx, plan.op, coreruntime.Stopping, nil)
