@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -41,25 +42,37 @@ func configSource(source string) bool {
 
 // buildCommand renders the profile into either a direct server run (config
 // source) or a setup run (size name) through the managed checkout at
-// checkout. Whether a checkout is installed is the launcher's concern, so a
-// profile validates before the engine is installed.
-func buildCommand(checkout string, p profiles.Profile) (Command, error) {
+// checkout, keeping Strata's model data in dataDir. Whether a checkout is
+// installed is the launcher's concern, so a profile validates before the
+// engine is installed.
+func buildCommand(checkout, dataDir string, p profiles.Profile) (Command, error) {
 	source := strings.TrimSpace(p.Model.Source)
 	if source == "" {
 		return Command{}, errMissingModel
 	}
 	if configSource(source) {
-		return serverCommand(config.ExpandHome(source), p)
+		return serverCommand(config.ExpandHome(source), checkout, p)
 	}
 	if strings.HasPrefix(source, "-") || strings.ContainsAny(source, " \t\r\n") {
 		return Command{}, errUnsafeSourceName
 	}
-	argv := []string{filepath.Join(checkout, "setup.py"), "--model", source, "--yes", "--no-browser"}
+	// --data-dir pins Strata's model data under the infr engine root. Setup
+	// moves data from its previously remembered folder there on the same
+	// drive, so an existing install is adopted without a re-download.
+	argv := []string{
+		filepath.Join(checkout, "setup.py"), "--model", source, "--yes", "--no-browser", "--data-dir", dataDir,
+	}
 	return finish(venvPython(checkout), argv, p, setupReserved, true)
 }
 
-func serverCommand(cfg string, p profiles.Profile) (Command, error) {
+// serverCommand runs the server from the checkout that holds cfg, which is
+// where setup writes it. A config kept elsewhere — say an infr-owned copy of a
+// calibrated one — runs from the managed checkout instead.
+func serverCommand(cfg, managed string, p profiles.Profile) (Command, error) {
 	checkout := filepath.Dir(cfg)
+	if _, err := os.Stat(filepath.Join(checkout, "serve", "server.py")); err != nil && managed != "" {
+		checkout = managed
+	}
 	argv := []string{filepath.Join(checkout, "serve", "server.py"), "--engine", "strata", "--config", cfg}
 	return finish(venvPython(checkout), argv, p, serverReserved, false)
 }
@@ -97,7 +110,7 @@ func venvPython(checkout string) string {
 var (
 	serverReserved = []string{"engine", "config", "host", "port", "open"}
 	setupReserved  = []string{
-		"model", "host", "port", "yes", "browser", "no-browser", "setup", "no-start",
+		"model", "host", "port", "yes", "browser", "no-browser", "setup", "no-start", "data-dir",
 		"check", "update", "rollback-engine", "inspect",
 	}
 )

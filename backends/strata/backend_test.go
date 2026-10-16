@@ -101,7 +101,7 @@ func TestSizeSourceNeedsInstallThenRunsSetup(t *testing.T) {
 	spec, _ = b.LaunchSpec(p, backends.Materialization{})
 	want := []string{
 		filepath.Join(checkout, "setup.py"), "--model", "IQ2_XS", "--yes", "--no-browser",
-		"--host", "127.0.0.1", "--port", "8080", "--context", "65536", "--kv", "int8",
+		"--data-dir", filepath.Join(filepath.Dir(checkout), "data"), "--host", "127.0.0.1", "--port", "8080", "--context", "65536", "--kv", "int8",
 	}
 	if spec.BuildErr != nil || spec.Executable != result.Path || !reflect.DeepEqual(spec.Argv, want) {
 		t.Fatalf("spec = %#v", spec)
@@ -152,5 +152,19 @@ func TestFitCountsRAMAndVRAMTogether(t *testing.T) {
 	est, _ := b.Fit(profiles.Profile{}, 40<<30, backends.HostResources{AvailableRAMBytes: 36 << 30, VRAMBytes: 12 << 30})
 	if est.Level == backends.FitTooLarge || est.AvailableBytes != 48<<30 {
 		t.Fatalf("est = %#v", est)
+	}
+}
+
+func TestConfigOutsideACheckoutRunsFromTheManagedOne(t *testing.T) {
+	b := newTestBackend(t, &stubRunner{})
+	result, err := b.Install(context.Background(), backends.InstallOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkout := filepath.Dir(filepath.Dir(filepath.Dir(result.Path)))
+	cfg := filepath.Join(t.TempDir(), "strata-coder.json")
+	spec, _ := b.LaunchSpec(profile(cfg, nil), backends.Materialization{})
+	if spec.BuildErr != nil || spec.Executable != result.Path || spec.Argv[0] != filepath.Join(checkout, "serve", "server.py") {
+		t.Fatalf("spec = %#v", spec)
 	}
 }
