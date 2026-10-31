@@ -13,10 +13,10 @@ require (
 	charm.land/bubbletea/v2 v2.1.0
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.6
-	connectrpc.com/connect v1.21.0
+	connectrpc.com/connect v1.21.1
 	github.com/antonikliment/tuikit v0.9.0
 	github.com/dustin/go-humanize v1.1.0
-	github.com/gpustack/gguf-parser-go v0.26.4
+	github.com/gpustack/gguf-parser-go v0.27.0
 	github.com/shirou/gopsutil/v4 v4.26.9
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/mod v0.42.0
