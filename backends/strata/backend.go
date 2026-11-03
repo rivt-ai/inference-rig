@@ -9,6 +9,7 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"inferencerig/backends"
 	"inferencerig/config"
@@ -157,10 +158,17 @@ func (b *Backend) engineRoot() (string, error) {
 }
 
 // CatalogPolicy returns the catalog adapter. Strata's setup owns model
-// downloads, so the shared catalog has nothing to offer or list for it.
-func (b *Backend) CatalogPolicy() modelcatalog.CatalogPolicy { return catalogPolicy{} }
+// downloads, so the shared catalog offers nothing for it; listing covers only
+// the dirs an infr-managed install writes to.
+func (b *Backend) CatalogPolicy() modelcatalog.CatalogPolicy {
+	roots := []string{filepath.Join(b.dataDir(), "models")}
+	if storage, err := b.storageDir(); err == nil {
+		roots = append(roots, filepath.Join(storage, Name))
+	}
+	return catalogPolicy{roots: roots}
+}
 
-type catalogPolicy struct{}
+type catalogPolicy struct{ roots []string }
 
 func (catalogPolicy) SearchFilter() string { return "gguf" }
 
@@ -168,7 +176,22 @@ func (catalogPolicy) Variants(modelcatalog.Source, []modelcatalog.RemoteFile) ([
 	return nil, nil
 }
 
-func (catalogPolicy) ListLocal(context.Context) ([]modelcatalog.LocalModel, error) { return nil, nil }
+func (c catalogPolicy) ListLocal(ctx context.Context) ([]modelcatalog.LocalModel, error) {
+	var models []modelcatalog.LocalModel
+	for _, root := range c.roots {
+		found, err := modelcatalog.NewScanner(root, ggufFiles{}).ListLocal(ctx)
+		if err != nil {
+			return nil, err
+		}
+		models = append(models, found...)
+	}
+	return models, nil
+}
+
+type ggufFiles struct{}
+
+func (ggufFiles) IsModelFile(name string) bool { return strings.EqualFold(filepath.Ext(name), ".gguf") }
+func (ggufFiles) MultiFile() bool              { return true }
 
 func (catalogPolicy) DeleteLocal(string) error { return errSetupOwnsModels }
 
