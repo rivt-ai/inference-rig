@@ -13,11 +13,11 @@ require (
 	charm.land/bubbletea/v2 v2.1.0
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.6
-	connectrpc.com/connect v1.21.0
-	github.com/antonikliment/tuikit v0.9.0
+	connectrpc.com/connect v1.21.1
+	github.com/antonikliment/tuikit v0.10.0
 	github.com/dustin/go-humanize v1.1.0
-	github.com/gpustack/gguf-parser-go v0.26.4
-	github.com/shirou/gopsutil/v4 v4.26.9
+	github.com/gpustack/gguf-parser-go v0.27.0
+	github.com/shirou/gopsutil/v4 v4.26.10
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/mod v0.42.0
 	golang.org/x/sys v0.49.0
@@ -74,7 +74,7 @@ require (
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/ebitengine/purego v0.11.2 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
 	github.com/go-enry/go-enry/v2 v2.8.0 // indirect
