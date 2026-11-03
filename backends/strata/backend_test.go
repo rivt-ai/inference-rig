@@ -170,11 +170,11 @@ func TestConfigOutsideACheckoutRunsFromTheManagedOne(t *testing.T) {
 }
 
 func TestCatalogPolicyListsManagedModels(t *testing.T) {
-	engine, storage := t.TempDir(), t.TempDir()
+	engine := t.TempDir()
 	for _, path := range []string{
 		filepath.Join(engine, "data", "models", "coder-IQ1_M", "m-00001-of-00002.gguf"),
-		filepath.Join(storage, Name, "m.gguf"),
-		filepath.Join(storage, Name, "notes.txt"),
+		filepath.Join(engine, "data", "models", "IQ3_S", "m.gguf"),
+		filepath.Join(engine, "data", "models", "notes.txt"),
 	} {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatal(err)
@@ -183,7 +183,7 @@ func TestCatalogPolicyListsManagedModels(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	models, err := New(Options{EngineRoot: engine, ModelStorageDir: storage}).CatalogPolicy().ListLocal(t.Context())
+	models, err := New(Options{EngineRoot: engine}).CatalogPolicy().ListLocal(t.Context())
 	if err != nil || len(models) != 2 {
 		t.Fatalf("models = %+v, err = %v", models, err)
 	}

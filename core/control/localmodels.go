@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -119,27 +120,15 @@ func (m *Manager) DeleteLocalModelCascade(
 // Strata config written by its own setup, is otherwise invisible to clients.
 func (m *Manager) withProfileSources(ctx context.Context, backendName string, models []modelcatalog.LocalModel) ([]modelcatalog.LocalModel, error) {
 	docs, err := m.ListProfileDocuments(ctx)
-	if err != nil {
-		return nil, err
-	}
-	seen := make(map[string]bool, len(models))
-	for _, model := range models {
-		seen[model.Path] = true
-	}
 	for _, doc := range docs {
 		path := filepath.Clean(config.ExpandHome(doc.Effective.Model.Source))
-		if doc.Effective.Backend != backendName || !filepath.IsAbs(path) || seen[path] {
-			continue
-		}
 		info, statErr := os.Stat(path)
-		if statErr != nil || !info.Mode().IsRegular() {
+		listed := slices.ContainsFunc(models, func(m modelcatalog.LocalModel) bool { return m.Path == path })
+		if doc.Effective.Backend != backendName || listed || statErr != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		seen[path] = true
-		models = append(models, modelcatalog.LocalModel{
-			Path: path, Filename: info.Name(), SizeBytes: info.Size(), ModifiedAt: info.ModTime().UTC(),
-		})
+		models = append(models, modelcatalog.LocalModel{Path: path, Filename: info.Name(), SizeBytes: info.Size(), ModifiedAt: info.ModTime().UTC()})
 	}
 	sort.Slice(models, func(i, j int) bool { return models[i].Path < models[j].Path })
-	return models, nil
+	return models, err
 }
