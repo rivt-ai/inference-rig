@@ -6,7 +6,7 @@ module inferencerig
 // GO-2026-6603..6617 (crypto/tls, net/http, net/textproto), on top of the
 // earlier GO-2026-6218, -6090, -6089, -5972 and -5026, all of which govulncheck
 // reports as reachable from the gateway's HTTP server. Bump this line to clear future stdlib advisories.
-go 1.26.9
+go 1.26.10
 
 require (
 	charm.land/bubbles/v2 v2.2.1
