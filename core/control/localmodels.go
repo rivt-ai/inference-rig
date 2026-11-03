@@ -2,10 +2,14 @@ package control
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
+	"inferencerig/config"
+	"inferencerig/core/modelcatalog"
 	"inferencerig/core/profiles"
 )
 
@@ -109,4 +113,22 @@ func (m *Manager) DeleteLocalModelCascade(
 		removed = append(removed, name)
 	}
 	return removed, nil
+}
+
+// withProfileSources adds the on-disk model sources of the backend's profiles
+// that the storage scan missed. A model kept outside infr's storage, such as a
+// Strata config written by its own setup, is otherwise invisible to clients.
+func (m *Manager) withProfileSources(ctx context.Context, backendName string, models []modelcatalog.LocalModel) ([]modelcatalog.LocalModel, error) {
+	docs, err := m.ListProfileDocuments(ctx)
+	for _, doc := range docs {
+		path := filepath.Clean(config.ExpandHome(doc.Effective.Model.Source))
+		info, statErr := os.Stat(path)
+		listed := slices.ContainsFunc(models, func(m modelcatalog.LocalModel) bool { return m.Path == path })
+		if doc.Effective.Backend != backendName || listed || statErr != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		models = append(models, modelcatalog.LocalModel{Path: path, Filename: info.Name(), SizeBytes: info.Size(), ModifiedAt: info.ModTime().UTC()})
+	}
+	sort.Slice(models, func(i, j int) bool { return models[i].Path < models[j].Path })
+	return models, err
 }

@@ -140,7 +140,7 @@ func (m *Manager) ListLocalModels(ctx context.Context, backendName string) ([]mo
 	if err != nil {
 		return nil, CoreError(ErrorRuntime, err.Error(), err)
 	}
-	return models, nil
+	return m.withProfileSources(ctx, backendName, models)
 }
 
 func (m *Manager) DeleteLocalModel(ctx context.Context, backendName, path string) (err error) {
