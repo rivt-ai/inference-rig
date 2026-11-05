@@ -1,0 +1,21 @@
+{
+  "global": 15712,
+  "areas": {
+    "adapters": 2592,
+    "backends": 3368,
+    "bootstrap": 334,
+    "cmd": 949,
+    "config": 256,
+    "core": 7011,
+    "internal": 222,
+    "platform": 966,
+    "webui": 3
+  },
+  "exclude-dirs": [
+    "vendor",
+    ".git",
+    "node_modules",
+    "webui/dist",
+    "backends/backendtest"
+  ]
+}

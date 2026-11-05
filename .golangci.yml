@@ -10,7 +10,6 @@ linters:
     - funlen
     - nestif
     - dupl
-    - goclocbudget
     - gosec
 
   settings:
@@ -54,26 +53,6 @@ linters:
         - G118
     dupl:
       threshold: 100
-    custom:
-      goclocbudget:
-        type: "module"
-        description: "Enforces the implementation Go LOC budget using gocloc."
-        settings:
-          max-go-code-lines: 15725
-          include-tests: false
-          exclude-generated: true
-          exclude-dirs:
-            - vendor
-            - .git
-            - node_modules
-            - webui/dist
-            # backendtest is the shared fake and contract suite every backend's
-            # tests run against. It is test code that only happens not to be
-            # named _test.go, because packages under test import it; counting it
-            # as implementation contradicts include-tests: false above.
-            # scripts/go-coverage.sh excludes the same package for the same
-            # reason.
-            - backends/backendtest
 
   exclusions:
     rules:
