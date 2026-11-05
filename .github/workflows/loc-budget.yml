@@ -8,6 +8,8 @@ on:
   push:
     branches: [main]
 
+permissions: {}
+
 concurrency:
   group: loc-budget-${{ github.event.pull_request.number || github.ref }}
 
@@ -17,12 +19,14 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: antonikliment/go-code-metrics/.github/workflows/budget-pr.yml@budget-ledger
+    uses: antonikliment/go-code-metrics/.github/workflows/budget-pr.yml@0fe2d7bbad4020b494c13e3b2452c9cebdcdb67b # budget-ledger
     with:
       version: budget-ledger
   main:
     if: github.event_name == 'push'
-    uses: antonikliment/go-code-metrics/.github/workflows/budget-main.yml@budget-ledger
+    permissions:
+      contents: read
+    uses: antonikliment/go-code-metrics/.github/workflows/budget-main.yml@0fe2d7bbad4020b494c13e3b2452c9cebdcdb67b # budget-ledger
     with:
       version: budget-ledger
     secrets:
