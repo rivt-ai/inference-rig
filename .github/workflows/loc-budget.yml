@@ -1,0 +1,35 @@
+name: loc-budget
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted, dismissed]
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: loc-budget-${{ github.event.pull_request.number || github.ref }}
+
+jobs:
+  pr:
+    if: github.event_name != 'push'
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: antonikliment/go-code-metrics/.github/workflows/budget-pr.yml@0fe2d7bbad4020b494c13e3b2452c9cebdcdb67b # budget-ledger
+    with:
+      version: budget-ledger
+  main:
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+    uses: antonikliment/go-code-metrics/.github/workflows/budget-main.yml@0fe2d7bbad4020b494c13e3b2452c9cebdcdb67b # budget-ledger
+    with:
+      version: budget-ledger
+    secrets:
+      app-id: ${{ secrets.LINE_WARDEN_APP_ID }}
+      app-key: ${{ secrets.LINE_WARDEN_APP_KEY }}
+      token: ${{ secrets.LOC_BUDGET_TOKEN }}
