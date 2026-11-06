@@ -1,12 +1,12 @@
 {
-  "global": 15715,
+  "global": 15712,
   "areas": {
     "adapters": 2592,
     "backends": 3368,
     "bootstrap": 334,
     "cmd": 949,
     "config": 256,
-    "core": 7014,
+    "core": 7011,
     "internal": 222,
     "platform": 966,
     "webui": 3
