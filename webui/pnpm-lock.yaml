@@ -23,8 +23,8 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0(@bufbuild/protobuf@2.16.0)(@connectrpc/connect@2.2.0(@bufbuild/protobuf@2.16.0))
       layerchart:
-        specifier: ^2.9.1
-        version: 2.9.1(svelte@5.57.3)
+        specifier: ^2.9.2
+        version: 2.9.2(svelte@5.57.3)
       svelte:
         specifier: ^5.57.3
         version: 5.57.3
@@ -81,8 +81,8 @@ importers:
         specifier: ^1.7.2
         version: 1.7.2(svelte@5.57.3)
       svelte-check:
-        specifier: ^4.7.7
-        version: 4.7.7(picomatch@4.0.7)(svelte@5.57.3)(typescript@6.0.3)
+        specifier: ^4.7.8
+        version: 4.7.8(picomatch@4.0.7)(svelte@5.57.3)(typescript@6.0.3)
       svelte-sonner:
         specifier: ^1.2.2
         version: 1.2.2(svelte@5.57.3)
@@ -896,8 +896,8 @@ packages:
       canvas:
         optional: true
 
-  layerchart@2.9.1:
-    resolution: {integrity: sha512-ftS5hcrogs+AhfSnNzTkFZCMTjPh3UYcU7MNMpN+M+SHx1AIm/IKxY2t2cJMmxAmc+JJfbB5Z6BmnqV6v7IOnw==}
+  layerchart@2.9.2:
+    resolution: {integrity: sha512-KC2eH8657diyZ8pdSlsgxGMCk61GQslP/wpcfbaGoIgKTnefw3sl7Xl+vrYnhPdSst4IxGGclPTXOeOeCYC6PQ==}
     peerDependencies:
       svelte: ^5.0.0
 
@@ -1237,8 +1237,8 @@ packages:
   style-to-object@1.0.14:
     resolution: {integrity: sha512-LIN7rULI0jBscWQYaSswptyderlarFkjQ+t79nzty8tcIAceVomEVlLzH5VP4Cmsv6MtKhs7qaAiwlcp+Mgaxw==}
 
-  svelte-check@4.7.7:
-    resolution: {integrity: sha512-Ge2IMdeTpbJuzNFGRiiMg0RWgbScysKQu7xwcyFJ22+DU9F5nPX51+Q3gHmGqRxYQMx2knreVWt5oCtfe0vf2g==}
+  svelte-check@4.7.8:
+    resolution: {integrity: sha512-laZ49GFHZ3b0z2PWinJWL0syehc/PTR8aHaUaTiBkWJ+4Y38nhxjmXsSz7CbGa3VdKopViVbrBH3bGNqIAI0bQ==}
     engines: {node: '>= 18.0.0'}
     hasBin: true
     peerDependencies:
@@ -2128,7 +2128,7 @@ snapshots:
     transitivePeerDependencies:
       - '@noble/hashes'
 
-  layerchart@2.9.1(svelte@5.57.3):
+  layerchart@2.9.2(svelte@5.57.3):
     dependencies:
       '@dagrejs/dagre': 2.0.4
       '@layerstack/svelte-actions': 1.0.1-next.20
@@ -2433,7 +2433,7 @@ snapshots:
     dependencies:
       inline-style-parser: 0.2.7
 
-  svelte-check@4.7.7(picomatch@4.0.7)(svelte@5.57.3)(typescript@6.0.3):
+  svelte-check@4.7.8(picomatch@4.0.7)(svelte@5.57.3)(typescript@6.0.3):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@sveltejs/load-config': 0.2.3
