@@ -10,13 +10,13 @@ go 1.26.10
 
 require (
 	charm.land/bubbles/v2 v2.2.1
-	charm.land/bubbletea/v2 v2.1.0
+	charm.land/bubbletea/v2 v2.1.1
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.6
 	connectrpc.com/connect v1.21.1
-	github.com/antonikliment/tuikit v0.10.0
+	github.com/antonikliment/tuikit v0.11.0
 	github.com/dustin/go-humanize v1.1.0
-	github.com/gpustack/gguf-parser-go v0.27.0
+	github.com/gpustack/gguf-parser-go v0.28.1
 	github.com/shirou/gopsutil/v4 v4.26.10
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/mod v0.42.0
